@@ -1,0 +1,15 @@
+{
+  "name": "business-command-center",
+  "main": "worker.js",
+  "compatibility_date": "2026-06-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "SUPABASE_URL": "https://suevmjssnbmqsgbsurqi.supabase.co",
+    "ACCESS_TEAM": "crimson-mountain-f72f",
+    "TABLE": "bcc_status"
+  }
+}
