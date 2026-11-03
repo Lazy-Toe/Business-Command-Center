@@ -1,3 +1,4 @@
+body{margin:0}img{max-width:100%}[hidden]{display:none!important}
 /* Layout: aikajana ylhäällä (vaalea → tumma = kuuntelusta toimeenpanoon), sen alla vivut ja työvirta × vaihe -ruudukko, lopuksi tumma edellytysnauha */
 :root {
   --paper: #F7F8FA;

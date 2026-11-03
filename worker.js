@@ -15,7 +15,7 @@ let certCache = { at: 0, keys: [] };
 function json(body, status) {
   return new Response(JSON.stringify(body), {
     status: status || 200,
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" }
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" }
   });
 }
 
@@ -55,6 +55,7 @@ export async function verifyAccess(request, env) {
   if (!ok) return null;
   const now = Math.floor(Date.now() / 1000);
   if (!payload.exp || payload.exp < now) return null;
+  if (payload.nbf && payload.nbf > now + 60) return null;
   if (payload.iss !== "https://" + env.ACCESS_TEAM + ".cloudflareaccess.com") return null;
   if (env.ACCESS_AUD) {
     const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
@@ -108,7 +109,7 @@ export function cleanOps(ops) {
       out.position = o.position;
     }
     if (o.parent_id !== undefined) {
-      if (o.parent_id !== null && !ID_RE.test(o.parent_id)) throw bad("bad_parent");
+      if (o.parent_id !== null && (!ID_RE.test(o.parent_id) || o.parent_id === o.id)) throw bad("bad_parent");
       out.parent_id = o.parent_id;
     }
     if (o.op === "put") {
@@ -195,10 +196,17 @@ export default {
     if (url.pathname.indexOf("/api/") === 0) {
       try { return await api(request, env, url); } catch (e) {
         if (e.http) return json({ error: e.message }, e.http);
-        if (e.message === "db") return json({ error: "db", status: e.status, detail: e.detail }, 502);
+        // Tietokannan virheviesti jää lokiin eikä päädy vastaukseen.
+        if (e.message === "db" && e.detail === "plan_not_found") return json({ error: "plan_not_found" }, 409);
+        console.error(e.message, e.status || "", e.detail || "");
+        if (e.message === "db") return json({ error: "db", status: e.status }, 502);
         return json({ error: "server" }, 500);
       }
     }
     return env.ASSETS.fetch(request);
+  },
+  // Pitää ilmaisen Supabase-projektin aktiivisena, jotta se ei keskeydy käyttämättömänä.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(db(env, "bcc_plans?select=id&limit=1"));
   }
 };

@@ -70,6 +70,7 @@ test("pääsy vaatii kelvollisen tunnisteen ja sallitun osoitteen", async () => 
   assert.equal((await req("/plans", { token: "roskaa" })).status, 403);
   assert.equal((await req("/plans", { token: fake.token("vieras@example.test") })).status, 403);
   assert.equal((await req("/plans", { token: fake.token(ME, 1000) })).status, 403);
+  assert.equal((await req("/plans", { token: fake.token(ME, 0, { nbf: Math.floor(Date.now() / 1000) + 3600 }) })).status, 403, "ei vielä voimassa");
   const t = fake.token(ME), parts = t.split(".");
   parts[1] = Buffer.from(JSON.stringify({ email: ME, iss: "https://" + fake.team + ".cloudflareaccess.com", exp: 9999999999 })).toString("base64url");
   assert.equal((await req("/plans", { token: parts.join(".") })).status, 403, "muokattu tunniste");
@@ -85,7 +86,7 @@ test("toiselta sivulta tuleva muutos hylätään", async () => {
 });
 
 test("virheelliset muutokset hylätään", async () => {
-  for (const ops of [[], "x", [{ op: "drop", id: "a" }], [{ op: "put", id: "a b", kind: "x" }], [{ op: "put", id: "a", kind: "X!" }], [{ op: "patch", id: "a", data: [] }], [{ op: "patch", id: "a", position: "1" }]]) {
+  for (const ops of [[], "x", [{ op: "drop", id: "a" }], [{ op: "put", id: "a b", kind: "x" }], [{ op: "put", id: "a", kind: "X!" }], [{ op: "patch", id: "a", data: [] }], [{ op: "patch", id: "a", position: "1" }], [{ op: "patch", id: "a", parent_id: "a" }]]) {
     assert.throws(() => cleanOps(ops), undefined, JSON.stringify(ops));
   }
   assert.equal((await req("/plans/emce-100/items", { method: "POST", body: { ops: [{ op: "put", id: "x y", kind: "task" }] } })).status, 400);
@@ -114,7 +115,19 @@ test("monistus on erillinen, poisto arkistoi", async () => {
   assert.equal((await req("/plans/kopio1", { method: "DELETE" })).status, 200);
   assert.ok(!(await (await req("/plans")).json()).plans.some((p) => p.id === "kopio1"));
   assert.equal((await q("select count(*)::int n from bcc_items where plan_id = 'kopio1'"))[0].n > 0, true);
-  assert.equal((await req("/plans/kopio1/items", { method: "POST", body: { ops: [{ op: "del", id: "sec-hero" }] } })).status, 502, "arkistoitua ei muokata");
+  assert.equal((await req("/plans/kopio1/items", { method: "POST", body: { ops: [{ op: "del", id: "sec-hero" }] } })).status, 409, "arkistoitua ei muokata");
+});
+
+test("ajastus koskettaa tietokantaa", async () => {
+  let p; await worker.scheduled({}, env, { waitUntil: (x) => { p = x; } });
+  assert.ok(Array.isArray(await p));
+});
+
+test("tietokannan virheviesti ei päädy vastaukseen", async () => {
+  await pg.exec("alter table bcc_items add constraint t_k check (kind <> 'salainen')");
+  const r = await req("/plans/emce-100/items", { method: "POST", body: { ops: [{ op: "put", id: "z1", kind: "salainen" }] } });
+  await pg.exec("alter table bcc_items drop constraint t_k");
+  assert.deepEqual(await r.json(), { error: "db", status: 400 });
 });
 
 test("väärä avain ei paljasta mitään", async () => {

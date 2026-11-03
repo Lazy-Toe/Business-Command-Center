@@ -27,22 +27,38 @@ function download(name, blob) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
-const fileName = (t) => (t || "suunnitelma").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+const fileName = (t) => (t || "suunnitelma").normalize("NFD").replace(/\p{M}/gu, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 function loadScript(src) {
   return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("load")); document.head.appendChild(s); });
 }
 
 async function makePdf(title) {
-  if (!window.html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
-  if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+  if (!window.html2canvas) await loadScript("vendor/html2canvas.min.js");
+  if (!window.jspdf) await loadScript("vendor/jspdf.umd.min.js");
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   const w = document.documentElement.clientWidth, h = document.body.scrollHeight, scale = Math.min(2, 30000 / h);
-  const canvas = await window.html2canvas(document.body, { scale, backgroundColor: getComputedStyle(document.body).backgroundColor, windowWidth: w, width: w, height: h, x: 0, y: 0, scrollX: 0, scrollY: -window.scrollY, ignoreElements: (el) => el.classList && el.classList.contains("appbar") });
+  const canvas = await window.html2canvas(document.body, { logging: false, scale, backgroundColor: getComputedStyle(document.body).backgroundColor, windowWidth: w, width: w, height: h, x: 0, y: 0, scrollX: 0, scrollY: -window.scrollY, ignoreElements: (el) => el.classList && el.classList.contains("appbar") });
   const pw = 210, ph = canvas.height * pw / canvas.width;
   const pdf = new window.jspdf.jsPDF({ orientation: ph > pw ? "portrait" : "landscape", unit: "mm", format: [pw, ph], compress: true });
   pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, pw, ph);
   download(fileName(title) + ".pdf", pdf.output("blob"));
+}
+
+// Tuotavan tiedoston rakenne tarkistetaan ennen kuin mitään luodaan.
+function checkImport(list) {
+  const parents = new Map();
+  list.forEach((x) => {
+    if (!x || typeof x.id !== "string" || parents.has(x.id)) throw new Error("virheellinen tai toistuva tunniste");
+    parents.set(x.id, x.parent_id == null ? null : x.parent_id);
+  });
+  parents.forEach((_, id) => {
+    const seen = new Set();
+    for (let p = id; p != null; p = parents.get(p)) {
+      if (seen.has(p)) throw new Error("kehäviittaus");
+      seen.add(p);
+    }
+  });
 }
 
 function AppBar() {
@@ -60,13 +76,14 @@ function AppBar() {
     if (!f) return;
     const d = JSON.parse(await f.text());
     if (d.format !== "bcc-plan" || !Array.isArray(d.items)) throw new Error("väärä tiedosto");
+    checkImport(d.items);
     await store.createPlan(d.title || f.name, d.items.map((x) => ({ id: x.id, kind: x.kind, parent_id: x.parent_id, position: x.position, data: x.data })));
     showTab("kokonaisuus");
   });
   const doPdf = async () => { setPdf("Luodaan…"); try { await makePdf(plan && plan.title); setPdf("PDF"); } catch (e) { setPdf("PDF epäonnistui"); setTimeout(() => setPdf("PDF"), 2500); } };
   return html`<div class="appbar">
     <div class="appbar-in">
-      <select class="planselect" aria-label="Suunnitelma" value=${state.planId || ""} onChange=${async (e) => { await store.openPlan(e.target.value); showTab("kokonaisuus"); }}>
+      <select class="planselect" aria-label="Suunnitelma" value=${state.planId || ""} onChange=${(e) => { const id = e.target.value; act(async () => { await store.openPlan(id); showTab("kokonaisuus"); })().finally(uiChanged); }}>
         ${state.plans.map((p) => html`<option key=${p.id} value=${p.id}>${p.title}</option>`)}
       </select>
       <div class="planmenu">

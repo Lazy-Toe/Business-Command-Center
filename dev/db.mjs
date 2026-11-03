@@ -23,8 +23,8 @@ export function fakeSupabase(pg, base) {
   const team = "dev-team";
   const iss = "https://" + team + ".cloudflareaccess.com";
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
-  const token = (email, exp) => {
-    const body = b64({ alg: "RS256", kid }) + "." + b64({ email, iss, exp: exp || Math.floor(Date.now() / 1000) + 3600 });
+  const token = (email, exp, extra) => {
+    const body = b64({ alg: "RS256", kid }) + "." + b64({ email, iss, exp: exp || Math.floor(Date.now() / 1000) + 3600, ...extra });
     const s = createSign("RSA-SHA256"); s.update(body);
     return body + "." + s.sign(privateKey).toString("base64url");
   };

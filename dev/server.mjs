@@ -17,11 +17,12 @@ export async function startDev(port, oldRows) {
   const realFetch = globalThis.fetch;
   globalThis.fetch = (u, i) => fake.fetchImpl(u, i || {});
   const env = { SUPABASE_URL: BASE, SUPABASE_SECRET_KEY: "dev-secret", ALLOWED_EMAILS: "dev@example.test", ACCESS_TEAM: fake.team };
+  const rules = readFileSync(join(PUBLIC, "_headers"), "utf8").split("\n").filter((l) => /^\s+\S+:/.test(l)).map((l) => { const i = l.indexOf(":"); return [l.slice(0, i).trim(), l.slice(i + 1).trim()]; });
   env.ASSETS = { fetch: async (request) => {
     let p = new URL(request.url).pathname; if (p === "/") p = "/index.html";
     const f = normalize(join(PUBLIC, p));
     if (!f.startsWith(PUBLIC) || !existsSync(f) || statSync(f).isDirectory()) return new Response("", { status: 404 });
-    return new Response(readFileSync(f), { headers: { "content-type": TYPES[extname(f)] || "application/octet-stream" } });
+    return new Response(readFileSync(f), { headers: { ...Object.fromEntries(rules), "content-type": TYPES[extname(f)] || "application/octet-stream" } });
   } };
   const server = createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);

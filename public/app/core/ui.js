@@ -1,6 +1,6 @@
 // Yhteiset näkymäpalat: muokattava teksti, työkalut, osion otsikko ja raahaus.
 import { html, useRef, useLayoutEffect, useState, useEffect, createContext, useContext } from "../../vendor/htm-preact.js";
-import { patch, remove, addMany, shift, moveBefore } from "./store.js";
+import { patch, remove, addMany, shift, moveBefore, children as childrenOf } from "./store.js";
 
 export { html };
 
@@ -11,7 +11,7 @@ export function uiChanged() { uiListeners.forEach((fn) => fn()); }
 export function setEdit(v) { ui.edit = v; document.body.classList.toggle("editing", v); uiChanged(); }
 
 // Muokattava teksti. mode "edit" = vain muokkaustilassa, "always" = aina.
-export function Text({ item, field, tag = "span", cls, ph, multi, mode = "edit", max = 2000, value, onSave, fallback = "", attrs }) {
+export function Text({ item, field, tag = "span", cls, ph, multi, mode = "edit", max = 10000, value, onSave, fallback = "", attrs }) {
   const ref = useRef(null);
   const editable = mode === "always" || ui.edit;
   const current = value !== undefined ? value : (item.data[field] == null ? "" : String(item.data[field]));
@@ -53,6 +53,8 @@ export function Input({ value, ...rest }) {
 }
 
 export function removeWithUndo(item, label) {
+  // Osa, jonka mukana poistuu muutakin, vaatii vahvistuksen.
+  if (childrenOf(item.id).length && !confirm("Poistetaanko \"" + (label || "kohde") + "\" ja kaikki sen sisältö?")) return;
   const gone = remove(item.id);
   ui.undo = { label: (label || "Kohde") + " poistettu", run: () => addMany(gone) };
   uiChanged();

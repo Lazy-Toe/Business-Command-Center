@@ -7,6 +7,7 @@
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
   },
+  "triggers": { "crons": ["17 4 */2 * *"] },
   "vars": {
     "SUPABASE_URL": "https://xmnbdxlmnemrgniniqva.supabase.co",
     "ACCESS_TEAM": "crimson-mountain-f72f"

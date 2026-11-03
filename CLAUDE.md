@@ -37,5 +37,7 @@ Sisältöä, nimiä tai lukuja ei kirjoiteta moduulin koodiin. Ainoa poikkeus on
 - Ammattimainen ulkoasu: IBM Plex Sans, laivastonsininen, vähäiset pyöristykset. Värit vain `:root`-tokeneista, tumma teema ylläpidetään.
 - Älä koskaan lisää sähköpostiosoitteita, salasanoja tai salaisia avaimia repoon.
 - Käyttäjän teksti näytetään aina tekstinä. Ei `innerHTML`-käyttöä käyttäjän datalle.
+- Kaikki skriptit tulevat omalta palvelimelta (`public/vendor/`). `public/_headers` määrittää tiukan sisältöpolitiikan: älä lisää ulkoisia skriptejä.
+- Tallentamattomat muutokset säilyvät selaimessa (`bcc-queue`), kunnes palvelin on vahvistanut ne.
 - Commitit noreply-osoitteella: `Lazy-Toe@users.noreply.github.com`.
 - Aja `npm test` ja `node --check worker.js` ennen pushia.

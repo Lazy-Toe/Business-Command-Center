@@ -2,7 +2,8 @@
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()).replace(/-/g, "").slice(0, 16);
 
 async function call(path, init) {
-  const r = await fetch("/api" + path, Object.assign({ credentials: "same-origin", cache: "no-store" }, init, init && init.body ? { headers: { "content-type": "application/json" } } : {}));
+  // keepalive antaa pienen tallennuksen valmistua, vaikka välilehti suljetaan kesken pyynnön.
+  const r = await fetch("/api" + path, Object.assign({ credentials: "same-origin", cache: "no-store" }, init, init && init.body ? { headers: { "content-type": "application/json" }, keepalive: init.body.length < 60000 } : {}));
   let body = null;
   try { body = await r.json(); } catch (e) { /* tyhjä vastaus */ }
   if (!r.ok) throw Object.assign(new Error("HTTP " + r.status), { status: r.status, body });
@@ -11,8 +12,10 @@ async function call(path, init) {
 
 const POLL_MS = 20000;
 const RETRY_MS = 5000;
+const MAX_BATCH_CHARS = 800000;
+const QUEUE_KEY = "bcc-queue";
 const listeners = new Set();
-let items = new Map(), queue = [], sending = false, retryTimer = null, version = 0, mutations = 0;
+let items = new Map(), queue = [], sending = false, retryTimer = null, version = 0, mutations = 0, inflight = [];
 
 export const state = { plans: [], planId: null, email: "", save: "idle", error: "", loaded: false };
 
@@ -26,10 +29,37 @@ export const children = (parentId, kind) => [...items.values()].filter((i) => i.
 export const sections = () => children(null, "section");
 export const findSection = (type) => sections().find((s) => s.data.type === type);
 
-function descendants(id) {
+function descendants(id, seen = new Set([id])) {
   const out = [];
-  children(id).forEach((c) => { out.push(c); out.push(...descendants(c.id)); });
+  children(id).forEach((c) => { if (seen.has(c.id)) return; seen.add(c.id); out.push(c); out.push(...descendants(c.id, seen)); });
   return out;
+}
+
+// Tallentamattomat muutokset säilyvät selaimessa, jos välilehti kaatuu tai kirjautuminen vanhenee.
+function persist() {
+  try {
+    const pending = inflight.concat(queue);
+    if (pending.length) localStorage.setItem(QUEUE_KEY, JSON.stringify(pending)); else localStorage.removeItem(QUEUE_KEY);
+  } catch (e) { /* selaimen muisti on lisäturva, ei edellytys */ }
+}
+function restoreQueue() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+    if (Array.isArray(saved)) queue = saved.filter((b) => b && b.planId && b.op).concat(queue);
+  } catch (e) { /* vioittunut sisältö ohitetaan */ }
+}
+function applyLocal(map, op) {
+  if (op.op === "put") { map.set(op.id, { id: op.id, kind: op.kind, parent_id: op.parent_id === undefined ? null : op.parent_id, position: op.position || 0, data: op.data || {} }); return; }
+  if (op.op === "del") {
+    const drop = (id) => { map.delete(id); [...map.values()].filter((x) => x.parent_id === id).forEach((x) => drop(x.id)); };
+    drop(op.id);
+    return;
+  }
+  const it = map.get(op.id); if (!it) return;
+  const next = Object.assign({}, it, { data: Object.assign({}, it.data, op.data) });
+  if (op.position !== undefined) next.position = op.position;
+  if (op.parent_id !== undefined) next.parent_id = op.parent_id;
+  map.set(op.id, next);
 }
 
 // Muutokset näkyvät heti, tallennus etenee järjestyksessä. Peräkkäiset kentät samaan riviin yhdistetään.
@@ -43,6 +73,7 @@ function enqueue(ops) {
       last.op = Object.assign({}, last.op, op, { data });
     } else queue.push({ planId, op });
   });
+  persist();
   setSave("saving");
   flush();
 }
@@ -54,22 +85,31 @@ async function flush() {
   sending = true;
   clearTimeout(retryTimer);
   const planId = queue[0].planId, batch = [];
-  while (queue.length && queue[0].planId === planId && batch.length < 500) batch.push(queue.shift());
+  let chars = 0;
+  while (queue.length && queue[0].planId === planId && batch.length < 500) {
+    const n = JSON.stringify(queue[0].op).length;
+    if (batch.length && chars + n > MAX_BATCH_CHARS) break;
+    chars += n;
+    batch.push(queue.shift());
+  }
+  inflight = batch;
   try {
     await call("/plans/" + encodeURIComponent(planId) + "/items", { method: "POST", body: JSON.stringify({ ops: batch.map((b) => b.op) }) });
-    sending = false;
+    sending = false; inflight = []; persist();
     if (queue.length) flush(); else setSave("saved");
   } catch (e) {
-    sending = false;
+    sending = false; inflight = [];
     if (e.status >= 400 && e.status < 500 && e.status !== 403 && e.status !== 408 && e.status !== 429) {
       // Palvelin hylkäsi muutoksen: uudelleenyritys ei auta, joten palataan palvelimen tilaan.
+      persist();
       setSave("error", "Muutos hylättiin (" + e.message + "). Näkymä palautettiin tallennettuun tilaan.");
-      await loadItems(planId);
+      try { if (planId === state.planId) await showPlan(planId); } catch (x) { /* seuraava päivitys yrittää uudelleen */ }
       if (queue.length) flush();
       return;
     }
     queue = batch.concat(queue);
-    setSave("error", e.status === 403 ? "Kirjautuminen on vanhentunut. Lataa sivu uudelleen." : "Tallennus epäonnistui. Yritetään uudelleen.");
+    persist();
+    setSave("error", "Tallennus ei onnistu juuri nyt. Muutokset ovat tallessa tässä selaimessa. Jos kirjautuminen on vanhentunut, lataa sivu uudelleen.");
     retryTimer = setTimeout(flush, RETRY_MS);
   }
 }
@@ -115,6 +155,18 @@ export function moveBefore(id, target, list, extraData) {
   const rest = list.filter((x) => x.id !== id);
   const i = target ? rest.findIndex((x) => x.id === target) : rest.length;
   const prev = rest[i - 1], next = rest[i];
+  // Toistuvat siirrot samaan väliin kuluttavat liukuluvun tarkkuuden: silloin koko lista numeroidaan uudelleen.
+  if (prev && next && next.position - prev.position < 1e-6) {
+    const ordered = rest.slice(0, i).concat(items.get(id), rest.slice(i));
+    const ops = ordered.map((x, n) => {
+      const data = x.id === id ? extraData || {} : {}, position = (n + 1) * 1000;
+      items.set(x.id, Object.assign({}, items.get(x.id), { position, data: Object.assign({}, items.get(x.id).data, data) }));
+      return { op: "patch", id: x.id, position, data };
+    });
+    enqueue(ops);
+    emit();
+    return;
+  }
   const pos = prev && next ? (prev.position + next.position) / 2 : prev ? prev.position + 1000 : next ? next.position - 1000 : 1000;
   const it = items.get(id);
   items.set(id, Object.assign({}, it, { position: pos, data: Object.assign({}, it.data, extraData) }));
@@ -144,26 +196,42 @@ async function refresh() {
   try { await loadItems(state.planId); } catch (e) { /* seuraava kierros yrittää uudelleen */ }
 }
 
-export async function openPlan(id) {
-  await drain();
+// Näkymä vaihtuu vasta, kun tiedot on saatu. Odottavat muutokset lisätään palvelimen tilan päälle.
+async function showPlan(id) {
+  const b = await call("/plans/" + encodeURIComponent(id) + "/items");
+  const next = new Map(b.items.map((i) => [i.id, i]));
+  inflight.concat(queue).filter((x) => x.planId === id).forEach((x) => applyLocal(next, x.op));
   state.planId = id;
-  items = new Map();
-  try { localStorage.setItem("bcc-plan", id); } catch (e) { /* ei pakollinen */ }
-  await loadItems(id);
+  items = next;
   state.loaded = true;
   emit();
 }
 
+export async function openPlan(id) {
+  await showPlan(id);
+  try { localStorage.setItem("bcc-plan", id); } catch (e) { /* ei pakollinen */ }
+}
+
+// Kesken oleva kenttä tallennetaan, kun välilehti piilotetaan tai suljetaan.
+function commitFocused() {
+  const n = document.activeElement;
+  if (n && (n.isContentEditable || n.tagName === "INPUT" || n.tagName === "TEXTAREA")) n.blur();
+}
+
 export async function init() {
+  restoreQueue();
+  document.addEventListener("visibilitychange", () => { if (document.hidden) commitFocused(); });
+  window.addEventListener("pagehide", commitFocused);
   const b = await call("/plans");
   state.plans = b.plans; state.email = b.email;
   let want = "";
   try { want = localStorage.getItem("bcc-plan") || ""; } catch (e) { /* ei pakollinen */ }
   const plan = b.plans.find((p) => p.id === want) || b.plans[0];
   if (plan) await openPlan(plan.id); else { state.loaded = true; emit(); }
+  if (queue.length) { setSave("saving"); flush(); }
   setInterval(refresh, POLL_MS);
   document.addEventListener("visibilitychange", refresh);
-  window.addEventListener("beforeunload", (e) => { if (queue.length || sending) e.preventDefault(); });
+  window.addEventListener("beforeunload", (e) => { commitFocused(); if (queue.length || sending) e.preventDefault(); });
 }
 
 async function reloadPlans() { state.plans = (await call("/plans")).plans; emit(); }
