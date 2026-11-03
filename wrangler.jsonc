@@ -9,7 +9,6 @@
   },
   "vars": {
     "SUPABASE_URL": "https://xmnbdxlmnemrgniniqva.supabase.co",
-    "ACCESS_TEAM": "crimson-mountain-f72f",
-    "TABLE": "bcc_status"
+    "ACCESS_TEAM": "crimson-mountain-f72f"
   }
 }

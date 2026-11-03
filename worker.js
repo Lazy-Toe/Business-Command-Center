@@ -1,4 +1,4 @@
-// Tallennusrajapinta. Cloudflare Access päästää sivulle vain sinut ja liittää jokaiseen
+// Alustan rajapinta. Cloudflare Access päästää sivulle vain sinut ja liittää jokaiseen
 // pyyntöön allekirjoitetun tunnisteen (Cf-Access-Jwt-Assertion). Tämä Worker tarkistaa
 // tunnisteen ja sähköpostin ja vasta sitten lukee tai kirjoittaa Supabaseen salaisella avaimella.
 // Salainen avain ja sallitut osoitteet ovat Cloudflaren salaisuuksina, eivät repossa:
@@ -7,7 +7,9 @@
 //   ACCESS_AUD           (valinnainen) Access-sovelluksen AUD-tunniste
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
-const MAX_BODY = 32 * 1024;
+const KIND_RE = /^[a-z][a-z0-9_-]{0,31}$/;
+const MAX_BODY = 1024 * 1024;
+const MAX_OPS = 1000;
 let certCache = { at: 0, keys: [] };
 
 function json(body, status) {
@@ -70,34 +72,119 @@ function sbHeaders(env, extra) {
   return Object.assign(h, extra || {});
 }
 
+async function db(env, path, init) {
+  const r = await fetch(env.SUPABASE_URL + "/rest/v1/" + path, Object.assign({}, init, { headers: sbHeaders(env, (init || {}).headers) }));
+  if (!r.ok) {
+    const e = new Error("db"); e.status = r.status;
+    try { e.detail = (await r.json()).message; } catch (x) {}
+    throw e;
+  }
+  const t = await r.text();
+  return t ? JSON.parse(t) : null;
+}
+
+async function readJson(request) {
+  const text = await request.text();
+  if (text.length > MAX_BODY) throw Object.assign(new Error("too_large"), { http: 413 });
+  try { return JSON.parse(text); } catch (e) { throw Object.assign(new Error("bad_json"), { http: 400 }); }
+}
+
+function bad(code) { return Object.assign(new Error(code), { http: 400 }); }
+
+// Tarkistaa muutokset ennen tietokantaa. Datan sisältö on moduulien asia, rakenne ei.
+export function cleanOps(ops) {
+  if (!Array.isArray(ops) || !ops.length || ops.length > MAX_OPS) throw bad("bad_ops");
+  return ops.map(function (o) {
+    if (!o || typeof o !== "object" || !ID_RE.test(o.id || "")) throw bad("bad_id");
+    if (o.op === "del") return { op: "del", id: o.id };
+    if (o.op !== "put" && o.op !== "patch") throw bad("bad_op");
+    const out = { op: o.op, id: o.id };
+    if (o.data !== undefined) {
+      if (!o.data || typeof o.data !== "object" || Array.isArray(o.data)) throw bad("bad_data");
+      out.data = o.data;
+    }
+    if (o.position !== undefined) {
+      if (typeof o.position !== "number" || !isFinite(o.position)) throw bad("bad_position");
+      out.position = o.position;
+    }
+    if (o.parent_id !== undefined) {
+      if (o.parent_id !== null && !ID_RE.test(o.parent_id)) throw bad("bad_parent");
+      out.parent_id = o.parent_id;
+    }
+    if (o.op === "put") {
+      if (!KIND_RE.test(o.kind || "")) throw bad("bad_kind");
+      out.kind = o.kind;
+    }
+    return out;
+  });
+}
+
+function cleanTitle(v) {
+  const t = String(v || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  if (!t) throw bad("bad_title");
+  return t;
+}
+
+const PLAN_COLS = "id,title,created_at,updated_at";
+
 async function api(request, env, url) {
-  if (!env.SUPABASE_SECRET_KEY || !env.ALLOWED_EMAILS || !env.ACCESS_TEAM || !env.TABLE) return json({ error: "not_configured" }, 503);
+  if (!env.SUPABASE_SECRET_KEY || !env.ALLOWED_EMAILS || !env.ACCESS_TEAM || !env.SUPABASE_URL) return json({ error: "not_configured" }, 503);
   const email = await verifyAccess(request, env);
   if (!email) return json({ error: "forbidden" }, 403);
-  const base = env.SUPABASE_URL + "/rest/v1/" + (env.TABLE || "status");
 
-  if (url.pathname === "/api/status" && request.method === "GET") {
-    const r = await fetch(base + "?select=id,data", { headers: sbHeaders(env) });
-    if (!r.ok) return json({ error: "db", status: r.status }, 502);
-    return json({ email: email, rows: await r.json() });
+  const method = request.method;
+  // Muutospyyntöjen on tultava omalta sivulta.
+  if (method !== "GET") {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== url.origin) return json({ error: "forbidden" }, 403);
   }
 
-  const m = url.pathname.match(/^\/api\/status\/([^/]+)$/);
-  if (m && request.method === "PUT") {
+  if (url.pathname === "/api/plans") {
+    if (method === "GET") {
+      const plans = await db(env, "bcc_plans?select=" + PLAN_COLS + "&archived_at=is.null&order=created_at");
+      return json({ email: email, plans: plans });
+    }
+    if (method === "POST") {
+      const b = await readJson(request);
+      if (!ID_RE.test(b.id || "")) throw bad("bad_id");
+      const title = cleanTitle(b.title);
+      if (b.from !== undefined) {
+        if (!ID_RE.test(b.from)) throw bad("bad_id");
+        await db(env, "rpc/bcc_duplicate_plan", { method: "POST", body: JSON.stringify({ p_source: b.from, p_id: b.id, p_title: title }) });
+      } else {
+        await db(env, "bcc_plans", { method: "POST", headers: { prefer: "return=minimal" }, body: JSON.stringify({ id: b.id, title: title }) });
+      }
+      return json({ ok: true, id: b.id });
+    }
+  }
+
+  const m = url.pathname.match(/^\/api\/plans\/([^/]+)(\/items)?$/);
+  if (m) {
     const id = decodeURIComponent(m[1]);
     if (!ID_RE.test(id)) return json({ error: "bad_id" }, 400);
-    const text = await request.text();
-    if (text.length > MAX_BODY) return json({ error: "too_large" }, 413);
-    let data;
-    try { data = JSON.parse(text); } catch (e) { return json({ error: "bad_json" }, 400); }
-    if (!data || typeof data !== "object" || Array.isArray(data)) return json({ error: "bad_json" }, 400);
-    const r = await fetch(base, {
-      method: "POST",
-      headers: sbHeaders(env, { prefer: "resolution=merge-duplicates,return=minimal" }),
-      body: JSON.stringify({ id: id, data: data, updated_at: new Date().toISOString() })
-    });
-    if (!r.ok) return json({ error: "db", status: r.status }, 502);
-    return json({ ok: true });
+    const q = encodeURIComponent(id);
+    if (m[2]) {
+      if (method === "GET") {
+        const items = await db(env, "bcc_items?select=id,kind,parent_id,position,data&plan_id=eq." + q + "&order=position");
+        return json({ items: items });
+      }
+      if (method === "POST") {
+        const b = await readJson(request);
+        const n = await db(env, "rpc/bcc_apply_batch", { method: "POST", body: JSON.stringify({ p_plan: id, p_ops: cleanOps(b.ops) }) });
+        return json({ ok: true, applied: n });
+      }
+    } else {
+      if (method === "PATCH") {
+        const b = await readJson(request);
+        await db(env, "bcc_plans?id=eq." + q, { method: "PATCH", headers: { prefer: "return=minimal" }, body: JSON.stringify({ title: cleanTitle(b.title), updated_at: new Date().toISOString() }) });
+        return json({ ok: true });
+      }
+      // Poisto arkistoi: tiedot säilyvät tietokannassa ja ovat palautettavissa.
+      if (method === "DELETE") {
+        await db(env, "bcc_plans?id=eq." + q, { method: "PATCH", headers: { prefer: "return=minimal" }, body: JSON.stringify({ archived_at: new Date().toISOString() }) });
+        return json({ ok: true });
+      }
+    }
   }
   return json({ error: "not_found" }, 404);
 }
@@ -106,7 +193,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname.indexOf("/api/") === 0) {
-      try { return await api(request, env, url); } catch (e) { return json({ error: "server" }, 500); }
+      try { return await api(request, env, url); } catch (e) {
+        if (e.http) return json({ error: e.message }, e.http);
+        if (e.message === "db") return json({ error: "db", status: e.status, detail: e.detail }, 502);
+        return json({ error: "server" }, 500);
+      }
     }
     return env.ASSETS.fetch(request);
   }

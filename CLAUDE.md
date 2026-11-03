@@ -1,23 +1,41 @@
 # Business Command Center
 
-Kopio THE EmCe 100 päivää -sivusta (repo the-emce-100-paivaa), jota kehitetään vapaasti eteenpäin. Yksityinen työkalu, ei julkinen sivu.
+Yksityinen suunnittelu- ja johtamisalusta. Yhdellä alustalla voi olla useita suunnitelmia, ja jokainen suunnitelma koostuu moduuleista. Sisältö on tietokannassa, ei koodissa.
 
 ## Rakenne
 - `public/`: julkaistavat tiedostot. Vain tämä kansio näkyy verkossa.
-- `public/index.html`: koko sivu (sisältö, tyylit, laskenta). Tehtävät taulukossa `var T = [...]`, työvirrat `var WS`, vaiheet `var PH`, päätösportit `var GATES`, vastuualueet `var ROLES`.
-- `public/storage.js`: tallennuskerros. Verkossa rajapinta `/api/status`, paikallisesti selaimen muisti. Sivu käyttää vain `db.doc("status/<id>").set()` ja `db.collection("status").onSnapshot()`.
-- `worker.js` ja `wrangler.jsonc`: Worker tarkistaa Cloudflare Accessin tunnisteen ja sallitun sähköpostin ja käyttää Supabasea salaisella avaimella. Taulu on `bcc_status` (muuttuja TABLE). Salaisuudet (SUPABASE_SECRET_KEY, ALLOWED_EMAILS, valinnainen ACCESS_AUD) ovat vain Cloudflaressa.
-- `supabase.sql`: taulun luonti ja tietojen kopiointi alkuperäisestä.
+- `public/app/main.js`: sovelluksen runko: yläpalkki, välilehdet, osioiden asettelu.
+- `public/app/core/`: `store.js` (tiedot ja tallennus), `ui.js` (muokattava teksti, työkalut, raahaus), `calc.js` (laskenta ilman näkymää), `registry.js` (moduulirekisteri).
+- `public/app/modules/`: yksi tiedosto per osiotyyppi. Rekisteröinti `index.js`:ssä.
+- `public/vendor/htm-preact.js`: käyttöliittymäkirjasto. Ei käännösvaihetta.
+- `worker.js` ja `wrangler.jsonc`: Worker tarkistaa Cloudflare Accessin tunnisteen ja sallitun sähköpostin ja käyttää Supabasea salaisella avaimella. Salaisuudet (SUPABASE_SECRET_KEY, ALLOWED_EMAILS, valinnainen ACCESS_AUD) ovat vain Cloudflaressa.
+- `supabase/schema.sql`: tietokannan rakenne. `002_alusta.sql` on kertaluonteinen siirto vanhasta `bcc_status`-taulusta, ja `001_kopio.sql` on historiaa.
+- `dev/`: paikallinen palvelin ja tietokanta. `test/`: testit.
 
-## Julkaisu
+## Tietomalli
+- `bcc_plans`: suunnitelmat. Poisto arkistoi (`archived_at`), tiedot säilyvät.
+- `bcc_items`: kaikki sisältö yleisinä riveinä: `kind`, `parent_id`, `position`, `data` (jsonb). Tunniste on yksilöllinen suunnitelman sisällä, joten monistus säilyttää tunnisteet.
+- `bcc_item_history`: rivin edeltävä tila jokaisesta sisältömuutoksesta ja poistosta, 180 päivää. Palautus tehdään SQL:llä.
+- `bcc_status`: vanha taulu, varmuuskopio. Älä kirjoita siihen.
+
+## Uusi moduuli
+1. Tee `public/app/modules/<nimi>.js` ja kutsu siinä `register({ type, label, hint, create, View })`. Sopimus on kuvattu tiedostossa `core/registry.js`, ja `text.js` on pienin esimerkki.
+2. Lisää tuontirivi tiedostoon `modules/index.js`.
+3. Tekstit `Text`-komponentilla, rivien lisäys `add`-funktiolla, työkalut `Tools`-komponentilla. Uusi `kind`-arvo ei vaadi tietokantamuutosta.
+4. Laskenta omaksi puhtaaksi funktioksi ja testi `test/`-kansioon.
+
+Sisältöä, nimiä tai lukuja ei kirjoiteta moduulin koodiin. Ainoa poikkeus on `create`-funktion neutraali oletussisältö. Asiakas- tai yrityskohtaista sisältöä ei lisätä koodiin.
+
+## Kehitys ja julkaisu
+- `npm install`, `npm test`, `npm run dev` (http://localhost:8788, tiedot muistissa).
 - Push `main`-haaraan julkaisee automaattisesti Cloudflareen (Worker business-command-center).
-- Sivu on Cloudflare Accessin takana. Ei erillistä kirjautumista.
+- Tietokantamuutos on ajettava Supabasessa ennen koodin julkaisua. Projekti on `xmnbdxlmnemrgniniqva`.
+- Sivu on Cloudflare Accessin takana (All traffic). Ei erillistä kirjautumista.
 
 ## Säännöt
 - Kieli suomi. Tyyli analyyttinen ja tiivis. Ei ajatusviivoja (– tai —) teksteissä; päivä- ja lukuvälien yhdysmerkki (1–30) on sallittu.
 - Ammattimainen ulkoasu: IBM Plex Sans, laivastonsininen, vähäiset pyöristykset. Värit vain `:root`-tokeneista, tumma teema ylläpidetään.
 - Älä koskaan lisää sähköpostiosoitteita, salasanoja tai salaisia avaimia repoon.
-- Älä koskaan kirjoita alkuperäiseen `status`-tauluun.
-- Tehtävän tunniste muodostuu järjestyksestä solun sisällä (vaihe-työvirta-järjestysnumero). Lisää uudet tehtävät solun loppuun, jotta tallennetut tilat eivät siirry väärille tehtäville.
+- Käyttäjän teksti näytetään aina tekstinä. Ei `innerHTML`-käyttöä käyttäjän datalle.
 - Commitit noreply-osoitteella: `Lazy-Toe@users.noreply.github.com`.
-- Tarkista muutoksen jälkeen skriptien syntaksi (`node --check`) ennen pushia, myös worker.js.
+- Aja `npm test` ja `node --check worker.js` ennen pushia.

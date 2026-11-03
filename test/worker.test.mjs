@@ -1,0 +1,131 @@
+// Ajaa oikean worker.js:n ja oikeat SQL-tiedostot paikallista PostgreSQL:ää vasten.
+import test, { before, after } from "node:test";
+import assert from "node:assert/strict";
+import worker, { cleanOps } from "../worker.js";
+import { createDb, fakeSupabase, sql } from "../dev/db.mjs";
+
+const BASE = "http://supabase.local", ME = "owner@example.test";
+let pg, fake, env, realFetch;
+
+const req = (path, { method = "GET", body, token, headers } = {}) => {
+  const h = new Headers(headers);
+  if (token !== null) h.set("Cf-Access-Jwt-Assertion", token || fake.token(ME));
+  return worker.fetch(new Request("http://app.test/api" + path, { method, headers: h, body: body ? JSON.stringify(body) : undefined }), env);
+};
+const q = async (s, p) => (await pg.query(s, p)).rows;
+
+before(async () => {
+  pg = await createDb([
+    { id: "1-kate-2", data: { s: "doing", n: "muistio" } },
+    { id: "tavoitteet", data: { h: "2028", own_g: "15", own_m: "12", bc_g: "10", nrr: "101" } },
+    { id: "mittarit", data: { m1: "good", r1: "bad" } },
+    { id: "eriyttaminen", data: { choice: "B" } },
+    { id: "lahtotilanne", data: { v1: "8,0 M€" } },
+    { id: "roolit", data: { myynti: { t: "Sales Director" }, bc: { o: "Harri" } } },
+    { id: "sc-myynti", data: { m1: { b: "3x", s: "mid" }, x1: { n: "Oma", r: "viikko", a: "5" } } }
+  ]);
+  fake = fakeSupabase(pg, BASE);
+  realFetch = globalThis.fetch;
+  globalThis.fetch = (u, i) => fake.fetchImpl(u, i || {});
+  env = { SUPABASE_URL: BASE, SUPABASE_SECRET_KEY: "dev-secret", ALLOWED_EMAILS: "Owner@example.test, toinen@example.test", ACCESS_TEAM: fake.team, ASSETS: { fetch: async () => new Response("sivu") } };
+});
+after(async () => { globalThis.fetch = realFetch; await pg.close(); });
+
+test("migraatio tuo sisällön ja vanhat tilat", async () => {
+  const by = async (id) => (await q("select data from bcc_items where plan_id = 'emce-100' and id = $1", [id]))[0].data;
+  assert.equal((await q("select count(*)::int n from bcc_items where kind = 'task'"))[0].n, 42);
+  assert.deepEqual([(await by("1-kate-2")).status, (await by("1-kate-2")).note], ["doing", "muistio"]);
+  assert.equal((await by("1-kate-1")).status, "todo");
+  assert.equal((await by("sec-goals")).targetYear, "2028");
+  assert.equal((await by("sec-goals")).nrr, "101");
+  assert.equal((await by("line-own")).g, "15");
+  assert.equal((await by("m1")).state, "good");
+  assert.equal((await by("r1")).state, "bad");
+  assert.equal((await by("sec-decision")).choice, "opt-B");
+  assert.equal((await by("stat-1")).value, "8,0 M€");
+  assert.equal((await by("role-myynti")).title, "Sales Director");
+  assert.equal((await by("role-bc")).owner, "Harri");
+  assert.equal((await by("myynti-m1")).base, "3x");
+  assert.equal((await by("myynti-x1")).name, "Oma");
+});
+
+test("toinen ajo ei muuta mitään, vanha taulu säilyy", async () => {
+  await pg.query("update bcc_items set data = data || '{\"note\":\"uusi\"}' where id = '1-kate-2'");
+  await pg.exec(sql("002_alusta.sql"));
+  assert.equal((await q("select data->>'note' n from bcc_items where id = '1-kate-2'"))[0].n, "uusi");
+  assert.equal((await q("select count(*)::int n from bcc_status"))[0].n, 7);
+});
+
+test("anon ja authenticated eivät pääse tauluihin eivätkä funktioihin", async () => {
+  const r = (await q(`select
+    has_table_privilege('anon', 'bcc_items', 'select') a, has_table_privilege('authenticated', 'bcc_plans', 'update') b,
+    has_function_privilege('anon', 'bcc_apply_batch(text, jsonb)', 'execute') c, has_function_privilege('authenticated', 'bcc_duplicate_plan(text, text, text)', 'execute') d,
+    has_function_privilege('service_role', 'bcc_apply_batch(text, jsonb)', 'execute') e`))[0];
+  assert.deepEqual(r, { a: false, b: false, c: false, d: false, e: true });
+  assert.equal((await q("select count(*)::int n from pg_class where relname in ('bcc_items','bcc_plans','bcc_item_history') and relrowsecurity"))[0].n, 3);
+});
+
+test("pääsy vaatii kelvollisen tunnisteen ja sallitun osoitteen", async () => {
+  assert.equal((await req("/plans", { token: null })).status, 403);
+  assert.equal((await req("/plans", { token: "roskaa" })).status, 403);
+  assert.equal((await req("/plans", { token: fake.token("vieras@example.test") })).status, 403);
+  assert.equal((await req("/plans", { token: fake.token(ME, 1000) })).status, 403);
+  const t = fake.token(ME), parts = t.split(".");
+  parts[1] = Buffer.from(JSON.stringify({ email: ME, iss: "https://" + fake.team + ".cloudflareaccess.com", exp: 9999999999 })).toString("base64url");
+  assert.equal((await req("/plans", { token: parts.join(".") })).status, 403, "muokattu tunniste");
+  const ok = await req("/plans");
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).plans[0].id, "emce-100");
+});
+
+test("toiselta sivulta tuleva muutos hylätään", async () => {
+  const r = await req("/plans/emce-100/items", { method: "POST", headers: { origin: "https://evil.test" }, body: { ops: [{ op: "del", id: "sec-hero" }] } });
+  assert.equal(r.status, 403);
+  assert.ok((await q("select 1 from bcc_items where id = 'sec-hero'")).length);
+});
+
+test("virheelliset muutokset hylätään", async () => {
+  for (const ops of [[], "x", [{ op: "drop", id: "a" }], [{ op: "put", id: "a b", kind: "x" }], [{ op: "put", id: "a", kind: "X!" }], [{ op: "patch", id: "a", data: [] }], [{ op: "patch", id: "a", position: "1" }]]) {
+    assert.throws(() => cleanOps(ops), undefined, JSON.stringify(ops));
+  }
+  assert.equal((await req("/plans/emce-100/items", { method: "POST", body: { ops: [{ op: "put", id: "x y", kind: "task" }] } })).status, 400);
+  assert.equal((await req("/plans/ei;ole/items")).status, 400);
+});
+
+test("muutokset ovat atomisia, poisto vie alirivit ja jättää historian", async () => {
+  await pg.exec("alter table bcc_items add constraint t_kind check (kind <> 'kielletty')");
+  const bad = await req("/plans/emce-100/items", { method: "POST", body: { ops: [{ op: "put", id: "at1", kind: "task" }, { op: "put", id: "at2", kind: "kielletty" }] } });
+  assert.equal(bad.status, 502);
+  assert.equal((await q("select count(*)::int n from bcc_items where id = 'at1'"))[0].n, 0);
+  await pg.exec("alter table bcc_items drop constraint t_kind");
+  const before = (await q("select count(*)::int n from bcc_item_history where id = 'myynti-m2'"))[0].n;
+  const ok = await req("/plans/emce-100/items", { method: "POST", body: { ops: [{ op: "del", id: "role-myynti" }] } });
+  assert.equal(ok.status, 200);
+  assert.equal((await q("select count(*)::int n from bcc_items where parent_id = 'role-myynti'"))[0].n, 0);
+  assert.equal((await q("select count(*)::int n from bcc_item_history where id = 'myynti-m2' and op = 'delete'"))[0].n, before + 1);
+});
+
+test("monistus on erillinen, poisto arkistoi", async () => {
+  assert.equal((await req("/plans", { method: "POST", body: { id: "kopio1", title: "Kopio", from: "emce-100" } })).status, 200);
+  await req("/plans/kopio1/items", { method: "POST", body: { ops: [{ op: "patch", id: "sec-hero", data: { title: "Muutettu" } }] } });
+  const get = async (p) => (await (await req("/plans/" + p + "/items")).json()).items.find((i) => i.id === "sec-hero").data.title;
+  assert.equal(await get("kopio1"), "Muutettu");
+  assert.notEqual(await get("emce-100"), "Muutettu");
+  assert.equal((await req("/plans/kopio1", { method: "DELETE" })).status, 200);
+  assert.ok(!(await (await req("/plans")).json()).plans.some((p) => p.id === "kopio1"));
+  assert.equal((await q("select count(*)::int n from bcc_items where plan_id = 'kopio1'"))[0].n > 0, true);
+  assert.equal((await req("/plans/kopio1/items", { method: "POST", body: { ops: [{ op: "del", id: "sec-hero" }] } })).status, 502, "arkistoitua ei muokata");
+});
+
+test("väärä avain ei paljasta mitään", async () => {
+  const k = env.SUPABASE_SECRET_KEY; env.SUPABASE_SECRET_KEY = "vaara";
+  const r = await req("/plans");
+  env.SUPABASE_SECRET_KEY = k;
+  assert.equal(r.status, 502);
+  assert.ok(!JSON.stringify(await r.json()).includes("vaara"));
+});
+
+test("sivut tulevat ASSETSista, puuttuva asetus ilmoitetaan", async () => {
+  assert.equal(await (await worker.fetch(new Request("http://app.test/"), env)).text(), "sivu");
+  assert.equal((await worker.fetch(new Request("http://app.test/api/plans"), { ...env, ALLOWED_EMAILS: "" })).status, 503);
+});
