@@ -14,7 +14,7 @@ const POLL_MS = 20000;
 const RETRY_MS = 5000;
 const MAX_BATCH_CHARS = 800000;
 const QUEUE_KEY = "bcc-queue";
-const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream", "section", "goal", "metricdef"]);
+const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream", "section", "goal", "metricdef", "form", "formtype"]);
 const listeners = new Set();
 let items = new Map(), queue = [], sending = false, retryTimer = null, version = 0, mutations = 0, inflight = [];
 

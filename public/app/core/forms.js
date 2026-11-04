@@ -80,7 +80,7 @@ export function scoreForm(rows) {
 export function checkForm(p, { types, isAdmin, effective }) {
   if (!p || typeof p !== "object") return { error: "Virheellinen pyyntö." };
   const type = types.find((t) => t.id === p.type);
-  if (!type || !canCreate(type, isAdmin)) return { error: "Tyyppi ei ole sallittu." };
+  if (!type || !canCreate(type, isAdmin)) return { error: "Tyyppi ei ole sallittu.", code: "type" };
   if (p.comment !== undefined && typeof p.comment !== "string") return { error: "Virheellinen kommentti." };
   const comment = (p.comment || "").slice(0, MAX_COMMENT);
   let rows = [];
