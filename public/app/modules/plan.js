@@ -1,8 +1,9 @@
-import { html, Text, Tools, AddButton, Input, ui, dragProps, dropProps, pressable, mq, useEscape, useCollapse, Head, uiChanged } from "../core/ui.js";
+import { html, Text, Tools, AddButton, ui, dragProps, dropProps, pressable, mq, useEscape, useCollapse, Head, uiChanged } from "../core/ui.js";
 import { register } from "../core/registry.js";
 import { children, findSection, patch, add, moveBefore, nextPosition, shift } from "../core/store.js";
 import { useState } from "../../vendor/htm-preact.js";
 import { fmtDate, isLate, todayISO, ownerOf } from "../core/today.js";
+import { PersonSelect } from "../people.js";
 
 export const focus = { p: "", ws: "" };
 export function toggleFocusPhase(id) { focus.p = focus.p === id ? "" : id; uiChanged(); }
@@ -39,7 +40,7 @@ const CAL_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none
 function TaskMeta({ task, inherited }) {
   return html`<span class="taskmeta" onClick=${(e) => e.stopPropagation()} onKeyDown=${(e) => e.stopPropagation()}>
     <label>Määräpäivä <input type="date" value=${task.data.due || ""} onChange=${(e) => patch(task.id, { due: e.target.value })} /></label>
-    <label>Vastuu <${Input} maxlength="60" placeholder=${inherited || "Nimi"} value=${task.data.owner || ""} onChange=${(e) => patch(task.id, { owner: e.target.value.trim().slice(0, 60) })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></label>
+    <label>Vastuu <${PersonSelect} label="Vastuu" value=${task.data.owner || ""} empty=${inherited ? "Perii: " + inherited : "Ei vastuuhenkilöä"} onPick=${(v) => patch(task.id, { owner: v })} /></label>
   </span>`;
 }
 
