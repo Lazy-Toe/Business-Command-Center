@@ -485,5 +485,19 @@ span.editable:empty { display: inline-block; }
 .fbk { font-size: 0.8rem; color: var(--muted); }
 .undo { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 40; display: flex; gap: 12px; align-items: center; background: var(--ink); color: var(--paper); border-radius: 4px; padding: 10px 14px; font-size: 0.9rem; max-width: calc(100vw - 32px); }
 .undo button { font: inherit; font-weight: 600; color: inherit; background: none; border: 1px solid currentColor; border-radius: 3px; padding: 3px 9px; cursor: pointer; }
+.histback { position: fixed; inset: 0; z-index: 50; background: rgba(11, 31, 58, 0.45); display: flex; justify-content: center; align-items: flex-start; padding: 5vh 16px; overflow-y: auto; }
+.hist { width: 100%; max-width: 640px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 8px 24px rgba(11, 31, 58, 0.14); padding: 16px; }
+.hhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.hhead h2 { margin: 0; font-size: 1.1rem; }
+.gs.bad { color: var(--neg); font-weight: 600; }
+.hlist { list-style: none; margin: 12px 0 0; padding: 0; }
+.hentry { border-top: 1px solid var(--line); padding: 10px 0; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; justify-content: space-between; }
+.hmain { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; min-width: 0; font-size: 0.9rem; }
+.hwhen, .hkind { color: var(--muted); font-size: 0.78rem; }
+.hop { font-size: 0.74rem; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); }
+.hop.delete { background: var(--neg-soft); color: var(--neg); }
+.hfield { flex-basis: 100%; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
+.hfield span { font-family: var(--f-mono); color: var(--ink); }
+.hdone { color: var(--ok); font-weight: 600; font-size: 0.82rem; }
 .nmwrap .tools { margin-left: 4px; }
 .gpair .gtable-wrap { min-width: 0; overflow-x: auto; }

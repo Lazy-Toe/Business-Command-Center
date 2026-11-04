@@ -10,6 +10,8 @@ const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const KIND_RE = /^[a-z][a-z0-9_-]{0,31}$/;
 const MAX_BODY = 1024 * 1024;
 const MAX_OPS = 1000;
+const HISTORY_LIMIT = 200;
+const MAX_HISTORY = 500;
 let certCache = { at: 0, keys: [] };
 
 function json(body, status) {
@@ -159,12 +161,19 @@ async function api(request, env, url) {
     }
   }
 
-  const m = url.pathname.match(/^\/api\/plans\/([^/]+)(\/items)?$/);
+  const m = url.pathname.match(/^\/api\/plans\/([^/]+)(\/items|\/history)?$/);
   if (m) {
     const id = decodeURIComponent(m[1]);
     if (!ID_RE.test(id)) return json({ error: "bad_id" }, 400);
     const q = encodeURIComponent(id);
-    if (m[2]) {
+    if (m[2] === "/history") {
+      // Uusimmat muutokset ja poistot. Palautus tehdään tavallisella tallennuksella.
+      if (method === "GET") {
+        const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit"), 10) || HISTORY_LIMIT, 1), MAX_HISTORY);
+        const rows = await db(env, "bcc_item_history?select=hist_id,id,kind,parent_id,position,data,op,changed_at&plan_id=eq." + q + "&order=changed_at.desc,hist_id.desc&limit=" + limit);
+        return json({ history: rows });
+      }
+    } else if (m[2]) {
       if (method === "GET") {
         const items = await db(env, "bcc_items?select=id,kind,parent_id,position,data&plan_id=eq." + q + "&order=position");
         return json({ items: items });

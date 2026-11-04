@@ -3,6 +3,7 @@ import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import worker, { cleanOps } from "../worker.js";
 import { createDb, fakeSupabase, sql } from "../dev/db.mjs";
+import { groupHistory, restoreOps } from "../public/app/core/history.js";
 
 const BASE = "http://supabase.local", ME = "owner@example.test";
 let pg, fake, env, realFetch;
@@ -116,6 +117,30 @@ test("monistus on erillinen, poisto arkistoi", async () => {
   assert.ok(!(await (await req("/plans")).json()).plans.some((p) => p.id === "kopio1"));
   assert.equal((await q("select count(*)::int n from bcc_items where plan_id = 'kopio1'"))[0].n > 0, true);
   assert.equal((await req("/plans/kopio1/items", { method: "POST", body: { ops: [{ op: "del", id: "sec-hero" }] } })).status, 409, "arkistoitua ei muokata");
+});
+
+test("historia luetaan rajapinnasta ja poisto palautuu tallennuksella", async () => {
+  assert.equal((await req("/plans/emce-100/history", { token: null })).status, 403);
+  assert.equal((await req("/plans/ei;ole/history")).status, 400);
+  assert.equal((await req("/plans/emce-100/history", { method: "POST", body: {} })).status, 404);
+  const { history } = await (await req("/plans/emce-100/history")).json();
+  assert.ok(history.length > 0);
+  assert.ok(history.every((h, i) => !i || history[i - 1].changed_at >= h.changed_at), "uusin ensin");
+  assert.equal((await (await req("/plans/emce-100/history?limit=1")).json()).history.length, 1);
+
+  const group = groupHistory(history).find((g) => g.op === "delete" && g.rows.some((r) => r.id === "role-myynti"));
+  assert.ok(group.rows.length > 1, "ylärivi ja alirivit samassa ryhmässä");
+  const items = async () => (await (await req("/plans/emce-100/items")).json()).items;
+  const now = new Map((await items()).map((i) => [i.id, i]));
+  assert.ok(!now.has("role-myynti"));
+  const { rows, skipped } = restoreOps(group, (id) => now.get(id));
+  assert.deepEqual(skipped, []);
+  const r = await req("/plans/emce-100/items", { method: "POST", body: { ops: rows.map((x) => ({ op: "put", ...x })) } });
+  assert.equal(r.status, 200);
+  const back = await items();
+  assert.equal(back.filter((i) => i.id === "role-myynti" || i.parent_id === "role-myynti").length, group.rows.length);
+  const lost = group.rows.find((x) => x.id === "myynti-m2");
+  assert.deepEqual(back.find((i) => i.id === "myynti-m2").data, lost.data, "sisältö palautui sellaisenaan");
 });
 
 test("ajastus koskettaa tietokantaa", async () => {

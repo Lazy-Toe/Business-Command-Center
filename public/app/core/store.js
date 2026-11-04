@@ -269,6 +269,11 @@ export async function deletePlan() {
   if (p) await openPlan(p.id); else { state.planId = null; items = new Map(); emit(); }
 }
 
+// Palvelimelle ehtineet muutokset ja poistot, uusin ensin. Haetaan vain pyydettäessä.
+export async function loadHistory() {
+  return (await call("/plans/" + encodeURIComponent(state.planId) + "/history")).history;
+}
+
 export function exportPlan() {
   const plan = state.plans.find((p) => p.id === state.planId);
   return { format: "bcc-plan", version: 1, title: plan ? plan.title : "", exported_at: new Date().toISOString(), items: [...items.values()] };

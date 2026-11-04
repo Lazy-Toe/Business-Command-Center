@@ -4,6 +4,7 @@ import { ui, onUi, setEdit, uiChanged, removeWithUndo, Tools } from "./core/ui.j
 import { moduleOf, allModules } from "./core/registry.js";
 import "./modules/index.js";
 import { roles, RolePanel, showTab } from "./modules/scorecards.js";
+import { HistoryPanel } from "./history.js";
 
 const { state, sections } = store;
 
@@ -65,6 +66,7 @@ function AppBar() {
   const plan = state.plans.find((p) => p.id === state.planId);
   const [open, setOpen] = useState(false);
   const [pdf, setPdf] = useState("PDF");
+  const [hist, setHist] = useState(false);
   const act = (fn) => async () => { setOpen(false); try { await fn(); } catch (e) { state.save = "error"; state.error = "Toiminto epäonnistui (" + e.message + ")."; uiChanged(); } };
   const newPlan = act(async () => { const t = prompt("Uuden suunnitelman nimi"); if (t && t.trim()) { await store.createPlan(t.trim(), newPlanItems()); showTab("kokonaisuus"); setEdit(true); } });
   const dup = act(async () => { const t = prompt("Kopion nimi", (plan ? plan.title : "") + " (kopio)"); if (t && t.trim()) await store.duplicatePlan(t.trim()); });
@@ -92,6 +94,7 @@ function AppBar() {
           <button type="button" role="menuitem" onClick=${newPlan}>Uusi suunnitelma</button>
           ${plan ? html`<button type="button" role="menuitem" onClick=${dup}>Monista tämä</button>
           <button type="button" role="menuitem" onClick=${rename}>Nimeä uudelleen</button>
+          <button type="button" role="menuitem" onClick=${() => { setOpen(false); setHist(true); }}>Muutoshistoria</button>
           <button type="button" role="menuitem" onClick=${exp}>Vie tiedostoon (JSON)</button>` : null}
           <button type="button" role="menuitem" onClick=${imp}>Tuo tiedostosta</button>
           ${plan && state.plans.length > 1 ? html`<button type="button" role="menuitem" class="danger" onClick=${del}>Poista suunnitelma</button>` : null}
@@ -102,6 +105,7 @@ function AppBar() {
       <button type="button" class="barbtn" disabled=${pdf !== "PDF"} onClick=${doPdf}>${pdf}</button>
       <button type="button" class=${"barbtn primary" + (ui.edit ? " on" : "")} aria-pressed=${ui.edit ? "true" : "false"} onClick=${() => setEdit(!ui.edit)}>${ui.edit ? "Valmis" : "Muokkaa"}</button>
     </div>
+    ${hist ? html`<${HistoryPanel} onClose=${() => setHist(false)} />` : null}
   </div>`;
 }
 
