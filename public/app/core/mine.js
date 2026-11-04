@@ -1,4 +1,4 @@
-// Omat-näkymän logiikka ilman näkymää: kirjautuneen henkilön tehtävät ja scorecardit kaikista suunnitelmista.
+// Oma työpöytä -näkymän logiikka ilman näkymää: kirjautuneen henkilön tehtävät ja scorecardit kaikista suunnitelmista.
 import { buildToday } from "./today.js";
 import { rowsFor, freeRows, orderDefs } from "./scorecard.js";
 
