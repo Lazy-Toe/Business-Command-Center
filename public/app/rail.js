@@ -38,6 +38,6 @@ export function SubNav({ title, entries, roles, activeTab, activeSec, open, pinn
     <h3>Osiot</h3>
     <ul class="sublist">${entries.map((e) => html`<li key=${e.id}><button type="button" class=${"sub1" + (activeSec === e.id ? " on" : "")} aria-current=${activeSec === e.id ? "location" : undefined} title=${e.label} onClick=${() => onEntry(e)}><span>${e.label}</span></button></li>`)}</ul>
     ${roles.length ? html`<h3>Vastuualueet</h3>
-    <ul class="sublist">${roles.map((r) => html`<li key=${r.id}><button type="button" class=${"subrole" + (activeTab === r.id ? " on" : "")} aria-current=${activeTab === r.id ? "page" : undefined} title=${(r.data.owner ? r.data.owner + ", " : "") + (r.data.title || "")} onClick=${() => onRole(r)}><b>${r.data.owner || "Ei vastuuhenkilöä"}</b><span>${r.data.title || "Vastuualue"}</span></button></li>`)}</ul>` : null}
+    <ul class="sublist">${roles.map((r) => html`<li key=${r.id}><button type="button" class=${"sub1" + (activeTab === r.id ? " on" : "")} aria-current=${activeTab === r.id ? "page" : undefined} title=${(r.data.title || "Vastuualue") + (r.data.owner ? " (" + r.data.owner + ")" : "")} onClick=${() => onRole(r)}><span>${r.data.title || "Vastuualue"}</span></button></li>`)}</ul>` : null}
   </nav>`;
 }
