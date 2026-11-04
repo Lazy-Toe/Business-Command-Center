@@ -28,7 +28,7 @@ before(async () => {
   fake = fakeSupabase(pg, BASE);
   realFetch = globalThis.fetch;
   globalThis.fetch = (u, i) => fake.fetchImpl(u, i || {});
-  env = { SUPABASE_URL: BASE, SUPABASE_SECRET_KEY: "dev-secret", ALLOWED_EMAILS: "Owner@example.test, toinen@example.test", ACCESS_TEAM: fake.team, ASSETS: { fetch: async () => new Response("sivu") } };
+  env = { SUPABASE_URL: BASE, SUPABASE_SECRET_KEY: "dev-secret", ALLOWED_EMAILS: "Owner@example.test, toinen@example.test", MEMBER_EMAILS: "Jasen@example.test, jasen2@example.test, toinen@example.test", ACCESS_TEAM: fake.team, ASSETS: { fetch: async () => new Response("sivu") } };
 });
 after(async () => { globalThis.fetch = realFetch; await pg.close(); });
 
@@ -195,6 +195,147 @@ test("henkilöfunktiot toimivat service_role-oikeuksilla, ei vain pääkäyttäj
     await pg.exec("select bcc_unlink_person('rooli@example.test')");
     assert.equal((await q("select count(*)::int n from bcc_people where lower(name) = 'roolitesti'"))[0].n, 1);
   } finally { await pg.exec("reset role"); }
+});
+
+const JASEN = "jasen@example.test", JASEN2 = "jasen2@example.test";
+const asJasen = (path, opts = {}) => req(path, { ...opts, token: fake.token(opts.email || JASEN) });
+const put = (id, kind, data, parent_id, plan = "jplan") => ({ op: "put", id, kind, parent_id: parent_id || null, position: 1, data });
+
+async function setupMember() {
+  if ((await q("select 1 from bcc_plans where id = 'jplan'")).length) return;
+  for (const [id, title] of [["jplan", "Jäsenen suunnitelma"], ["pmuu", "Muiden suunnitelma"]]) await req("/plans", { method: "POST", body: { id, title } });
+  const ops = [
+    put("s1", "stream", { label: "Oma työvirta" }), put("s2", "stream", { label: "Muiden työvirta" }),
+    put("rJ", "role", { title: "Jäsenen vastuualue", owner: "Jasen", stream: "s1" }), put("rM", "role", { title: "Muiden vastuualue", owner: "Muu", stream: "s2" }),
+    put("mJ", "metric", { name: "Oma mittari", actual: "1" }, "rJ"), put("mM", "metric", { name: "Muiden mittari" }, "rM"),
+    put("tOwn", "task", { title: "Oma tehtävä", owner: "Jasen", status: "todo" }), put("tInh", "task", { title: "Peritty tehtävä", stream: "s1", status: "todo" }),
+    put("tOther", "task", { title: "Muun salainen tehtävä", owner: "Muu", status: "todo" }), put("tOtherS", "task", { title: "Muiden työvirran tehtävä", stream: "s2" }),
+    put("sec", "section", { title: "Muiden salainen osio" })
+  ];
+  assert.equal((await req("/plans/jplan/items", { method: "POST", body: { ops } })).status, 200);
+  assert.equal((await req("/plans/pmuu/items", { method: "POST", body: { ops: [put("pt", "task", { title: "Toisen suunnitelman salainen", owner: "Muu" })] } })).status, 200);
+  await req("/people", { method: "POST", body: { name: "Jasen" } });
+  assert.equal((await req("/people/email", { method: "POST", body: { name: "Jasen", email: " Jasen@Example.test " } })).status, 200, "ylläpitäjä liittää jäsenen");
+}
+
+test("jäsen näkee vain omat rivit, ei muiden sisältöä eikä suunnitelmia", async () => {
+  await setupMember();
+  const r = await asJasen("/mine");
+  assert.equal(r.status, 200);
+  const b = await r.json();
+  assert.deepEqual(b.items.map((i) => i.id).sort(), ["mJ", "rJ", "s1", "tInh", "tOwn"]);
+  assert.deepEqual(b.plans.map((p) => p.id), ["jplan"], "vain suunnitelma, jossa on jäsenen rivejä");
+  assert.equal(b.items.find((i) => i.id === "tInh").data.owner, "Jasen");
+  const text = JSON.stringify(b);
+  for (const secret of ["Muu", "salainen", "Muiden", "Toisen", "emce"]) assert.ok(!text.includes(secret), "vuotaa: " + secret);
+  const me = await (await asJasen("/people")).json();
+  assert.deepEqual(me, { role: "member", me: { email: JASEN, person: "Jasen" }, people: [] });
+});
+
+test("jäsenelle kaikki ylläpitäjän reitit ovat kiellettyjä", async () => {
+  await setupMember();
+  const body = { name: "X", id: "x", title: "X", ops: [{ op: "del", id: "tOwn" }] };
+  for (const [method, path] of [
+    ["GET", "/plans"], ["POST", "/plans"], ["PATCH", "/plans/jplan"], ["DELETE", "/plans/jplan"],
+    ["GET", "/plans/jplan/items"], ["GET", "/plans/pmuu/items"], ["GET", "/plans/jplan/history"], ["GET", "/overview"],
+    ["POST", "/people"], ["PUT", "/me"], ["DELETE", "/me"], ["POST", "/people/rename"], ["POST", "/people/delete"], ["POST", "/people/email"],
+    ["GET", "/tuntematon"]
+  ]) {
+    const r = await asJasen(path, { method, body: method === "GET" ? undefined : body });
+    assert.equal(r.status, 403, method + " " + path);
+    assert.deepEqual(await r.json(), { error: "forbidden" });
+  }
+  assert.equal((await q("select count(*)::int n from bcc_items where plan_id = 'jplan'"))[0].n, 11, "mitään ei poistunut");
+});
+
+test("jäsen muuttaa vain omia rivejään sallituilla kentillä, kaikki muu hylätään kokonaan", async () => {
+  await setupMember();
+  const post = (plan, ops, email) => asJasen("/plans/" + plan + "/items", { method: "POST", body: { ops }, email });
+  const data = async (id) => (await q("select data from bcc_items where id = $1", [id]))[0].data;
+  assert.equal((await post("jplan", [{ op: "patch", id: "tOwn", data: { status: "done", due: "2026-11-05" } }, { op: "patch", id: "mJ", data: { actual: "9 %", state: "good" } }])).status, 200);
+  assert.deepEqual([(await data("tOwn")).status, (await data("tOwn")).due, (await data("mJ")).actual, (await data("mJ")).state], ["done", "2026-11-05", "9 %", "good"]);
+  assert.equal((await data("tOwn")).title, "Oma tehtävä", "muut kentät säilyvät");
+  assert.equal((await post("jplan", [{ op: "patch", id: "tInh", data: { status: "doing" } }])).status, 200, "peritty tehtävä on oma");
+
+  for (const [plan, ops] of [
+    ["jplan", [{ op: "patch", id: "tOther", data: { status: "done" } }]],
+    ["jplan", [{ op: "patch", id: "mM", data: { actual: "1" } }]],
+    ["jplan", [{ op: "patch", id: "rJ", data: { title: "Vallattu" } }]],
+    ["jplan", [{ op: "patch", id: "tOwn", data: { owner: "Muu" } }]],
+    ["jplan", [{ op: "patch", id: "tOwn", data: { title: "Uusi nimi" } }]],
+    ["jplan", [{ op: "patch", id: "tOwn", data: { status: "done" }, parent_id: "rM" }]],
+    ["jplan", [{ op: "patch", id: "tOwn", data: { status: "done" }, position: 99 }]],
+    ["jplan", [{ op: "patch", id: "tOwn", data: { status: "keksitty" } }]],
+    ["jplan", [{ op: "del", id: "tOwn" }]],
+    ["jplan", [put("uusi", "task", { title: "Luotu" })]],
+    ["jplan", [put("tOther", "task", { title: "Ylikirjoitettu" })]],
+    ["jplan", [{ op: "patch", id: "tOwn", data: { status: "todo" } }, { op: "patch", id: "tOther", data: { status: "done" } }]],
+    ["pmuu", [{ op: "patch", id: "pt", data: { status: "done" } }]],
+    ["pmuu", [{ op: "patch", id: "tOwn", data: { status: "todo" } }]],
+    ["ei-ole", [{ op: "patch", id: "tOwn", data: { status: "todo" } }]]
+  ]) {
+    const r = await post(plan, ops);
+    assert.equal(r.status, 422, plan + " " + JSON.stringify(ops));
+    assert.deepEqual(await r.json(), { error: "out_of_scope" });
+  }
+  assert.equal((await data("tOwn")).status, "done", "hylätty erä ei muuttanut hyväksyttyäkään osaa");
+  assert.equal((await data("tOther")).status, "todo");
+  assert.equal((await data("tOwn")).owner, "Jasen");
+  assert.equal((await q("select count(*)::int n from bcc_items where id in ('uusi')"))[0].n, 0);
+});
+
+test("liittämätön jäsen ei näe eikä muuta mitään", async () => {
+  await setupMember();
+  const b = await (await asJasen("/mine", { email: JASEN2 })).json();
+  assert.deepEqual(b, { plans: [], items: [] });
+  assert.equal((await asJasen("/plans/jplan/items", { method: "POST", email: JASEN2, body: { ops: [{ op: "patch", id: "tOwn", data: { status: "todo" } }] } })).status, 422);
+  assert.equal((await (await asJasen("/people", { email: JASEN2 })).json()).me.person, null);
+});
+
+test("roolit: ylläpitäjä voittaa, tuntematon ei pääse sisään, jäsen ei pääse ylläpitäjän reiteille", async () => {
+  assert.equal((await req("/plans", { token: fake.token("toinen@example.test") })).status, 200, "molemmissa listoissa oleva on ylläpitäjä");
+  assert.equal((await req("/plans", { token: fake.token("vieras@example.test") })).status, 403);
+  assert.equal((await req("/mine", { token: fake.token("vieras@example.test") })).status, 403);
+  assert.equal((await (await req("/people")).json()).role, "admin");
+  assert.equal((await req("/mine")).status, 404, "ylläpitäjä ei käytä jäsenen reittiä");
+  assert.equal((await asJasen("/plans", { method: "POST", body: { id: "x", title: "X" }, headers: { origin: "https://evil.test" } })).status, 403);
+  assert.equal((await worker.fetch(new Request("http://app.test/api/mine"), { ...env, MEMBER_EMAILS: "" })).status, 403, "ilman tunnistetta ei pääse");
+  const r = await req("/mine", { token: fake.token(JASEN), });
+  assert.equal(r.status, 200);
+  env.MEMBER_EMAILS = "";
+  try { assert.equal((await asJasen("/mine")).status, 403, "poistettu jäsen menettää pääsyn heti"); } finally { env.MEMBER_EMAILS = "Jasen@example.test, jasen2@example.test, toinen@example.test"; }
+});
+
+test("henkilöhallinta: nimen muutos päivittää vastuut kaikkiin suunnitelmiin ja historiaan, poisto vain käyttämättömälle", async () => {
+  await setupMember();
+  await req("/people", { method: "POST", body: { name: "Muu" } });
+  await req("/people", { method: "POST", body: { name: "Käyttämätön" } });
+  await req("/people", { method: "POST", body: { name: "Toinen Henkilö" } });
+  const owners = async (name) => (await q("select count(*)::int n from bcc_items where kind in ('role','task') and data->>'owner' = $1", [name]))[0].n;
+  const before = await owners("Muu");
+  assert.ok(before >= 3);
+
+  assert.equal((await req("/people/rename", { method: "POST", body: { from: "Jasen", to: "Toinen Henkilö" } })).status, 409, "nimi on jo käytössä");
+  assert.equal((await req("/people/rename", { method: "POST", body: { from: "Olematon", to: "Uusi" } })).status, 404);
+  assert.equal((await req("/people/rename", { method: "POST", body: { from: "Jasen", to: " " } })).status, 400);
+  const r = await req("/people/rename", { method: "POST", body: { from: "muu", to: "Muu Uusi" } });
+  assert.deepEqual(await r.json(), { ok: true, name: "Muu Uusi" });
+  assert.equal(await owners("Muu"), 0);
+  assert.equal(await owners("Muu Uusi"), before, "kaikki vastuut uudella nimellä, myös toisessa suunnitelmassa");
+  assert.equal((await q("select count(*)::int n from bcc_item_history where data->>'owner' = 'Muu'"))[0].n >= before, true, "muutos on palautettavissa historiasta");
+
+  assert.equal((await req("/people/delete", { method: "POST", body: { name: "Muu Uusi" } })).status, 409, "käytössä olevaa ei poisteta");
+  assert.equal((await req("/people/delete", { method: "POST", body: { name: "Käyttämätön" } })).status, 200);
+  assert.equal((await q("select count(*)::int n from bcc_people where name = 'Käyttämätön'"))[0].n, 0);
+
+  assert.equal((await req("/people/email", { method: "POST", body: { name: "Toinen Henkilö", email: JASEN } })).status, 409, "sähköposti kuuluu yhdelle");
+  assert.equal((await req("/people/email", { method: "POST", body: { name: "Toinen Henkilö", email: "ei sähköposti" } })).status, 400);
+  assert.equal((await req("/people/email", { method: "POST", body: { name: "Olematon", email: "a@b.fi" } })).status, 404);
+  const all = await (await req("/people")).json();
+  assert.equal(all.people.find((p) => p.name === "Jasen").email, JASEN);
+  assert.equal((await req("/people/email", { method: "POST", body: { name: "Jasen", email: "" } })).status, 200, "tyhjä poistaa liitoksen");
+  assert.deepEqual(await (await asJasen("/mine")).json(), { plans: [], items: [] }, "liitoksen poiston jälkeen jäsen ei näe mitään");
+  await req("/people/email", { method: "POST", body: { name: "Jasen", email: JASEN } });
 });
 
 test("ajastus koskettaa tietokantaa", async () => {

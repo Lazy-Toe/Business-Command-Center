@@ -28,7 +28,7 @@ function Scorecard({ sc, open }) {
   return html`<article class="mrole">
     <div class="mrhead">
       <div><h3>${r.data.title || "Vastuualue"}</h3><span class="tsub">${planName(sc.plan_id)}${r.data.mission ? " · " + r.data.mission : ""}</span></div>
-      <button type="button" class="barbtn" onClick=${() => open(sc.plan_id, r)}>Avaa suunnitelmassa</button>
+      ${open ? html`<button type="button" class="barbtn" onClick=${() => open(sc.plan_id, r)}>Avaa suunnitelmassa</button>` : null}
     </div>
     ${sc.metrics.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
       <thead><tr><th>Mittari</th><th>Rytmi</th><th>Lähtötaso</th><th>Tavoite</th><th>Toteuma</th><th>Tila</th></tr></thead>
@@ -40,6 +40,10 @@ function Scorecard({ sc, open }) {
 // Kirjautuminen liitetään henkilöön kerran. Sen jälkeen näkymä kohdistuu automaattisesti.
 function WhoAmI({ error }) {
   const [msg, setMsg] = useState("");
+  if (state.role === "member") {
+    return html`<div class="wrap today"><header class="thead"><div><p class="eyebrow">Omat</p><h1>Ei vielä käytössä</h1></div></header>
+      <div class="whoami"><p>Kirjautumistasi${state.email ? " (" + state.email + ")" : ""} ei ole vielä liitetty henkilöön. Pyydä ylläpitäjää liittämään se, niin tehtäväsi ja scorecardisi näkyvät tässä.</p></div></div>`;
+  }
   const pick = async (name) => {
     if (!name) return;
     try { setMsg(""); await linkMe(name); } catch (e) { setMsg(e.body && e.body.error === "person_taken" ? "Henkilö on jo liitetty toiseen kirjautumiseen." : "Liittäminen ei onnistunut (" + e.message + ")."); }
@@ -55,7 +59,8 @@ function WhoAmI({ error }) {
   </div>`;
 }
 
-export function MineView({ open }) {
+export function MineView({ open: openIn }) {
+  const open = state.role === "member" ? null : openIn;
   useEffect(() => { state.overviewActive = true; loadOverview(); return () => { state.overviewActive = false; }; }, []);
   const [showAll, setShowAll] = useState(false);
   const me = state.people.me, ov = state.overview;
@@ -66,7 +71,7 @@ export function MineView({ open }) {
   const bad = R.scorecards.reduce((n, s) => n + s.metrics.filter((m) => m.data.state === "bad").length, 0);
   return html`<div class="wrap today">
     <header class="thead">
-      <div><p class="eyebrow">Omat</p><h1>${me}</h1><p class="lede">${fmtLong(today)} · <button type="button" class="linkbtn" onClick=${() => unlinkMe().catch(() => {})}>Vaihda henkilö</button></p></div>
+      <div><p class="eyebrow">Omat</p><h1>${me}</h1><p class="lede">${fmtLong(today)}${state.role === "member" ? "" : html` · <button type="button" class="linkbtn" onClick=${() => unlinkMe().catch(() => {})}>Vaihda henkilö</button>`}</p></div>
       <div class="ledger tcount" aria-label="Yhteenveto">
         <div class="stat-cell"><b class=${"num" + (R.late.length ? " neg" : "")}>${R.late.length}</b><span>myöhässä</span></div>
         <div class="stat-cell"><b class="num">${R.today.length}</b><span>tänään</span></div>

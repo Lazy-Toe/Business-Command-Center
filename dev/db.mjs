@@ -14,6 +14,7 @@ export async function createDb(oldRows) {
   for (const r of oldRows || []) await pg.query("insert into public.bcc_status (id, data) values ($1, $2)", [r.id, r.data]);
   await pg.exec(sql("002_alusta.sql"));
   await pg.exec(sql("003_kayttajat.sql"));
+  await pg.exec(sql("004_henkilohallinta.sql"));
   return pg;
 }
 
@@ -56,6 +57,9 @@ export function fakeSupabase(pg, base) {
       if (path === "bcc_people" && m === "GET") return res((await pg.query("select name, email from bcc_people order by lower(name)")).rows);
       if (path === "rpc/bcc_add_person") return res((await pg.query("select bcc_add_person($1) as n", [body.p_name])).rows[0].n);
       if (path === "rpc/bcc_link_person") return res((await pg.query("select bcc_link_person($1, $2) as n", [body.p_email, body.p_name])).rows[0].n);
+      if (path === "rpc/bcc_rename_person") return res((await pg.query("select bcc_rename_person($1, $2) as n", [body.p_old, body.p_new])).rows[0].n);
+      if (path === "rpc/bcc_delete_person") { await pg.query("select bcc_delete_person($1)", [body.p_name]); return res(undefined, 204); }
+      if (path === "rpc/bcc_set_person_email") { await pg.query("select bcc_set_person_email($1, $2)", [body.p_name, body.p_email]); return res(undefined, 204); }
       if (path === "rpc/bcc_unlink_person") { await pg.query("select bcc_unlink_person($1)", [body.p_email]); return res(undefined, 204); }
       if (path === "rpc/bcc_apply_batch") return res((await pg.query("select bcc_apply_batch($1, $2::jsonb) as n", [body.p_plan, JSON.stringify(body.p_ops)])).rows[0].n);
       if (path === "rpc/bcc_duplicate_plan") return res((await pg.query("select bcc_duplicate_plan($1, $2, $3) as id", [body.p_source, body.p_id, body.p_title])).rows[0].id);
