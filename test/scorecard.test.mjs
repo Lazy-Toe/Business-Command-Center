@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toNumber, valuesOf, scoreRow, orderDefs, rowsFor, freeRows, totals, periodPreset, periodText, virtualId } from "../public/app/core/scorecard.js";
+import { toNumber, valuesOf, scoreRow, orderDefs, rowsFor, recipientsOf, freeRows, totals, periodPreset, periodText, virtualId } from "../public/app/core/scorecard.js";
 
 const def = (id, data, parent_id = "g1", position = 1) => ({ id, kind: "metricdef", parent_id, position, data });
 const D1 = def("d1", { name: "Liikevaihto", stream: "w1", target: "1500", min: "1400", max: "1800", weight: "20" });
@@ -85,4 +85,21 @@ test("valmiit jaksot ja jakson teksti", () => {
   assert.equal(periodText("2026-01-01", "2026-03-31"), "1.1.2026–31.3.2026");
   assert.equal(periodText("", ""), "");
   assert.equal(periodText("2026-05-04", ""), "4.5.2026");
+});
+
+test("malli suoraan roolille: roles-kenttä toimii työvirrasta riippumatta", () => {
+  const direct = def("d7", { name: "Suora", stream: "", roles: ["r1"] });
+  const r = role({ stream: "w9" });
+  const list = rowsFor(r, [direct], []);
+  assert.deepEqual(list.map((x) => x.def.id), ["d7"]);
+  assert.equal(list[0].auto, true);
+  assert.deepEqual(rowsFor({ id: "r2", plan_id: "p", data: { stream: "w9" } }, [direct], []), [], "toinen rooli ei saa");
+  assert.deepEqual(rowsFor(role({ stream: "w9", hide: ["d7"] }), [direct], []), [], "piilotus voittaa");
+});
+
+test("recipientsOf kertoo kenelle malli tulee ja miksi", () => {
+  const d = def("d8", { stream: "w1", roles: ["r2"] });
+  const roles = [{ id: "r1", data: { stream: "w1" } }, { id: "r2", data: {} }, { id: "r3", data: {} }, { id: "r4", data: { stream: "w1", hide: ["d8"] } }];
+  const to = recipientsOf(d, roles, [{ parent_id: "r3", data: { def: "d8" } }]);
+  assert.deepEqual(to.map((x) => [x.role.id, x.via]), [["r1", "stream"], ["r2", "role"], ["r3", "manual"]]);
 });

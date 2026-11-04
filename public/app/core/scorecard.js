@@ -42,7 +42,22 @@ export function orderDefs(goals, defs) {
   return gs.flatMap((g) => defs.filter((d) => d.parent_id === g.id).sort(pos)).concat(defs.filter((d) => !known.has(d.parent_id)).sort(pos));
 }
 
-// Roolin tavoiterivit: kaikki mallit, joiden työvirta on sama kuin roolilla, sekä erikseen lisätyt (rivi viittaa malliin).
+// Malli tulee roolille automaattisesti, jos sillä on sama työvirta tai malli on annettu suoraan roolille (def.data.roles on roolien tunnisteet).
+const byStream = (def, role) => !!role.data.stream && def.data.stream === role.data.stream;
+const byRole = (def, role) => Array.isArray(def.data.roles) && def.data.roles.includes(role.id);
+export const assignedTo = (def, role) => byStream(def, role) || byRole(def, role);
+
+// Kenelle malli tulee: roolit ja syy (stream = työvirran kautta, role = annettu suoraan, manual = lisätty käsin roolin sivulta). Piilotettu malli ei tule.
+export function recipientsOf(def, roles, metricRows) {
+  return roles.map((role) => {
+    if ((role.data.hide || []).includes(def.id)) return null;
+    if (byStream(def, role)) return { role, via: "stream" };
+    if (byRole(def, role)) return { role, via: "role" };
+    return (metricRows || []).some((m) => m.data.def === def.id && m.parent_id === role.id) ? { role, via: "manual" } : null;
+  }).filter(Boolean);
+}
+
+// Roolin tavoiterivit: kaikki mallit, jotka tulevat roolille automaattisesti, sekä erikseen lisätyt (rivi viittaa malliin).
 // Piilotettu malli (role.data.hide) ei näy kummassakaan tapauksessa. Tallentamaton rivi on virtuaalinen, ja sen tunniste on kiinteä.
 export function rowsFor(role, defs, rows) {
   const hide = new Set(role.data.hide || []), stored = new Map();
@@ -50,7 +65,7 @@ export function rowsFor(role, defs, rows) {
   const out = [];
   defs.forEach((def) => {
     if (hide.has(def.id)) return;
-    const auto = !!role.data.stream && def.data.stream === role.data.stream, row = stored.get(def.id);
+    const auto = assignedTo(def, role), row = stored.get(def.id);
     if (!auto && !row) return;
     const real = row || { id: virtualId(role.id, def.id), kind: "metric", plan_id: role.plan_id, parent_id: role.id, position: 0, data: { def: def.id }, virtual: true };
     out.push({ def, row: real, virtual: !row, auto, score: scoreRow(def, real) });
