@@ -503,3 +503,4 @@ span.editable:empty { display: inline-block; }
 .backlink:hover { text-decoration: underline; }
 .nmwrap .tools { margin-left: 4px; }
 .gpair .gtable-wrap { min-width: 0; overflow-x: auto; }
+.ownersel { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; max-width: 100%; }
