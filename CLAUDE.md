@@ -1,12 +1,13 @@
 # Business Command Center
 
-Yksityinen suunnittelu- ja johtamisalusta. Yhdellä alustalla voi olla useita suunnitelmia, ja jokainen suunnitelma koostuu moduuleista. Sisältö on tietokannassa, ei koodissa.
+Yksityinen johtamisen keskipiste: yhdessä paikassa suunnitelmat, vastuut, mittarit ja se, mitä pitää tehdä tänään. Yhdellä alustalla voi olla useita suunnitelmia, ja jokainen suunnitelma koostuu moduuleista. Sisältö on tietokannassa, ei koodissa.
 
 ## Rakenne
 - `public/`: julkaistavat tiedostot. Vain tämä kansio näkyy verkossa.
 - `public/app/main.js`: sovelluksen runko: yläpalkki, välilehdet, osioiden asettelu.
 - `public/app/core/`: `store.js` (tiedot ja tallennus), `ui.js` (muokattava teksti, työkalut, raahaus), `calc.js` (laskenta ilman näkymää), `registry.js` (moduulirekisteri).
 - `public/app/modules/`: yksi tiedosto per osiotyyppi. Rekisteröinti `index.js`:ssä.
+- `public/app/views/today.js`: etusivu, joka kokoaa kaikkien suunnitelmien tehtävät, mittarit ja riskit (`/api/overview`). Luokittelu on tiedostossa `core/today.js`.
 - `public/vendor/htm-preact.js`: käyttöliittymäkirjasto. Ei käännösvaihetta.
 - `worker.js` ja `wrangler.jsonc`: Worker tarkistaa Cloudflare Accessin tunnisteen ja sallitun sähköpostin ja käyttää Supabasea salaisella avaimella. Salaisuudet (SUPABASE_SECRET_KEY, ALLOWED_EMAILS, valinnainen ACCESS_AUD) ovat vain Cloudflaressa.
 - `supabase/schema.sql`: tietokannan rakenne. `002_alusta.sql` on kertaluonteinen siirto vanhasta `bcc_status`-taulusta, ja `001_kopio.sql` on historiaa.
@@ -17,6 +18,8 @@ Yksityinen suunnittelu- ja johtamisalusta. Yhdellä alustalla voi olla useita su
 - `bcc_items`: kaikki sisältö yleisinä riveinä: `kind`, `parent_id`, `position`, `data` (jsonb). Tunniste on yksilöllinen suunnitelman sisällä, joten monistus säilyttää tunnisteet.
 - `bcc_item_history`: rivin edeltävä tila jokaisesta sisältömuutoksesta ja poistosta, 180 päivää. Palautus tehdään SQL:llä.
 - `bcc_status`: vanha taulu, varmuuskopio. Älä kirjoita siihen.
+
+Tehtävän `data`: `title`, `detail`, `phase`, `stream`, `status`, `note`, `due` (VVVV-KK-PP), `owner`. Ilman omaa vastuuhenkilöä käytetään roolin omistajaa, jonka työvirta on sama.
 
 ## Uusi moduuli
 1. Tee `public/app/modules/<nimi>.js` ja kutsu siinä `register({ type, label, hint, create, View })`. Sopimus on kuvattu tiedostossa `core/registry.js`, ja `text.js` on pienin esimerkki.

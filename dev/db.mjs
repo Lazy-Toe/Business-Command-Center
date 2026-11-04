@@ -44,7 +44,13 @@ export function fakeSupabase(pg, base) {
         else await pg.query("update bcc_plans set title = $2 where id = $1", [eq(url, "id"), body.title]);
         return res(undefined, 204);
       }
-      if (path === "bcc_items" && m === "GET") return res((await pg.query("select id, kind, parent_id, position, data from bcc_items where plan_id = $1 order by position", [eq(url, "plan_id")])).rows);
+      if (path === "bcc_items" && m === "GET") {
+        const limit = Math.min(+(url.searchParams.get("limit") || 1000), 1000), offset = +(url.searchParams.get("offset") || 0);
+        const planId = url.searchParams.get("plan_id");
+        if (planId) return res((await pg.query("select id, kind, parent_id, position, data from bcc_items where plan_id = $1 order by position, id limit $2 offset $3", [planId.replace(/^eq\./, ""), limit, offset])).rows);
+        const kinds = (url.searchParams.get("kind") || "").replace(/^in\.\(|\)$/g, "").split(",");
+        return res((await pg.query("select plan_id, id, kind, parent_id, position, data from bcc_items where kind = any($1) order by plan_id, position, id limit $2 offset $3", [kinds, limit, offset])).rows);
+      }
       if (path === "bcc_item_history" && m === "GET") return res((await pg.query("select hist_id::int hist_id, id, kind, parent_id, position, data, op, changed_at from bcc_item_history where plan_id = $1 order by changed_at desc, hist_id desc limit $2", [eq(url, "plan_id"), +url.searchParams.get("limit")])).rows);
       if (path === "rpc/bcc_apply_batch") return res((await pg.query("select bcc_apply_batch($1, $2::jsonb) as n", [body.p_plan, JSON.stringify(body.p_ops)])).rows[0].n);
       if (path === "rpc/bcc_duplicate_plan") return res((await pg.query("select bcc_duplicate_plan($1, $2, $3) as id", [body.p_source, body.p_id, body.p_title])).rows[0].id);

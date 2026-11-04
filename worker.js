@@ -86,6 +86,17 @@ async function db(env, path, init) {
   return t ? JSON.parse(t) : null;
 }
 
+// Supabase palauttaa enintään tuhat riviä kerralla, joten haku tehdään sivuittain.
+async function fetchAll(env, path) {
+  const PAGE = 1000, out = [];
+  for (let offset = 0; offset < PAGE * 100; offset += PAGE) {
+    const rows = await db(env, path + "&limit=" + PAGE + "&offset=" + offset);
+    out.push(...rows);
+    if (rows.length < PAGE) return out;
+  }
+  throw new Error("too_many_rows");
+}
+
 async function readJson(request) {
   const text = await request.text();
   if (text.length > MAX_BODY) throw Object.assign(new Error("too_large"), { http: 413 });
@@ -129,6 +140,7 @@ function cleanTitle(v) {
 }
 
 const PLAN_COLS = "id,title,created_at,updated_at";
+const OVERVIEW_KINDS = "task,row,risk,metric,role,stream,section";
 
 async function api(request, env, url) {
   if (!env.SUPABASE_SECRET_KEY || !env.ALLOWED_EMAILS || !env.ACCESS_TEAM || !env.SUPABASE_URL) return json({ error: "not_configured" }, 503);
@@ -161,6 +173,14 @@ async function api(request, env, url) {
     }
   }
 
+  // Tänään-näkymän tiedot kaikista aktiivisista suunnitelmista.
+  if (url.pathname === "/api/overview" && method === "GET") {
+    const plans = await db(env, "bcc_plans?select=" + PLAN_COLS + "&archived_at=is.null&order=created_at");
+    const active = new Set(plans.map(function (p) { return p.id; }));
+    const rows = await fetchAll(env, "bcc_items?select=plan_id,id,kind,parent_id,position,data&kind=in.(" + OVERVIEW_KINDS + ")&order=plan_id,position,id");
+    return json({ plans: plans, items: rows.filter(function (r) { return active.has(r.plan_id); }) });
+  }
+
   const m = url.pathname.match(/^\/api\/plans\/([^/]+)(\/items|\/history)?$/);
   if (m) {
     const id = decodeURIComponent(m[1]);
@@ -175,7 +195,7 @@ async function api(request, env, url) {
       }
     } else if (m[2]) {
       if (method === "GET") {
-        const items = await db(env, "bcc_items?select=id,kind,parent_id,position,data&plan_id=eq." + q + "&order=position");
+        const items = await fetchAll(env, "bcc_items?select=id,kind,parent_id,position,data&plan_id=eq." + q + "&order=position,id");
         return json({ items: items });
       }
       if (method === "POST") {

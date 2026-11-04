@@ -1,4 +1,4 @@
-import { html, Text, Tools, AddButton, Input, ui, useCollapse, Head, pressable, mq, FACE, MOODNAME, ORDER, nextIn, uiChanged, sortProps } from "../core/ui.js";
+import { html, Text, Tools, AddButton, Input, ui, useCollapse, Head, pressable, mq, FACE, MOODNAME, ORDER, nextIn, uiChanged, sortProps, navigate } from "../core/ui.js";
 import { register } from "../core/registry.js";
 import { children, findSection, patch, add } from "../core/store.js";
 import { peopleOf } from "../core/calc.js";
@@ -9,13 +9,10 @@ const CADS = ["viikko", "kuukausi", "kvartaali"];
 export const roles = () => { const s = findSection("scorecards"); return s ? children(s.id, "role") : []; };
 // Näkymän vaihto jättää selainhistoriaan merkinnän, jotta Takaisin palaa edelliseen näkymään. quiet = vastaus Takaisin-painikkeeseen.
 export function showTab(id, quiet) {
-  const changed = ui.tab !== id;
   ui.tab = id;
-  try {
-    localStorage.setItem("bcc-tab", id);
-    if (!quiet) history[changed ? "pushState" : "replaceState"](null, "", id === "kokonaisuus" ? location.pathname + location.search : "#" + id);
-  } catch (e) { /* ei pakollinen */ }
-  document.body.classList.toggle("tab-role", id !== "kokonaisuus");
+  try { localStorage.setItem("bcc-tab", id); } catch (e) { /* ei pakollinen */ }
+  if (!quiet) navigate(id === "kokonaisuus" ? location.pathname + location.search : "#" + id);
+  document.body.classList.toggle("tab-role", id !== "kokonaisuus" && ui.view === "plan");
   uiChanged();
 }
 
@@ -44,7 +41,7 @@ function MetricRow({ m, list }) {
   const cyc = () => patch(m.id, { state: nextIn(ORDER, v.state) });
   const field = (f, lab) => html`<td><${Input} maxlength="30" placeholder="–" aria-label=${name + ": " + lab} value=${v[f] || ""}
     onChange=${(e) => patch(m.id, { [f]: e.target.value.trim().slice(0, 30) })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></td>`;
-  return html`<tr class=${v.state ? "m-" + v.state : ""}>
+  return html`<tr data-item=${m.id} class=${v.state ? "m-" + v.state : ""}>
     <td class="nmtd"><div class="nmwrap"><${Input} class="nm" maxlength="80" aria-label="Mittarin nimi" value=${name} onChange=${(e) => patch(m.id, { name: e.target.value.trim().slice(0, 80) || "Uusi mittari" })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} />
       <${Tools} item=${m} list=${list} label=${name} always=${true} /></div></td>
     <td class="cadtd"><select class="cadsel" aria-label="Rytmi" value=${v.cad} onChange=${(e) => patch(m.id, { cad: e.target.value })}>${CADS.map((c) => html`<option key=${c} value=${c}>${c}</option>`)}</select></td>

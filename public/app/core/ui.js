@@ -4,10 +4,17 @@ import { patch, remove, addMany, shift, moveBefore, children as childrenOf } fro
 
 export { html };
 
-export const ui = { edit: false, undo: null, tab: "kokonaisuus" };
+export const ui = { edit: false, undo: null, tab: "kokonaisuus", view: "today" };
 const uiListeners = new Set();
 export function onUi(fn) { uiListeners.add(fn); return () => uiListeners.delete(fn); }
 export function uiChanged() { uiListeners.forEach((fn) => fn()); }
+// Näkymän vaihto jättää selainhistoriaan merkinnän vain, jos osoite muuttuu. replace = korvaa nykyisen merkinnän.
+export function navigate(url, replace) {
+  try {
+    if (replace) history.replaceState(null, "", url);
+    else if (url !== location.pathname + location.search + location.hash) history.pushState(null, "", url);
+  } catch (e) { /* ei pakollinen */ }
+}
 export function setEdit(v) { ui.edit = v; document.body.classList.toggle("editing", v); uiChanged(); }
 
 // Muokattava teksti. mode "edit" = vain muokkaustilassa, "always" = aina.
@@ -112,12 +119,18 @@ export function sortProps(item, list, group, label) {
 function readCollapsed() { try { return JSON.parse(localStorage.getItem("bcc-collapsed") || "{}") || {}; } catch (e) { return {}; } }
 const collapsed = readCollapsed();
 export const SectionCtx = createContext(null);
+export function expandSection(id) {
+  if (!collapsed[id]) return;
+  delete collapsed[id];
+  try { localStorage.setItem("bcc-collapsed", JSON.stringify(collapsed)); } catch (e) { /* ei pakollinen */ }
+}
 export function useCollapse(section) {
-  const [c, set] = useState(!!collapsed[section.id]);
+  const [, set] = useState(0);
+  const c = !!collapsed[section.id];
   const toggle = () => {
     if (collapsed[section.id]) delete collapsed[section.id]; else collapsed[section.id] = 1;
     try { localStorage.setItem("bcc-collapsed", JSON.stringify(collapsed)); } catch (e) { /* ei pakollinen */ }
-    set(!c);
+    set((x) => x + 1);
   };
   // Muokkaustilassa kaikki osiot ovat auki, koska taittopainiketta ei silloin ole.
   return { c: c && !ui.edit, toggle };
