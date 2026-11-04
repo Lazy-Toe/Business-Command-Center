@@ -4,6 +4,8 @@ import { patch, remove, addMany, shift, moveBefore, children as childrenOf } fro
 
 export { html };
 
+// Näkymien väliset siirtymät, jotka main.js asettaa (esimerkiksi tehtävätaulukon avaus valmiilla suodattimella).
+export const hooks = {};
 export const ui = { edit: false, undo: null, tab: "kokonaisuus", view: "today" };
 const uiListeners = new Set();
 export function onUi(fn) { uiListeners.add(fn); return () => uiListeners.delete(fn); }

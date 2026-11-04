@@ -15,6 +15,11 @@ export function peopleNames(...extra) {
 // canAdd: uuden henkilön voi nimetä vain siellä, missä vastuuhenkilöt nimetään (vastuualueen otsikko).
 export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenkilöä", canAdd = false }) {
   const names = peopleNames(value);
+  // Tyhjä vaihtoehto tarkoittaa vastuualueen mukaista vastuuta, ja sen teksti on silloin vastuualueen omistajan nimi. Kun arvoa ei ole asetettu,
+  // sama nimi piilotetaan listasta kahdesti. Kun arvo on asetettu, kaikki nimet pysyvät valittavina, jotta valittu nimi aina löytyy listasta.
+  const dup = String(empty).toLowerCase(), isName = names.some((n) => n.toLowerCase() === dup);
+  const emptyText = value && isName ? empty + " (vastuualueelta)" : empty;
+  const listed = value ? names : names.filter((n) => n.toLowerCase() !== dup);
   const change = async (e) => {
     const v = e.target.value;
     if (v !== NEW_PERSON) { onPick(v); return; }
@@ -26,8 +31,8 @@ export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenk
     onPick(name);
   };
   return html`<select class=${cls || "personsel"} aria-label=${label || "Henkilö"} value=${value || ""} onChange=${change}>
-    <option value="">${empty}</option>
-    ${names.filter((n) => n.toLowerCase() !== String(empty).toLowerCase()).map((n) => html`<option key=${n} value=${n}>${n}</option>`)}
+    <option value="">${emptyText}</option>
+    ${listed.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}
     ${canAdd ? html`<option value=${NEW_PERSON}>+ Lisää henkilö…</option>` : null}
   </select>`;
 }

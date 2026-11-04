@@ -1,9 +1,10 @@
 import { html, render, useEffect, useState } from "../vendor/htm-preact.js";
 import * as store from "./core/store.js";
-import { ui, onUi, setEdit, uiChanged, removeWithUndo, Tools, expandSection, navigate, useEscape } from "./core/ui.js";
+import { ui, onUi, setEdit, uiChanged, removeWithUndo, Tools, expandSection, navigate, useEscape, hooks } from "./core/ui.js";
 import { TodayView } from "./views/today.js";
 import { MineView } from "./views/mine.js";
 import { SettingsView } from "./views/settings.js";
+import { TasksView } from "./views/tasks.js";
 import { moduleOf, allModules } from "./core/registry.js";
 import "./modules/index.js";
 import { roles, RolePanel, showTab } from "./modules/scorecards.js";
@@ -78,12 +79,15 @@ function checkImport(list) {
 function setView(v, how) {
   ui.view = v;
   if (v !== "plan" && ui.edit) setEdit(false);
-  state.overviewActive = v === "today" || v === "mine";
+  state.overviewActive = v === "today" || v === "mine" || v === "tasks";
   document.body.classList.toggle("tab-role", v === "plan" && ui.tab !== "kokonaisuus");
   try { localStorage.setItem("bcc-view", v); } catch (e) { /* ei pakollinen */ }
-  if (how !== "pop") navigate(v === "today" ? location.pathname + location.search + "#tanaan" : v === "mine" ? location.pathname + location.search + "#omat" : v === "settings" ? location.pathname + location.search + "#asetukset" : (ui.tab === "kokonaisuus" ? location.pathname + location.search : "#" + ui.tab), how === "replace");
+  if (how !== "pop") navigate(v === "today" ? location.pathname + location.search + "#tanaan" : v === "mine" ? location.pathname + location.search + "#omat" : v === "settings" ? location.pathname + location.search + "#asetukset" : v === "tasks" ? location.pathname + location.search + "#tehtavat" : (ui.tab === "kokonaisuus" ? location.pathname + location.search : "#" + ui.tab), how === "replace");
   uiChanged();
 }
+
+// Tehtävätaulukon avaus valmiilla suodattimella, esimerkiksi vastuualueen sivulta.
+hooks.openTasks = (filter) => { ui.taskFilter = filter || null; setView("tasks"); store.loadOverview(); };
 
 // Tänään-näkymästä suoraan kohteeseen sen omassa suunnitelmassa.
 async function openItem(planId, item) {
@@ -140,6 +144,7 @@ function AppBar() {
   const lateAll = ov ? buildToday(ov, day, {}).late.length : 0, lateMine = ov && state.people.me ? buildMine(ov, state.people.me, day).late.length : 0;
   const railItems = [
     { id: "today", label: "Tänään", icon: "today", active: ui.view === "today", badge: lateAll, onClick: () => { setView("today"); store.loadOverview(); } },
+    { id: "tasks", label: "Tehtävät", icon: "tasks", active: ui.view === "tasks", onClick: () => { ui.taskFilter = null; setView("tasks"); store.loadOverview(); } },
     { id: "mine", label: "Oma työpöytä", icon: "mine", active: ui.view === "mine", badge: lateMine, onClick: () => { setView("mine"); store.loadOverview(); } },
     ...(plan ? [{ id: "overview", label: "Kokonaisuus", icon: "overview", active: ui.view === "plan", onClick: () => { const was = ui.view === "plan"; showTab("kokonaisuus"); setView("plan"); scrollTo(0, 0); setSubOpen(was ? !subOpen : true); } },
       { id: "settings", label: "Asetukset", icon: "settings", active: ui.view === "settings", onClick: () => { setView("settings"); scrollTo(0, 0); } }] : []),
@@ -150,7 +155,7 @@ function AppBar() {
   const newPlan = act(async () => { const t = prompt("Uuden suunnitelman nimi"); if (t && t.trim()) { await store.createPlan(t.trim(), newPlanItems()); showTab("kokonaisuus"); setView("plan"); setEdit(true); } });
   const dup = act(async () => { const t = prompt("Kopion nimi", (plan ? plan.title : "") + " (kopio)"); if (t && t.trim()) { await store.duplicatePlan(t.trim()); setView("plan"); } });
   const rename = act(async () => { const t = prompt("Suunnitelman nimi", plan.title); if (t && t.trim()) await store.renamePlan(t.trim()); });
-  const del = act(async () => { if (state.plans.length > 1 && confirm("Poistetaanko suunnitelma \"" + plan.title + "\"? Tiedot säilyvät arkistoituna tietokannassa.")) { await store.deletePlan(); showTab("kokonaisuus"); if (ui.view === "today" || ui.view === "mine") store.loadOverview(); } });
+  const del = act(async () => { if (state.plans.length > 1 && confirm("Poistetaanko suunnitelma \"" + plan.title + "\"? Tiedot säilyvät arkistoituna tietokannassa.")) { await store.deletePlan(); showTab("kokonaisuus"); if (ui.view === "today" || ui.view === "mine" || ui.view === "tasks") store.loadOverview(); } });
   const exp = act(async () => download(fileName(plan.title) + ".json", new Blob([JSON.stringify(store.exportPlan(), null, 1)], { type: "application/json" })));
   const imp = act(async () => {
     const f = await new Promise((res) => { const i = document.createElement("input"); i.type = "file"; i.accept = "application/json"; i.onchange = () => res(i.files[0]); i.click(); });
@@ -280,10 +285,11 @@ function App() {
   }, []);
   if (!state.loaded) return html`<div class="wrap"><p class="gs">Ladataan…</p></div>`;
   const plan = state.plans.find((p) => p.id === state.planId);
-  document.title = ui.view === "today" ? "Tänään · Business Command Center" : ui.view === "mine" ? "Oma työpöytä · Business Command Center" : ui.view === "settings" ? "Asetukset · Business Command Center" : (plan ? plan.title : "Business Command Center");
+  document.title = ui.view === "today" ? "Tänään · Business Command Center" : ui.view === "mine" ? "Oma työpöytä · Business Command Center" : ui.view === "tasks" ? "Tehtävät · Business Command Center" : ui.view === "settings" ? "Asetukset · Business Command Center" : (plan ? plan.title : "Business Command Center");
   const openIn = (p, it) => openItem(p, it).catch((e) => { state.save = "error"; state.error = "Avaus epäonnistui (" + e.message + ")."; uiChanged(); });
   if (ui.view === "mine") return html`<${AppBar} /><${MineView} open=${openIn} /><${Undo} />`;
   if (ui.view === "settings") return html`<${AppBar} /><${SettingsView} /><${Undo} />`;
+  if (ui.view === "tasks") return html`<${AppBar} /><${TasksView} open=${openIn} /><${Undo} />`;
   if (ui.view === "today") return html`<${AppBar} /><${TodayView} open=${(p, it) => openItem(p, it).catch((e) => { state.save = "error"; state.error = "Avaus epäonnistui (" + e.message + ")."; uiChanged(); })} /><${Undo} />`;
   if (!plan) return html`<${AppBar} /><div class="wrap"><section><h2>Ei suunnitelmia</h2><p class="gs">Luo ensimmäinen valikosta Suunnitelma.</p></section></div>`;
   const list = sections();
@@ -326,14 +332,14 @@ function App() {
   let view = "today";
   try { view = localStorage.getItem("bcc-view") || "today"; } catch (e) { view = "today"; }
   const hash = (location.hash || "").slice(1);
-  if (hash === "tanaan") view = "today"; else if (hash === "omat") view = "mine"; else if (hash === "asetukset") view = "settings"; else if (hash && roles().some((r) => r.id === hash)) view = "plan";
-  setView(["plan", "mine", "settings"].includes(view) ? view : "today", "replace");
-  if (ui.view === "today" || ui.view === "mine") store.loadOverview();
+  if (hash === "tanaan") view = "today"; else if (hash === "omat") view = "mine"; else if (hash === "asetukset") view = "settings"; else if (hash === "tehtavat") view = "tasks"; else if (hash && roles().some((r) => r.id === hash)) view = "plan";
+  setView(["plan", "mine", "settings", "tasks"].includes(view) ? view : "today", "replace");
+  if (ui.view === "today" || ui.view === "mine" || ui.view === "tasks") store.loadOverview();
   render(html`<${App} />`, rootEl);
   // Selaimen Takaisin ja Eteenpäin vaihtavat näkymää osoitteen tunnisteen mukaan.
   window.addEventListener("popstate", () => {
     const id = (location.hash || "").slice(1);
-    if (id === "tanaan" || id === "omat") { setView(id === "omat" ? "mine" : "today", "pop"); store.loadOverview(); return; }
+    if (id === "tanaan" || id === "omat" || id === "tehtavat") { setView(id === "omat" ? "mine" : id === "tehtavat" ? "tasks" : "today", "pop"); store.loadOverview(); return; }
     if (id === "asetukset") { setView("settings", "pop"); return; }
     showTab(roles().some((r) => r.id === id) ? id : "kokonaisuus", true);
     setView("plan", "pop");

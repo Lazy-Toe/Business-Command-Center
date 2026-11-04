@@ -1,4 +1,4 @@
-import { html, Text, Tools, AddButton, Input, ui, useCollapse, Head, pressable, mq, uiChanged, sortProps, navigate } from "../core/ui.js";
+import { html, Text, Tools, AddButton, Input, ui, useCollapse, Head, pressable, mq, uiChanged, sortProps, navigate, hooks } from "../core/ui.js";
 import { register } from "../core/registry.js";
 import { children, findSection, patch, add, all, state } from "../core/store.js";
 import { FormPanel } from "../forms-ui.js";
@@ -128,7 +128,7 @@ export function RolePanel({ id }) {
     </table></div>` : null}
     <button type="button" class="sc-add" onClick=${() => add("metric", r.id, { name: "Uusi mittari", cad: "kuukausi" })}>+ Lisää oma mittari</button>
     <p class="gs">Tavoitteet määritellään Asetuksissa. Omiin mittareihin kirjoitetaan luvut yksikköineen, esimerkiksi 92 % tai 3,0x.</p>
-    <div class="rp-tasks-head"><h3>Tehtävät</h3><span class="rp-prog num">${tot ? Math.round(100 * sc / tot) + " % valmis" : ""}</span></div>
+    <div class="rp-tasks-head"><h3>Tehtävät</h3><button type="button" class="linkbtn" onClick=${() => hooks.openTasks && hooks.openTasks(r.data.stream ? { plan: state.planId, stream: r.data.stream } : { plan: state.planId, owner: r.data.owner || "" })}>Muokkaa massana taulukossa</button><span class="rp-prog num">${tot ? Math.round(100 * sc / tot) + " % valmis" : ""}</span></div>
     <div class="rp-tasks" style=${{ gridTemplateColumns: parts && !small ? "repeat(" + Math.max(parts.phases.length, 1) + ", minmax(0, 1fr))" : undefined }}>${cols}</div>
   </section>`;
 }
