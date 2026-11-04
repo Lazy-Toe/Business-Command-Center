@@ -7,6 +7,7 @@ import { moduleOf, allModules } from "./core/registry.js";
 import "./modules/index.js";
 import { roles, RolePanel, showTab } from "./modules/scorecards.js";
 import { HistoryPanel } from "./history.js";
+import { PeoplePanel } from "./people-panel.js";
 
 const { state, sections } = store;
 
@@ -96,6 +97,8 @@ function AppBar() {
   const [open, setOpen] = useState(false);
   const [pdf, setPdf] = useState("PDF");
   const [hist, setHist] = useState(false);
+  const [ppl, setPpl] = useState(false);
+  if (state.role === "member") return html`<div class="appbar"><div class="appbar-in"><b>Omat</b><${SaveState} /></div></div>`;
   const act = (fn) => async () => { setOpen(false); try { await fn(); } catch (e) { state.save = "error"; state.error = "Toiminto epäonnistui (" + e.message + ")."; uiChanged(); } };
   const newPlan = act(async () => { const t = prompt("Uuden suunnitelman nimi"); if (t && t.trim()) { await store.createPlan(t.trim(), newPlanItems()); showTab("kokonaisuus"); setView("plan"); setEdit(true); } });
   const dup = act(async () => { const t = prompt("Kopion nimi", (plan ? plan.title : "") + " (kopio)"); if (t && t.trim()) { await store.duplicatePlan(t.trim()); setView("plan"); } });
@@ -131,6 +134,7 @@ function AppBar() {
           <button type="button" role="menuitem" onClick=${rename}>Nimeä uudelleen</button>
           <button type="button" role="menuitem" onClick=${() => { setOpen(false); setHist(true); }}>Muutoshistoria</button>
           <button type="button" role="menuitem" onClick=${exp}>Vie tiedostoon (JSON)</button>` : null}
+          <button type="button" role="menuitem" onClick=${() => { setOpen(false); setPpl(true); }}>Henkilöt</button>
           <button type="button" role="menuitem" onClick=${imp}>Tuo tiedostosta</button>
           ${plan && state.plans.length > 1 ? html`<button type="button" role="menuitem" class="danger" onClick=${del}>Poista suunnitelma</button>` : null}
         </div>` : null}
@@ -141,6 +145,7 @@ function AppBar() {
       <button type="button" class=${"barbtn primary" + (ui.edit ? " on" : "")} aria-pressed=${ui.edit ? "true" : "false"} onClick=${() => setEdit(!ui.edit)}>${ui.edit ? "Valmis" : "Muokkaa"}</button>` : null}
     </div>
     ${hist ? html`<${HistoryPanel} onClose=${() => setHist(false)} />` : null}
+    ${ppl ? html`<${PeoplePanel} onClose=${() => setPpl(false)} />` : null}
   </div>`;
 }
 
@@ -250,6 +255,11 @@ function App() {
     rootEl.innerHTML = "";
     const n = document.createElement("div"); n.className = "fatal"; n.textContent = "Tietoja ei saatu ladattua (" + e.message + ").";
     rootEl.appendChild(n);
+    return;
+  }
+  if (state.role === "member") {
+    setView("mine", "replace");
+    render(html`<${App} />`, rootEl);
     return;
   }
   let want = (location.hash || "").slice(1);
