@@ -69,7 +69,9 @@ test("vapaat mittarit ilman mallia ja yhteensä", () => {
     { score: { weighted: 0.2, weight: "20" } }, { score: { weighted: 0.18, weight: "20" } }, { score: { weighted: null, weight: "60" } }
   ];
   const t = totals(list);
-  assert.deepEqual([t.weight, Number(t.weighted.toFixed(2)), t.count], [40, 0.38, 2]);
+  assert.deepEqual([t.weight, Number(t.weighted.toFixed(2)), t.count], [100, 0.38, 2], "painot kaikilta riveiltä, lopputulos vain tuloksellisilta");
+  assert.deepEqual(totals([]), { weight: 0, weighted: 0, count: 0 });
+  assert.equal(totals([{ score: { weighted: null, weight: null } }]).weight, 0, "paino puuttuu");
 });
 
 test("valmiit jaksot ja jakson teksti", () => {

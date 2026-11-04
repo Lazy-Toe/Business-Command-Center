@@ -61,10 +61,11 @@ export function rowsFor(role, defs, rows) {
 // Roolin omat vapaat mittarit, joilla ei ole mallia.
 export const freeRows = (rows) => rows.filter((r) => !r.data.def);
 
-// Yhteensä: painojen summa ja painotettujen tulosten summa niiltä riveiltä, joilla on tulos.
+// Lopputulos on rivien painotettujen tulosten summa, ei muuta. Rivi ilman tulosta ei lisää mitään. Painot on kaikkien rivien painojen summa,
+// jotta näkee, jos se ei ole 100 %. count on niiden rivien määrä, joilla on tulos.
 export function totals(list) {
   const done = list.filter((x) => x.score.weighted != null);
-  return { weight: done.reduce((a, x) => a + toNumber(x.score.weight), 0), weighted: done.reduce((a, x) => a + x.score.weighted, 0), count: done.length };
+  return { weight: list.reduce((a, x) => a + (toNumber(x.score.weight) || 0), 0), weighted: done.reduce((a, x) => a + x.score.weighted, 0), count: done.length };
 }
 
 const pad = (n) => String(n).padStart(2, "0");
