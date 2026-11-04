@@ -187,6 +187,16 @@ test("henkilöt: nykyiset vastuuhenkilöt tulevat listalle, kirjautuminen liitet
   assert.deepEqual((await q("select has_table_privilege('anon', 'bcc_people', 'select') a, has_function_privilege('anon', 'bcc_link_person(text, text)', 'execute') b"))[0], { a: false, b: false });
 });
 
+test("henkilöfunktiot toimivat service_role-oikeuksilla, ei vain pääkäyttäjänä", async () => {
+  await pg.exec("set role service_role");
+  try {
+    assert.equal((await q("select bcc_add_person('  Roolitesti ') n"))[0].n, "Roolitesti");
+    assert.equal((await q("select bcc_link_person('rooli@example.test', 'roolitesti') n"))[0].n, "Roolitesti");
+    await pg.exec("select bcc_unlink_person('rooli@example.test')");
+    assert.equal((await q("select count(*)::int n from bcc_people where lower(name) = 'roolitesti'"))[0].n, 1);
+  } finally { await pg.exec("reset role"); }
+});
+
 test("ajastus koskettaa tietokantaa", async () => {
   let p; await worker.scheduled({}, env, { waitUntil: (x) => { p = x; } });
   assert.ok(Array.isArray(await p));

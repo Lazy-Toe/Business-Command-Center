@@ -9,7 +9,7 @@ export const sql = (f) => readFileSync(new URL("supabase/" + f, root), "utf8");
 // Vanhan taulun muoto, johon migraatio nojaa.
 export async function createDb(oldRows) {
   const pg = new PGlite();
-  await pg.exec("create role anon; create role authenticated; create role service_role;");
+  await pg.exec("create role anon; create role authenticated; create role service_role bypassrls;");
   await pg.exec("create table public.bcc_status (id text primary key, data jsonb not null, updated_at timestamptz not null default now());");
   for (const r of oldRows || []) await pg.query("insert into public.bcc_status (id, data) values ($1, $2)", [r.id, r.data]);
   await pg.exec(sql("002_alusta.sql"));

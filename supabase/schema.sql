@@ -164,4 +164,4 @@ alter table public.bcc_people enable row level security;
 revoke all on public.bcc_people from anon, authenticated;
 grant all on public.bcc_people to service_role;
 revoke all on function public.bcc_clean_name(text), public.bcc_add_person(text), public.bcc_link_person(text, text), public.bcc_unlink_person(text) from public, anon, authenticated;
-grant execute on function public.bcc_add_person(text), public.bcc_link_person(text, text), public.bcc_unlink_person(text) to service_role;
+grant execute on function public.bcc_clean_name(text), public.bcc_add_person(text), public.bcc_link_person(text, text), public.bcc_unlink_person(text) to service_role;
