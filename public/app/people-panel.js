@@ -23,7 +23,7 @@ export function PeoplePanel({ onClose }) {
   return html`<div class="histback" onClick=${onClose}>
     <div class="hist" role="dialog" aria-modal="true" aria-label="Henkilöt" onClick=${(e) => e.stopPropagation()}>
       <div class="hhead"><h2>Henkilöt</h2><button type="button" class="barbtn" onClick=${onClose}>Sulje</button></div>
-      <p class="gs">Uudet henkilöt nimetään vastuualueen otsikossa. Sähköpostin liittäminen kohdistaa henkilön Omat-näkymän kirjautumiseen. Jäsenet näkevät vain omat rivinsä, ja jäsenyys määräytyy Cloudflaren asetuksista.</p>
+      <p class="gs">Uudet henkilöt nimetään vastuualueen otsikossa. Sähköpostin liittäminen kohdistaa henkilön Oma työpöytä -näkymän kirjautumiseen. Jäsenet näkevät vain omat rivinsä, ja jäsenyys määräytyy Cloudflaren asetuksista.</p>
       ${msg ? html`<p class="gs bad">${msg}</p>` : null}
       ${state.people.error ? html`<p class="gs bad">${state.people.error}</p>` : null}
       ${rows.length ? null : html`<p class="gs">Ei henkilöitä.</p>`}
