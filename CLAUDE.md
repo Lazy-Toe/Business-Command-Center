@@ -4,7 +4,7 @@ Yksityinen johtamisen keskipiste: yhdessä paikassa suunnitelmat, vastuut, mitta
 
 ## Rakenne
 - `public/`: julkaistavat tiedostot. Vain tämä kansio näkyy verkossa.
-- `public/app/main.js`: sovelluksen runko: yläpalkki, välilehdet, osioiden asettelu.
+- `public/app/main.js`: sovelluksen runko: yläpalkki, välilehdet, osioiden asettelu. `public/app/rail.js` on vasen kuvakepalkki (Tänään, Omat, Kokonaisuus, Asetukset sekä alhaalla Muutoshistoria ja Henkilöt, kuvakkeet omia SVG-kuvia) ja Kokonaisuuden osiolista (`SubNav`, otsikot tulevat funktiosta `core/nav.js`). Jäsenellä ei ole palkkia. Palkin punainen merkki on myöhässä olevien tehtävien määrä.
 - `public/app/core/`: `store.js` (tiedot ja tallennus), `ui.js` (muokattava teksti, työkalut, raahaus), `calc.js` (laskenta ilman näkymää), `registry.js` (moduulirekisteri).
 - `public/app/modules/`: yksi tiedosto per osiotyyppi. Rekisteröinti `index.js`:ssä.
 - `public/app/views/settings.js`: Asetukset, jossa yhteiset tavoitteet ja mittarimallit määritellään. `core/formula.js` on kaavatulkki (ei `eval`ia: jäsentäjä hyväksyy vain luvut, + - * / ja sulut, muuttujat RANGE_MIN, RANGE_MAX, TARGET, ACTUAL sekä funktiot min, max, abs, round, clamp) ja `core/scorecard.js` tavoiterivien laskenta ja jako.
@@ -30,7 +30,7 @@ Tehtävän `data`: `title`, `detail`, `phase`, `stream`, `status`, `note`, `due`
 ## Käyttöoikeudet
 - Kaksi tasoa. Ylläpitäjä (`ALLOWED_EMAILS`) näkee ja muuttaa kaiken. Jäsen (`MEMBER_EMAILS`) näkee ja muuttaa vain omat tehtävänsä, vastuualueensa ja mittarinsa. Osoite molemmissa listoissa on ylläpitäjä.
 - Rajaus tehdään Workerissa (`memberApi`, `public/app/core/scope.js`), ei käyttöliittymässä. Jäsenen reittijoukko on oletuksena kieltävä: uusi reitti on vain ylläpitäjän, ellei sitä erikseen lisätä `memberApi`:in. Jäsen saa muuttaa vain tehtävän `status`, `due` ja `note` sekä mittarin `actual` (`MEMBER_FIELDS`) ja luoda tallentamattoman tavoiterivin ensimmäisellä kirjauksella (`put` vain kentillä `def` ja `actual`, sovitulla tunnisteella). Jäsen näkee oman roolinsa mallit vain luettavina. Yksikin sääntöjen ulkopuolinen muutos hylkää koko pyynnön (422).
-- Jäsenen lisääminen: 1) lisää osoite Cloudflaren salaisuuteen `MEMBER_EMAILS` ja Access-sääntöön, 2) nimeä henkilö vastuualueen vastuuhenkilöksi, 3) liitä sähköposti henkilöön Suunnitelma-valikon kohdassa Henkilöt. Ilman liitosta jäsen ei näe mitään. Älä lisää jäsenen osoitetta `ALLOWED_EMAILS`-listaan.
+- Jäsenen lisääminen: 1) lisää osoite Cloudflaren salaisuuteen `MEMBER_EMAILS` ja Access-sääntöön, 2) nimeä henkilö vastuualueen vastuuhenkilöksi, 3) liitä sähköposti henkilöön vasemman palkin Henkilöt-kuvakkeesta. Ilman liitosta jäsen ei näe mitään. Älä lisää jäsenen osoitetta `ALLOWED_EMAILS`-listaan.
 - Lomakkeet: jäsen voi luoda lomakkeen vain omalle roolilleen ja vain tyypillä, jonka `memberCreate` on päällä, ja näkee roolillaan tyypit, joiden `memberView` on päällä, sekä omat lomakkeensa. Jäsen ei voi muuttaa, poistaa tai päättää lomakkeita eikä muokata tyyppejä. Lomakkeella näytetään tekijän nimi, ei koskaan sähköpostia.
 - Euro-tiedot (palkka ym.) ovat vain ylläpitäjän. Jäsenen reittijoukko ei sisällä `/api/pay*`-reittejä, ja sen pitää pysyä niin. Jokainen euro-muutos kirjautuu lokiin tekijän sähköpostilla samassa transaktiossa kuin muutos.
 - Muutos `memberApi`:in tai `scope.js`:ään vaatii testit tiedostoihin `test/scope.test.mjs` ja `test/worker.test.mjs` (jäsenen kielletyt reitit ja kielletyt muutokset).
