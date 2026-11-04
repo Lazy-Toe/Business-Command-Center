@@ -3,7 +3,7 @@ import { html, useState } from "../../vendor/htm-preact.js";
 import { Text, Tools, AddButton, Input, ui, useEscape } from "../core/ui.js";
 import { state, all, children, add, patch, remove } from "../core/store.js";
 import { compile, DEFAULT_FORMULA, FORMULA_PRESETS, FUNCTION_NAMES } from "../core/formula.js";
-import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber } from "../core/scorecard.js";
+import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber, recipientsOf } from "../core/scorecard.js";
 import { fmt } from "../core/calc.js";
 import { sortTypes } from "../core/forms.js";
 import { PaySettings } from "./settings-pay.js";
@@ -17,6 +17,8 @@ function DefEditor({ def, onClose }) {
   const d = def.data;
   const [v, setV] = useState({ name: d.name || "", stream: d.stream || "", start: d.start || "", end: d.end || "", target: d.target || "", min: d.min || "", max: d.max || "", weight: d.weight || "", formula: d.formula || DEFAULT_FORMULA, lock: Object.assign({}, d.lock) });
   const [goal, setGoal] = useState(def.parent_id || "");
+  const [picked, setPicked] = useState(Array.isArray(d.roles) ? d.roles : []);
+  const allRoles = all("role");
   const [year, setYear] = useState(String((d.start || "").slice(0, 4) || new Date().getFullYear()));
   const [sample, setSample] = useState("");
   useEscape(onClose);
@@ -28,7 +30,7 @@ function DefEditor({ def, onClose }) {
     if (!c.ok || !v.name.trim()) return;
     const data = Object.assign({}, v, { name: v.name.trim().slice(0, 120) });
     const lock = {}; LOCKABLE.forEach((k) => { if (v.lock[k]) lock[k] = true; });
-    patch(def.id, Object.assign(data, { lock }), goal !== def.parent_id ? { parent_id: goal } : undefined);
+    patch(def.id, Object.assign(data, { lock, roles: picked.filter((id) => allRoles.some((r) => r.id === id)) }), goal !== def.parent_id ? { parent_id: goal } : undefined);
     onClose();
   };
   const field = (k) => html`<div class="mfrow"><label for=${"f-" + k}>${FIELD_LABEL[k]}</label>
@@ -42,6 +44,10 @@ function DefEditor({ def, onClose }) {
       <div class="mfrow"><label for="f-stream">Työvirta</label>
         <select id="f-stream" value=${v.stream} onChange=${(e) => set("stream", e.target.value)}><option value="">Ei työvirtaa (lisätään käsin)</option>${streamsOf().map((s) => html`<option key=${s.id} value=${s.id}>${s.data.label}</option>`)}</select>
         <span class="gs">Tavoite tulee automaattisesti tämän työvirran vastuualueille.</span></div>
+      <div class="mfrow"><label>Vastuualueet</label>
+        <span class="gs">Tulee kaikille vastuualueille, joilla on yllä oleva työvirta, sekä alla valituille.</span>
+        <div class="rolepick">${allRoles.length ? allRoles.map((r) => html`<label key=${r.id} class="rolechk"><input type="checkbox" checked=${picked.includes(r.id)} onChange=${(e) => setPicked((o) => (e.target.checked ? o.concat(r.id) : o.filter((x) => x !== r.id)))} /> ${r.data.title || "Vastuualue"}${r.data.owner ? html`<span class="gs"> · ${r.data.owner}</span>` : null}${v.stream && r.data.stream === v.stream ? html`<span class="gs"> (työvirran kautta)</span>` : null}</label>`) : html`<span class="gs">Suunnitelmassa ei ole vastuualueita.</span>`}</div>
+        <span class="gs">Tulee nyt: <b>${(() => { const to = recipientsOf({ id: def.id, data: { stream: v.stream, roles: picked } }, allRoles, all("metric")); return to.length ? to.map((x) => x.role.data.title || "Vastuualue").join(", ") : "ei kenellekään"; })()}</b></span></div>
       <div class="mfrow"><label for="f-period">Jakso</label>
         <span class="mfinline"><select id="f-period" aria-label="Valmis jakso" value="" onChange=${(e) => { const p = periodPreset(e.target.value, year); if (p) setV((o) => Object.assign({}, o, p)); e.target.value = ""; }}><option value="">Valitse jakso…</option>${PERIODS.map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>
         <${Input} aria-label="Vuosi" maxlength="4" value=${year} onChange=${(e) => setYear(e.target.value.trim())} /></span></div>
@@ -62,9 +68,11 @@ function DefEditor({ def, onClose }) {
 }
 
 function DefRow({ def, onEdit }) {
-  const d = def.data, sc = scoreRow(def, { data: {} });
+  const d = def.data, sc = scoreRow(def, { data: {} }), to = recipientsOf(def, all("role"), all("metric"));
+  const why = { stream: "Työvirran kautta", role: "Valittu suoraan", manual: "Lisätty käsin vastuualueelta" };
   return html`<tr class="defrow" tabIndex="0" onClick=${onEdit} onKeyDown=${(e) => { if (e.key === "Enter") onEdit(); }}>
     <td><b>${d.name || "Nimetön"}</b></td>
+    <td>${to.length ? to.map((x) => html`<span class="chip" key=${x.role.id} title=${why[x.via] + (x.role.data.owner ? ", " + x.role.data.owner : "")}>${x.role.data.title || "Vastuualue"}</span> `) : html`<span class="gs warn">Ei kenellekään</span>`}</td>
     <td>${d.stream ? html`<span class="chip">${streamName(d.stream) || "(poistettu työvirta)"}</span>` : html`<span class="gs">käsin</span>`}</td>
     <td>${periodText(d.start, d.end) || "–"}</td>
     <td>${sc.target || "–"}</td><td>${sc.min || "–"}</td><td>${sc.max || "–"}</td><td>${sc.weight ? sc.weight + " %" : "–"}</td>
@@ -107,7 +115,7 @@ export function SettingsView() {
         <h2><${Text} item=${g} field="name" mode="always" max=${120} ph="Yhteisen tavoitteen nimi" /> <span class="num">${defs.length}</span>
           <button type="button" class="barbtn" onClick=${() => newDef(g.id)}>+ Mittari</button>
           <button type="button" class="barbtn" onClick=${() => { if (!defs.length || confirm("Poistetaanko \"" + (g.data.name || "tavoite") + "\" ja sen " + defs.length + " mittaria?")) remove(g.id); }}>Poista</button></h2>
-        ${defs.length ? html`<div class="gtable-wrap"><table class="gtable sctable"><thead><tr><th>Mittari</th><th>Työvirta</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Paino</th><th>Kaava</th></tr></thead>
+        ${defs.length ? html`<div class="gtable-wrap"><table class="gtable sctable"><thead><tr><th>Mittari</th><th>Vastuualueet</th><th>Työvirta</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Paino</th><th>Kaava</th></tr></thead>
           <tbody>${defs.map((x) => html`<${DefRow} key=${x.id} def=${x} onEdit=${() => setEdit(x.id)} />`)}</tbody></table></div>` : html`<p class="gs">Ei vielä mittareita.</p>`}
       </section>`;
     }) : html`<p class="tclear">Ei vielä yhteisiä tavoitteita. Luo ensimmäinen painikkeesta ylhäällä ja lisää sille mittareita.</p>`}
