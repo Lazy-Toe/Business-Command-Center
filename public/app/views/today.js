@@ -40,8 +40,8 @@ function Attention({ list, open }) {
     <h2>Vaatii huomiota <span class="num">${list.length}</span></h2>
     ${list.length ? html`<ul>${list.map((a) => html`<li key=${a.plan_id + a.id}>
       <button type="button" onClick=${() => open(a.plan_id, a)}>
-        <span class="attk">${ATT_LABEL[a.kind]}${a.kind === "risk" ? " · taso 2" : " · huono"}</span>
-        <b>${a.data.name || "Nimetön"}</b>
+        <span class="attk">${ATT_LABEL[a.kind]}${a.kind === "risk" ? " · taso 2" : a.kind === "metric" ? " · alle alarajan" : " · huono"}</span>
+        <b>${a.title || a.data.name || "Nimetön"}</b>
         <span class="tsub">${planName(a.plan_id)}${a.role ? " · " + a.role.data.title : ""}${a.owner ? " · " + a.owner : ""}</span>
       </button></li>`)}</ul>` : html`<p class="gs">Ei huonoksi arvioituja mittareita tai tason 2 riskejä.</p>`}
   </aside>`;

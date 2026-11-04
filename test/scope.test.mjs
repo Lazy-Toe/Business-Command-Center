@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { scopeFor, memberMayApply } from "../public/app/core/scope.js";
+import { virtualId } from "../public/app/core/scorecard.js";
 
 const row = (plan_id, id, kind, data, parent_id) => ({ plan_id, id, kind, parent_id, position: 1, data });
 const items = [
@@ -42,7 +43,7 @@ test("ilman henkilöä tai tuntemattomalla henkilöllä ei näy mitään", () =>
 test("muutos sallitaan vain omille riveille ja sallituille kentille arvoineen", () => {
   const { mine } = scopeFor(items, "Mika");
   const ok = (ops, plan = "a") => memberMayApply(ops, plan, mine);
-  assert.ok(ok([{ op: "patch", id: "t-oma", data: { status: "done", due: "2026-11-05" } }, { op: "patch", id: "m1", data: { actual: "9", state: "bad" } }]));
+  assert.ok(ok([{ op: "patch", id: "t-oma", data: { status: "done", due: "2026-11-05" } }, { op: "patch", id: "m1", data: { actual: "9" } }]));
   for (const bad of [
     [{ op: "patch", id: "t-muu", data: { status: "done" } }],
     [{ op: "patch", id: "m2", data: { actual: "1" } }],
@@ -53,7 +54,7 @@ test("muutos sallitaan vain omille riveille ja sallituille kentille arvoineen", 
     [{ op: "patch", id: "t-oma", data: { status: "done" }, parent_id: "r2" }],
     [{ op: "patch", id: "t-oma", data: { status: "valmis" } }],
     [{ op: "patch", id: "t-oma", data: { due: "huomenna" } }],
-    [{ op: "patch", id: "m1", data: { state: "loistava" } }],
+    [{ op: "patch", id: "m1", data: { state: "bad" } }],
     [{ op: "patch", id: "m1", data: { actual: "x".repeat(31) } }],
     [{ op: "patch", id: "t-oma", data: {} }],
     [{ op: "patch", id: "t-oma", data: { __proto__: null, constructor: 1 } }],
@@ -64,4 +65,46 @@ test("muutos sallitaan vain omille riveille ja sallituille kentille arvoineen", 
   ]) assert.equal(ok(bad), false, JSON.stringify(bad));
   assert.equal(ok([{ op: "patch", id: "t-oma", data: { status: "done" } }], "b"), false, "toisen suunnitelman tunniste ei kelpaa");
   assert.equal(memberMayApply("x", "a", mine), false);
+});
+
+// Mallipohjaiset tavoitteet: katalogi, automaattinen jako työvirran mukaan ja tallentamattoman rivin ensimmäinen kirjaus.
+const defRow = (id, data, plan = "a") => ({ plan_id: plan, id, kind: "metricdef", parent_id: "g1", position: 1, data });
+const catalog = [
+  ...items,
+  row("a", "g1", "goal", { name: "Liikevaihto" }),
+  defRow("d-oma", { name: "Oma malli", stream: "w1", target: "100", formula: "ACTUAL / TARGET" }),
+  defRow("d-muu", { name: "Muiden malli SALAINEN", stream: "w2", target: "5" }),
+  defRow("d-lisa", { name: "Lisätty malli", stream: "w2" }),
+  defRow("d-piilo", { name: "Piilotettu malli", stream: "w1" }),
+  row("a", "mr-lisa", "metric", { def: "d-lisa", actual: "3" }, "r1"),
+  row("a", "mr-muu", "metric", { def: "d-muu", actual: "9" }, "r2")
+];
+catalog.find((x) => x.id === "r1").data.hide = ["d-piilo"];
+
+test("jäsen näkee vain oman roolinsa mallit ja rivit, ei katalogia eikä muiden malleja", () => {
+  const r = scopeFor(catalog, "Mika");
+  assert.deepEqual(ids(r.items), ["d-lisa", "d-oma", "m1", "mr-lisa", "r1", "t-oma", "t-peritty", "w1", "w2"]);
+  const text = JSON.stringify(r.items);
+  for (const secret of ["SALAINEN", "Piilotettu", "Liikevaihto", "mr-muu", "d-muu"]) assert.ok(!text.includes(secret), secret);
+  assert.equal(r.mine.get("a/" + virtualId("r1", "d-oma")).kind, "vmetric", "tallentamaton rivi on kirjattavissa");
+  assert.equal(r.mine.get("a/mr-lisa"), "metric", "tallennettu rivi on muutettavissa");
+  assert.ok(!r.mine.has("a/" + virtualId("r1", "d-piilo")), "piilotettua ei voi kirjata");
+  assert.ok(!r.mine.has("a/" + virtualId("r1", "d-muu")), "toisen työvirran mallia ei tule itsestään");
+});
+
+test("tallentamattoman rivin ensimmäinen kirjaus sallitaan vain sovitulla tunnisteella ja kentillä", () => {
+  const { mine } = scopeFor(catalog, "Mika"), vid = virtualId("r1", "d-oma");
+  const put = (o) => ({ op: "put", id: vid, kind: "metric", parent_id: "r1", data: { def: "d-oma", actual: "90" }, ...o });
+  assert.ok(memberMayApply([put()], "a", mine));
+  assert.ok(memberMayApply([put({ data: { def: "d-oma" } })], "a", mine), "pelkkä rivi ilman toteumaa");
+  for (const bad of [
+    put({ id: "v-oma-keksitty" }), put({ id: virtualId("r1", "d-piilo") }), put({ id: virtualId("r2", "d-muu") }),
+    put({ kind: "task" }), put({ kind: "section" }), put({ parent_id: "r2" }), put({ parent_id: null }), put({ position: 1 }),
+    put({ data: { def: "d-muu", actual: "1" } }), put({ data: { def: "d-oma", actual: "1", target: "1" } }), put({ data: { def: "d-oma", actual: "x".repeat(31) } }),
+    put({ data: { def: "d-oma", actual: 5 } }), put({ data: {} }), put({ data: null }), put({ data: ["d-oma"] }),
+    { op: "put", id: "t-oma", kind: "task", parent_id: null, data: { status: "done" } },
+    { op: "put", id: "mr-lisa", kind: "metric", parent_id: "r1", data: { def: "d-lisa", actual: "1" } }
+  ]) assert.equal(memberMayApply([bad], "a", mine), false, JSON.stringify(bad));
+  assert.equal(memberMayApply([put(), { op: "patch", id: "t-muu", data: { status: "done" } }], "a", mine), false, "yksi huono hylkää koko erän");
+  assert.equal(memberMayApply([put()], "b", mine), false, "toisen suunnitelman tunniste ei kelpaa");
 });

@@ -1,6 +1,8 @@
-import { html, Text, Tools, AddButton, Input, ui, useCollapse, Head, pressable, mq, FACE, MOODNAME, ORDER, nextIn, uiChanged, sortProps, navigate } from "../core/ui.js";
+import { html, Text, Tools, AddButton, Input, ui, useCollapse, Head, pressable, mq, uiChanged, sortProps, navigate } from "../core/ui.js";
 import { register } from "../core/registry.js";
-import { children, findSection, patch, add } from "../core/store.js";
+import { children, findSection, patch, add, all } from "../core/store.js";
+import { rowsFor, orderDefs, freeRows, totals, periodText } from "../core/scorecard.js";
+import { fmt } from "../core/calc.js";
 import { PersonSelect } from "../people.js";
 import { planParts, Task, phaseClass } from "./plan.js";
 import { goalValues } from "./goals.js";
@@ -24,7 +26,7 @@ function View({ section }) {
     <div class="lead">
       ${list.map((r) => html`<article key=${r.id} class="lcard" title=${"Avaa " + r.data.title} ...${pressable(() => { showTab(r.id); scrollTo(0, 0); })} ...${sortProps(r, list, "role")}>
         <p class="role">${r.data.owner}</p><h3>${r.data.title}</h3>
-        <ul>${children(r.id, "metric").map((m) => html`<li key=${m.id}>${m.data.name}</li>`)}</ul>
+        <ul>${roleMetricNames(r).map((n, i) => html`<li key=${i}>${n}</li>`)}</ul>
         <${Tools} item=${r} list=${list} label=${r.data.title} />
       </article>`)}
       <${AddButton} label="Vastuualue" onAdd=${() => add("role", section.id, { title: "Uusi vastuualue", owner: "", mission: "", stream: "" })} />
@@ -36,24 +38,66 @@ function View({ section }) {
   </div>`;
 }
 
+// Roolin tavoitteiden ja vapaiden mittarien nimet yleisnäkymän korttiin.
+function roleMetricNames(r) {
+  const own = children(r.id, "metric");
+  return rowsFor(r, orderDefs(all("goal"), all("metricdef")), own).map((x) => x.def.data.name || "Nimetön").concat(freeRows(own).map((m) => m.data.name || ""));
+}
+
+// Vanha vapaa mittari ilman mallia: nimi, rytmi, lähtötaso, tavoite ja toteuma.
 function MetricRow({ m, list }) {
   const v = m.data, name = v.name || "";
-  const cyc = () => patch(m.id, { state: nextIn(ORDER, v.state) });
   const field = (f, lab) => html`<td><${Input} maxlength="30" placeholder="–" aria-label=${name + ": " + lab} value=${v[f] || ""}
     onChange=${(e) => patch(m.id, { [f]: e.target.value.trim().slice(0, 30) })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></td>`;
-  return html`<tr data-item=${m.id} class=${v.state ? "m-" + v.state : ""}>
+  return html`<tr>
     <td class="nmtd"><div class="nmwrap"><${Input} class="nm" maxlength="80" aria-label="Mittarin nimi" value=${name} onChange=${(e) => patch(m.id, { name: e.target.value.trim().slice(0, 80) || "Uusi mittari" })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} />
       <${Tools} item=${m} list=${list} label=${name} always=${true} /></div></td>
     <td class="cadtd"><select class="cadsel" aria-label="Rytmi" value=${v.cad} onChange=${(e) => patch(m.id, { cad: e.target.value })}>${CADS.map((c) => html`<option key=${c} value=${c}>${c}</option>`)}</select></td>
     ${field("base", "lähtötaso")}${field("target", "tavoite")}${field("actual", "toteuma")}
-    <td class="st clickable" aria-label=${name + ": tila " + (MOODNAME[v.state] || "ei arviota")} ...${pressable(cyc)}>${v.state ? html`<span class="moodv" dangerouslySetInnerHTML=${{ __html: FACE[v.state] }}></span>` : html`<span class="st-empty">–</span>`}</td>
   </tr>`;
+}
+
+// Mallipohjainen tavoite: mallin arvot, lukitsemattomiin voi kirjoittaa oman arvon, toteuma kirjataan tähän. Tulos tulee kaavasta.
+function GoalRow({ x, role }) {
+  const { def, row, score } = x, d = def.data, lock = d.lock || {}, name = d.name || "Nimetön";
+  // Tallentamaton rivi luodaan ensimmäisellä kirjauksella kiinteällä tunnisteella.
+  const setF = (f, val) => (row.virtual ? add("metric", role.id, { def: def.id, [f]: val }, { id: row.id }) : patch(row.id, { [f]: val }));
+  const cell = (f, lab) => lock[f] ? html`<td class="num lockedcell" title="Lukittu mallissa">${score[f] || "–"}</td>`
+    : html`<td><${Input} maxlength="30" placeholder=${score[f] || "–"} aria-label=${name + ": " + lab} value=${row.data[f] || ""} onChange=${(e) => setF(f, e.target.value.trim().slice(0, 30))} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></td>`;
+  return html`<tr class=${score.below ? "m-bad" : ""}>
+    <td class="nmtd"><b>${name}</b>${x.auto ? null : html`<span class="gs"> · lisätty käsin</span>`}</td>
+    <td class="gs">${periodText(score.start, score.end) || "–"}</td>
+    ${cell("target", "tavoite")}${cell("min", "alaraja")}${cell("max", "yläraja")}
+    <td><${Input} maxlength="30" placeholder="–" aria-label=${name + ": toteuma"} value=${row.data.actual || ""} onChange=${(e) => setF("actual", e.target.value.trim().slice(0, 30))} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></td>
+    <td class="num" title=${score.error || ""}>${score.error ? "Kaavavirhe" : fmt(score.result, 2)}</td>
+    ${cell("weight", "paino")}
+    <td class="num">${fmt(score.weighted, 3)}</td>
+    <td><button type="button" class="stbtn" title="Piilota tämä tavoite tältä vastuualueelta" aria-label=${"Piilota: " + name} onClick=${() => patch(role.id, { hide: (role.data.hide || []).concat(def.id) })}>×</button></td>
+  </tr>`;
+}
+
+function GoalTable({ r }) {
+  const defs = orderDefs(all("goal"), all("metricdef")), own = children(r.id, "metric");
+  const list = rowsFor(r, defs, own), hide = r.data.hide || [], shown = new Set(list.map((x) => x.def.id));
+  const extra = defs.filter((d) => !shown.has(d.id) && !hide.includes(d.id)), hidden = defs.filter((d) => hide.includes(d.id));
+  const t = totals(list);
+  if (!defs.length && !list.length) return null;
+  return html`<div class="goaltable">
+    <h3>Tavoitteet</h3>
+    ${list.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
+      <thead><tr><th>Tavoite</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Toteuma</th><th>Tulos</th><th>Paino %</th><th>Painotettu</th><th></th></tr></thead>
+      <tbody>${list.map((x) => html`<${GoalRow} key=${x.def.id} x=${x} role=${r} />`)}</tbody>
+      ${t.count ? html`<tfoot><tr><td colspan="7"><b>Yhteensä</b></td><td class="num">${fmt(t.weight, 0)}</td><td class="num"><b>${fmt(t.weighted, 3)}</b></td><td></td></tr></tfoot>` : null}
+    </table></div>` : html`<p class="gs">${r.data.stream ? "Työvirran tavoitteita ei ole vielä määritelty Asetuksissa." : "Valitse vastuualueelle työvirta muokkaustilassa, niin työvirran tavoitteet tulevat tähän automaattisesti."}</p>`}
+    ${extra.length ? html`<select class="cadsel" aria-label="Lisää tavoite" value="" onChange=${(e) => { if (e.target.value) add("metric", r.id, { def: e.target.value }); e.target.value = ""; }}><option value="">+ Lisää tavoite käsin…</option>${extra.map((d) => html`<option key=${d.id} value=${d.id}>${d.data.name || "Nimetön"}</option>`)}</select>` : null}
+    ${hidden.length ? html`<p class="gs">Piilotettu: ${hidden.map((d) => html`<button type="button" class="linkbtn" key=${d.id} onClick=${() => patch(r.id, { hide: hide.filter((h) => h !== d.id) })}>${d.data.name || "Nimetön"} (näytä)</button> `)}</p>` : null}
+  </div>`;
 }
 
 export function RolePanel({ id }) {
   const small = mq("(max-width: 900px)");
   const r = roles().find((x) => x.id === id); if (!r) return null;
-  const parts = planParts(), metrics = children(r.id, "metric"), R = goalValues();
+  const parts = planParts(), metrics = freeRows(children(r.id, "metric")), R = goalValues();
   let tot = 0, sc = 0;
   const cols = parts ? parts.phases.map((ph, i) => {
     const lst = parts.tasks.filter((t) => t.data.phase === ph.id && t.data.stream === r.data.stream);
@@ -69,12 +113,14 @@ export function RolePanel({ id }) {
       <${Text} item=${r} field="mission" tag="p" cls="rp-mission" mode="always" max=${240} ph="Tehtävä" />
       ${ui.edit && parts ? html`<label class="gyear">Työvirta <select aria-label="Työvirta" value=${r.data.stream} onChange=${(e) => patch(r.id, { stream: e.target.value })}><option value="">Ei työvirtaa</option>${parts.streams.map((w) => html`<option key=${w.id} value=${w.id}>${w.data.label}</option>`)}</select></label>` : null}
     </div>
-    <div class="gtable-wrap"><table class="gtable sctable">
-      <thead><tr><th>Mittari</th><th>Rytmi</th><th>Lähtötaso</th><th>Tavoite ${R ? R.year : ""}</th><th>Toteuma</th><th>Tila</th></tr></thead>
+    <${GoalTable} r=${r} />
+    <h3>Omat mittarit</h3>
+    ${metrics.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
+      <thead><tr><th>Mittari</th><th>Rytmi</th><th>Lähtötaso</th><th>Tavoite ${R ? R.year : ""}</th><th>Toteuma</th></tr></thead>
       <tbody>${metrics.map((m) => html`<${MetricRow} key=${m.id} m=${m} list=${metrics} />`)}</tbody>
-    </table></div>
-    <button type="button" class="sc-add" onClick=${() => add("metric", r.id, { name: "Uusi mittari", cad: "kuukausi" })}>+ Lisää mittari</button>
-    <p class="gs">Kirjoita luvut yksikköineen, esimerkiksi 92 % tai 3,0x. Tila vaihtuu klikkaamalla. Omia mittareita voi lisätä ja poistaa.</p>
+    </table></div>` : null}
+    <button type="button" class="sc-add" onClick=${() => add("metric", r.id, { name: "Uusi mittari", cad: "kuukausi" })}>+ Lisää oma mittari</button>
+    <p class="gs">Tavoitteet määritellään Asetuksissa. Omiin mittareihin kirjoitetaan luvut yksikköineen, esimerkiksi 92 % tai 3,0x.</p>
     <div class="rp-tasks-head"><h3>Tehtävät</h3><span class="rp-prog num">${tot ? Math.round(100 * sc / tot) + " % valmis" : ""}</span></div>
     <div class="rp-tasks" style=${{ gridTemplateColumns: parts && !small ? "repeat(" + Math.max(parts.phases.length, 1) + ", minmax(0, 1fr))" : undefined }}>${cols}</div>
   </section>`;

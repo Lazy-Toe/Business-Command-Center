@@ -1,4 +1,5 @@
 // Tänään-näkymän logiikka ilman näkymää. Päivät ovat muodossa VVVV-KK-PP.
+import { scoreRow } from "./scorecard.js";
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 export function todayISO(d = new Date()) {
@@ -47,13 +48,21 @@ export function buildToday(items, today, filter = {}) {
   });
 
   const roleOf = (m) => items.find((i) => i.plan_id === m.plan_id && i.id === m.parent_id);
+  // Huomiota vaativat: huonoksi arvioidut rivit ja riskit sekä tavoiterivit, joiden toteuma on alle mallin alarajan.
+  const defOf = (m) => items.find((i) => i.kind === "metricdef" && i.plan_id === m.plan_id && i.id === m.data.def);
   let attention = items
-    .filter((i) => (i.kind === "row" || i.kind === "risk" || i.kind === "metric") && i.data.state === "bad")
+    .filter((i) => {
+      if (i.kind === "row" || i.kind === "risk") return i.data.state === "bad";
+      if (i.kind !== "metric" || !i.data.def) return false;
+      const def = defOf(i);
+      return !!def && scoreRow(def, i).below;
+    })
     .map((i) => {
       const role = i.kind === "metric" ? roleOf(i) : null;
       const owner = role ? role.data.owner || "" : "";
       if (owner) owners.add(owner);
-      return Object.assign({}, i, { owner, role });
+      const def = i.kind === "metric" ? defOf(i) : null;
+      return Object.assign({}, i, { owner, role, title: def ? def.data.name : i.data.name });
     });
 
   if (filter.plan) {

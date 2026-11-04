@@ -1,7 +1,9 @@
 // Omat: kirjautuneen henkilön tehtävät ja scorecardit kaikista suunnitelmista.
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
-import { Input, FACE, MOODNAME, ORDER, nextIn } from "../core/ui.js";
-import { state, loadOverview, patchIn, linkMe, unlinkMe } from "../core/store.js";
+import { Input } from "../core/ui.js";
+import { state, loadOverview, patchIn, setRowIn, linkMe, unlinkMe } from "../core/store.js";
+import { fmt } from "../core/calc.js";
+import { periodText, totals } from "../core/scorecard.js";
 import { buildMine } from "../core/mine.js";
 import { todayISO, fmtLong } from "../core/today.js";
 import { Group } from "./today.js";
@@ -9,31 +11,46 @@ import { PersonSelect } from "../people.js";
 
 const planName = (id) => { const p = state.plans.find((x) => x.id === id); return p ? p.title : ""; };
 
-function Metric({ m }) {
-  const v = m.data, name = v.name || "";
-  const cyc = () => patchIn(m.plan_id, m.id, { state: nextIn(ORDER, v.state) });
-  return html`<tr class=${v.state ? "m-" + v.state : ""}>
+const save = (sc, row, data) => setRowIn(sc.plan_id, row, data);
+
+// Tavoiterivi: mallin tavoite ja rajat luetaan, toteuma kirjataan. Tulos tulee mallin kaavasta.
+function GoalRow({ sc, x }) {
+  const { def, row, score } = x, name = def.data.name || "Nimetön";
+  return html`<tr class=${score.below ? "m-bad" : ""}>
     <td class="nmtd">${name}</td>
-    <td class="cadtd">${v.cad || ""}</td>
-    <td>${v.base || "–"}</td>
-    <td>${v.target || "–"}</td>
-    <td><${Input} maxlength="30" placeholder="–" aria-label=${name + ": toteuma"} value=${v.actual || ""}
-      onChange=${(e) => patchIn(m.plan_id, m.id, { actual: e.target.value.trim().slice(0, 30) })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></td>
-    <td class="st clickable"><button type="button" class="stbtn" title="Vaihda tilaa" aria-label=${name + ": tila " + (MOODNAME[v.state] || "ei arviota")} onClick=${cyc}>${v.state ? html`<span class="moodv" dangerouslySetInnerHTML=${{ __html: FACE[v.state] }}></span>` : html`<span class="st-empty">–</span>`}</button></td>
+    <td class="gs">${periodText(score.start, score.end) || "–"}</td>
+    <td class="num">${score.target || "–"}</td><td class="num">${score.min || "–"}</td><td class="num">${score.max || "–"}</td>
+    <td><${Input} maxlength="30" placeholder="–" aria-label=${name + ": toteuma"} value=${row.data.actual || ""}
+      onChange=${(e) => save(sc, row, { actual: e.target.value.trim().slice(0, 30) })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></td>
+    <td class="num" title=${score.error || ""}>${score.error ? "Kaavavirhe" : fmt(score.result, 2)}</td>
+    <td class="num">${score.weight ? score.weight + " %" : "–"}</td>
+    <td class="num">${fmt(score.weighted, 3)}</td>
   </tr>`;
 }
 
+function FreeRow({ sc, m }) {
+  const v = m.data, name = v.name || "";
+  return html`<tr><td class="nmtd">${name}</td><td class="gs">${v.cad || ""}</td><td class="num">${v.base || "–"}</td><td class="num">${v.target || "–"}</td>
+    <td><${Input} maxlength="30" placeholder="–" aria-label=${name + ": toteuma"} value=${v.actual || ""}
+      onChange=${(e) => patchIn(sc.plan_id, m.id, { actual: e.target.value.trim().slice(0, 30) })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></td></tr>`;
+}
+
 function Scorecard({ sc, open }) {
-  const r = sc.role;
+  const r = sc.role, t = totals(sc.rows);
   return html`<article class="mrole">
     <div class="mrhead">
       <div><h3>${r.data.title || "Vastuualue"}</h3><span class="tsub">${planName(sc.plan_id)}${r.data.mission ? " · " + r.data.mission : ""}</span></div>
       ${open ? html`<button type="button" class="barbtn" onClick=${() => open(sc.plan_id, r)}>Avaa suunnitelmassa</button>` : null}
     </div>
-    ${sc.metrics.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
-      <thead><tr><th>Mittari</th><th>Rytmi</th><th>Lähtötaso</th><th>Tavoite</th><th>Toteuma</th><th>Tila</th></tr></thead>
-      <tbody>${sc.metrics.map((m) => html`<${Metric} key=${m.id} m=${m} />`)}</tbody>
-    </table></div>` : html`<p class="gs">Vastuualueella ei ole vielä mittareita.</p>`}
+    ${sc.rows.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
+      <thead><tr><th>Tavoite</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Toteuma</th><th>Tulos</th><th>Paino</th><th>Painotettu</th></tr></thead>
+      <tbody>${sc.rows.map((x) => html`<${GoalRow} key=${x.def.id} sc=${sc} x=${x} />`)}</tbody>
+      ${t.count ? html`<tfoot><tr><td colspan="8"><b>Yhteensä</b></td><td class="num"><b>${fmt(t.weighted, 3)}</b></td></tr></tfoot>` : null}
+    </table></div>` : null}
+    ${sc.free.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
+      <thead><tr><th>Oma mittari</th><th>Rytmi</th><th>Lähtötaso</th><th>Tavoite</th><th>Toteuma</th></tr></thead>
+      <tbody>${sc.free.map((m) => html`<${FreeRow} key=${m.id} sc=${sc} m=${m} />`)}</tbody></table></div>` : null}
+    ${!sc.rows.length && !sc.free.length ? html`<p class="gs">Vastuualueella ei ole vielä tavoitteita.</p>` : null}
   </article>`;
 }
 
@@ -68,7 +85,7 @@ export function MineView({ open: openIn }) {
   if (!me) return html`<${WhoAmI} error=${state.people.error} />`;
   if (!ov) return html`<div class="wrap today"><p class="gs">${state.overviewError || "Ladataan…"}</p></div>`;
   const today = todayISO(), R = buildMine(ov.items, me, today);
-  const bad = R.scorecards.reduce((n, s) => n + s.metrics.filter((m) => m.data.state === "bad").length, 0);
+  const bad = R.below;
   return html`<div class="wrap today">
     <header class="thead">
       <div><p class="eyebrow">Omat</p><h1>${me}</h1><p class="lede">${fmtLong(today)}${state.role === "member" ? "" : html` · <button type="button" class="linkbtn" onClick=${() => unlinkMe().catch(() => {})}>Vaihda henkilö</button>`}</p></div>
@@ -76,7 +93,7 @@ export function MineView({ open: openIn }) {
         <div class="stat-cell"><b class=${"num" + (R.late.length ? " neg" : "")}>${R.late.length}</b><span>myöhässä</span></div>
         <div class="stat-cell"><b class="num">${R.today.length}</b><span>tänään</span></div>
         <div class="stat-cell"><b class="num">${R.week.length}</b><span>seuraavat 7 päivää</span></div>
-        <div class="stat-cell"><b class=${"num" + (bad ? " neg" : "")}>${bad}</b><span>mittaria huonolla</span></div>
+        <div class="stat-cell"><b class=${"num" + (bad ? " neg" : "")}>${bad}</b><span>mittaria alle alarajan</span></div>
       </div>
     </header>
     ${state.overviewError ? html`<span class="savestate bad">${state.overviewError}</span>` : null}

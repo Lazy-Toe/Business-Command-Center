@@ -14,7 +14,7 @@ const POLL_MS = 20000;
 const RETRY_MS = 5000;
 const MAX_BATCH_CHARS = 800000;
 const QUEUE_KEY = "bcc-queue";
-const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream", "section"]);
+const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream", "section", "goal", "metricdef"]);
 const listeners = new Set();
 let items = new Map(), queue = [], sending = false, retryTimer = null, version = 0, mutations = 0, inflight = [];
 
@@ -250,6 +250,17 @@ export function patchIn(planId, id, data) {
   const it = planId === state.planId ? items.get(id) : null;
   if (it) items.set(id, Object.assign({}, it, { data: Object.assign({}, it.data, data) }));
   enqueue([{ op: "patch", id, data }], planId);
+  emit();
+}
+
+// Tavoiterivin kenttä koostenäkymästä. Tallentamaton (virtuaalinen) rivi luodaan ensimmäisellä kirjauksella ilman paikkaa ja vain kentillä def ja annettu arvo,
+// jotta jäsenkin saa sen luoda. Tallennettu rivi päivitetään tavallisesti.
+export function setRowIn(planId, row, data) {
+  if (!row.virtual) { patchIn(planId, row.id, data); return; }
+  const next = { plan_id: planId, id: row.id, kind: "metric", parent_id: row.parent_id, position: 0, data: Object.assign({}, row.data, data) };
+  if (state.overview) state.overview.items = state.overview.items.concat(next);
+  if (planId === state.planId) items.set(row.id, { id: row.id, kind: "metric", parent_id: row.parent_id, position: 0, data: next.data });
+  enqueue([{ op: "put", id: row.id, kind: "metric", parent_id: row.parent_id, data: next.data }], planId);
   emit();
 }
 

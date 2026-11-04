@@ -9,8 +9,10 @@ const items = [
   { plan_id: "a", id: "r1", kind: "role", position: 2, data: { title: "Sales", owner: "Mika", stream: "w1" } },
   { plan_id: "a", id: "r2", kind: "role", position: 1, data: { title: "Tekno", owner: "Iida" } },
   { plan_id: "b", id: "r3", kind: "role", position: 1, data: { title: "Kanava", owner: " mika " } },
-  { plan_id: "a", id: "m2", kind: "metric", parent_id: "r1", position: 2, data: { name: "Toinen", state: "bad" } },
-  { plan_id: "a", id: "m1", kind: "metric", parent_id: "r1", position: 1, data: { name: "Ensin" } },
+  { plan_id: "a", id: "d1", kind: "metricdef", parent_id: "g", position: 1, data: { name: "Oma tavoite", stream: "w1", target: "10", min: "8", weight: "50" } },
+  { plan_id: "a", id: "d2", kind: "metricdef", parent_id: "g", position: 2, data: { name: "Toinen tavoite", stream: "w1", target: "10", min: "8" } },
+  { plan_id: "a", id: "m2", kind: "metric", parent_id: "r1", position: 2, data: { def: "d2", actual: "5" } },
+  { plan_id: "a", id: "m1", kind: "metric", parent_id: "r1", position: 1, data: { name: "Vanha vapaa mittari" } },
   { plan_id: "a", id: "mx", kind: "metric", parent_id: "r2", position: 1, data: { name: "Ei minun" } },
   task("peritty", { due: "2026-11-03", stream: "w1" }),
   task("oma", { due: T, owner: "MIKA" }),
@@ -30,11 +32,14 @@ test("omat tehtävät: oma tai työvirran kautta peritty vastuu, kirjainkoolla e
 test("omat scorecardit: kaikkien suunnitelmien omat vastuualueet mittareineen järjestyksessä", () => {
   const r = buildMine(items, "mika", T);
   assert.deepEqual(r.scorecards.map((s) => [s.plan_id, s.role.id]), [["a", "r1"], ["b", "r3"]]);
-  assert.deepEqual(ids(r.scorecards[0].metrics), ["m1", "m2"]);
+  assert.deepEqual(r.scorecards[0].rows.map((x) => [x.def.id, x.virtual]), [["d1", true], ["d2", false]], "työvirran mallit tulevat itsestään, d1 vielä tallentamatta");
+  assert.deepEqual(ids(r.scorecards[0].free), ["m1"], "vanha mittari ilman mallia säilyy");
+  assert.deepEqual(r.scorecards[1].rows, [], "toinen rooli ilman työvirtaa ei saa mallirivejä");
 });
 
-test("huomiota vaativat mittarit rajautuvat omiin vastuualueisiin", () => {
-  assert.deepEqual(ids(buildMine(items, "Mika", T).attention), ["m2"]);
+test("huomiota vaativat ja alle rajan olevat mittarit rajautuvat omiin vastuualueisiin", () => {
+  assert.deepEqual(ids(buildMine(items, "Mika", T).attention), ["m2"], "toteuma 5 on alle alarajan 8");
+  assert.equal(buildMine(items, "Mika", T).below, 1);
   assert.deepEqual(ids(buildMine(items, "Iida", T).attention), []);
 });
 

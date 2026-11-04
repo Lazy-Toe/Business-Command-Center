@@ -19,7 +19,11 @@ const items = [
   { plan_id: "a", id: "m1", kind: "row", data: { name: "NPS", state: "bad" } },
   { plan_id: "a", id: "m2", kind: "row", data: { name: "Churn", state: "good" } },
   { plan_id: "b", id: "x1", kind: "risk", data: { name: "Riski", state: "bad" } },
-  { plan_id: "a", id: "k1", kind: "metric", parent_id: "r1", data: { name: "Konversio", state: "bad" } }
+  { plan_id: "a", id: "d1", kind: "metricdef", parent_id: "g", data: { name: "Konversio", target: "10", min: "8" } },
+  { plan_id: "a", id: "k1", kind: "metric", parent_id: "r1", data: { def: "d1", actual: "5" } },
+  { plan_id: "a", id: "k2", kind: "metric", parent_id: "r1", data: { def: "d1", actual: "9" } },
+  { plan_id: "a", id: "k3", kind: "metric", parent_id: "r1", data: { def: "d1" } },
+  { plan_id: "a", id: "k4", kind: "metric", parent_id: "r1", data: { name: "Vanha mittari", state: "bad" } }
 ];
 const ids = (l) => l.map((x) => x.id);
 
@@ -35,8 +39,9 @@ test("tehtävät luokitellaan päivän mukaan, valmis ei näy", () => {
 
 test("huomio kokoaa vain huonot, vastuu periytyy roolista", () => {
   const r = buildToday(items, T);
-  assert.deepEqual(ids(r.attention).sort(), ["k1", "m1", "x1"]);
+  assert.deepEqual(ids(r.attention).sort(), ["k1", "m1", "x1"], "alle alarajan olevat tavoiterivit, ei rajan päällä olevia, ei ilman toteumaa, ei vanhan mittarin tilaa");
   assert.equal(r.attention.find((a) => a.id === "k1").owner, "Mika");
+  assert.equal(r.attention.find((a) => a.id === "k1").title, "Konversio", "nimi tulee mallilta");
   assert.equal(r.late[0].owner, "Mika");
   assert.deepEqual(r.owners, ["Harri", "Iida", "Mika"]);
 });
