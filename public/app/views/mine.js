@@ -8,6 +8,7 @@ import { buildMine } from "../core/mine.js";
 import { todayISO, fmtLong } from "../core/today.js";
 import { Group } from "./today.js";
 import { PersonSelect } from "../people.js";
+import { FormPanel } from "../forms-ui.js";
 
 const planName = (id) => { const p = state.plans.find((x) => x.id === id); return p ? p.title : ""; };
 
@@ -35,7 +36,7 @@ function FreeRow({ sc, m }) {
       onChange=${(e) => patchIn(sc.plan_id, m.id, { actual: e.target.value.trim().slice(0, 30) })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></td></tr>`;
 }
 
-function Scorecard({ sc, open }) {
+function Scorecard({ sc, open, forms, types }) {
   const r = sc.role, t = totals(sc.rows);
   return html`<article class="mrole">
     <div class="mrhead">
@@ -52,6 +53,7 @@ function Scorecard({ sc, open }) {
       <thead><tr><th>Oma mittari</th><th>Rytmi</th><th>Lähtötaso</th><th>Tavoite</th><th>Toteuma</th></tr></thead>
       <tbody>${sc.free.map((m) => html`<${FreeRow} key=${m.id} sc=${sc} m=${m} />`)}</tbody></table></div>` : null}
     ${!sc.rows.length && !sc.free.length ? html`<p class="gs">Vastuualueella ei ole vielä tavoitteita.</p>` : null}
+    <${FormPanel} planId=${sc.plan_id} role=${r} effective=${sc.rows} forms=${forms} types=${types} viewer=${{ admin: state.role !== "member", person: state.people.me }} canApply=${false} />
   </article>`;
 }
 
@@ -100,7 +102,7 @@ export function MineView({ open: openIn }) {
     ${state.overviewError ? html`<span class="savestate bad">${state.overviewError}</span>` : null}
     <div class="tcol-main">
       <section class="tgroup"><h2>Scorecard <span class="num">${R.scorecards.length}</span></h2>
-        ${R.scorecards.length ? R.scorecards.map((s) => html`<${Scorecard} key=${s.plan_id + s.role.id} sc=${s} open=${open} />`) : html`<p class="gs">Sinulla ei ole vastuualuetta. Valitse itsesi vastuuhenkilöksi vastuualueen otsikossa, niin scorecard näkyy tässä.</p>`}
+        ${R.scorecards.length ? R.scorecards.map((s) => html`<${Scorecard} key=${s.plan_id + s.role.id} sc=${s} open=${open} forms=${ov.items.filter((i) => i.kind === "form" && i.plan_id === s.plan_id)} types=${ov.items.filter((i) => i.kind === "formtype" && i.plan_id === s.plan_id)} />`) : html`<p class="gs">Sinulla ei ole vastuualuetta. Valitse itsesi vastuuhenkilöksi vastuualueen otsikossa, niin scorecard näkyy tässä.</p>`}
       </section>
       ${!R.open ? html`<p class="tclear">Ei sinulle osoitettuja avoimia tehtäviä.</p>` : null}
       <${Group} title="Myöhässä" list=${R.late} open=${open} late=${true} />

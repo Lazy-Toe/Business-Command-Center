@@ -14,11 +14,11 @@ const POLL_MS = 20000;
 const RETRY_MS = 5000;
 const MAX_BATCH_CHARS = 800000;
 const QUEUE_KEY = "bcc-queue";
-const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream", "section", "goal", "metricdef"]);
+const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream", "section", "goal", "metricdef", "form", "formtype"]);
 const listeners = new Set();
 let items = new Map(), queue = [], sending = false, retryTimer = null, version = 0, mutations = 0, inflight = [];
 
-export const state = { plans: [], planId: null, email: "", save: "idle", error: "", loaded: false, overview: null, overviewError: "", overviewActive: false, role: "admin", people: { list: [], rows: [], me: null, loaded: false, error: "" } };
+export const state = { plans: [], planId: null, email: "", save: "idle", error: "", loaded: false, overview: null, overviewError: "", overviewActive: false, role: "admin", pay: { fields: [], rules: [], people: [], loaded: false, error: "" }, people: { list: [], rows: [], me: null, loaded: false, error: "" } };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function emit() { version++; listeners.forEach((fn) => fn(version)); }
@@ -252,6 +252,37 @@ export function patchIn(planId, id, data) {
   enqueue([{ op: "patch", id, data }], planId);
   emit();
 }
+
+// Lomakkeet: palvelin kirjaa tekijän, päivän ja tilan. Luonnin ja päätöksen jälkeen tiedot ladataan uudelleen.
+async function refreshAfterForm(planId) {
+  try {
+    if (state.role === "member") await loadOverview();
+    else { if (planId === state.planId) await loadItems(planId); if (state.overview) await loadOverview(); }
+  } catch (e) { /* seuraava kierros yrittää uudelleen */ }
+}
+export async function createForm(planId, payload) {
+  const b = await call("/plans/" + encodeURIComponent(planId) + "/forms", { method: "POST", body: JSON.stringify(payload) });
+  await refreshAfterForm(planId);
+  return b.id;
+}
+export async function decideForm(planId, formId, status) {
+  await call("/plans/" + encodeURIComponent(planId) + "/forms/" + encodeURIComponent(formId) + "/decide", { method: "POST", body: JSON.stringify({ status }) });
+  await refreshAfterForm(planId);
+}
+
+// Euromoduuli (vain ylläpitäjä). Tiedot ovat arkaluontoisia, eikä niitä tallenneta selaimeen.
+export async function loadPay() {
+  try {
+    const b = await call("/pay");
+    state.pay = { fields: b.fields, rules: b.rules, people: b.people, loaded: true, error: "" };
+  } catch (e) { state.pay = Object.assign({}, state.pay, { error: "Euro-tietoja ei saatu ladattua (" + e.message + ")." }); }
+  emit();
+}
+const putPay = async (path, body) => { await call("/pay/" + path, { method: "PUT", body: JSON.stringify(body) }); await loadPay(); };
+export const savePayFields = (fields) => putPay("fields", { fields });
+export const savePayRules = (rules) => putPay("rules", { rules });
+export const savePayPerson = (name, pay) => putPay("person", { name, pay });
+export async function loadPayLog() { return (await call("/pay/log?limit=50")).log; }
 
 // Tavoiterivin kenttä koostenäkymästä. Tallentamaton (virtuaalinen) rivi luodaan ensimmäisellä kirjauksella ilman paikkaa ja vain kentillä def ja annettu arvo,
 // jotta jäsenkin saa sen luoda. Tallennettu rivi päivitetään tavallisesti.

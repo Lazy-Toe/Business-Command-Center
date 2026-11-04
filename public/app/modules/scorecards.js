@@ -1,6 +1,7 @@
 import { html, Text, Tools, AddButton, Input, ui, useCollapse, Head, pressable, mq, uiChanged, sortProps, navigate } from "../core/ui.js";
 import { register } from "../core/registry.js";
-import { children, findSection, patch, add, all } from "../core/store.js";
+import { children, findSection, patch, add, all, state } from "../core/store.js";
+import { FormPanel } from "../forms-ui.js";
 import { rowsFor, orderDefs, freeRows, totals, periodText } from "../core/scorecard.js";
 import { fmt } from "../core/calc.js";
 import { PersonSelect } from "../people.js";
@@ -119,6 +120,7 @@ export function RolePanel({ id }) {
       ${ui.edit && parts ? html`<label class="gyear">Työvirta <select aria-label="Työvirta" value=${r.data.stream} onChange=${(e) => patch(r.id, { stream: e.target.value })}><option value="">Ei työvirtaa</option>${parts.streams.map((w) => html`<option key=${w.id} value=${w.id}>${w.data.label}</option>`)}</select></label>` : null}
     </div>
     <${GoalTable} r=${r} />
+    <${FormPanel} planId=${state.planId} role=${r} effective=${rowsFor(r, orderDefs(all("goal"), all("metricdef")), children(r.id, "metric"))} forms=${all("form")} types=${all("formtype")} viewer=${{ admin: true, person: state.people.me }} canApply=${true} />
     <h3>Omat mittarit</h3>
     ${metrics.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
       <thead><tr><th>Mittari</th><th>Rytmi</th><th>Lähtötaso</th><th>Tavoite ${R ? R.year : ""}</th><th>Toteuma</th></tr></thead>
