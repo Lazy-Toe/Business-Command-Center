@@ -40,7 +40,7 @@ const CAL_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none
 function TaskMeta({ task, inherited }) {
   return html`<span class="taskmeta" onClick=${(e) => e.stopPropagation()} onKeyDown=${(e) => e.stopPropagation()}>
     <label>Määräpäivä <input type="date" value=${task.data.due || ""} onChange=${(e) => patch(task.id, { due: e.target.value })} /></label>
-    <label>Vastuu <${PersonSelect} label="Vastuu" value=${task.data.owner || ""} empty=${inherited ? "Perii: " + inherited : "Ei vastuuhenkilöä"} onPick=${(v) => patch(task.id, { owner: v })} /></label>
+    <label>Vastuu <${PersonSelect} label="Vastuu" value=${task.data.owner || ""} empty=${inherited || "Ei vastuuhenkilöä"} onPick=${(v) => patch(task.id, { owner: v })} /></label>
   </span>`;
 }
 

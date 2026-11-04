@@ -27,7 +27,7 @@ export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenk
   };
   return html`<select class=${cls || "personsel"} aria-label=${label || "Henkilö"} value=${value || ""} onChange=${change}>
     <option value="">${empty}</option>
-    ${names.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}
+    ${names.filter((n) => n.toLowerCase() !== String(empty).toLowerCase()).map((n) => html`<option key=${n} value=${n}>${n}</option>`)}
     ${canAdd ? html`<option value=${NEW_PERSON}>+ Lisää henkilö…</option>` : null}
   </select>`;
 }
