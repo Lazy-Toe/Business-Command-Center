@@ -18,7 +18,7 @@ const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream
 const listeners = new Set();
 let items = new Map(), queue = [], sending = false, retryTimer = null, version = 0, mutations = 0, inflight = [];
 
-export const state = { plans: [], planId: null, email: "", save: "idle", error: "", loaded: false, overview: null, overviewError: "", overviewActive: false, people: { list: [], me: null, loaded: false, error: "" } };
+export const state = { plans: [], planId: null, email: "", save: "idle", error: "", loaded: false, overview: null, overviewError: "", overviewActive: false, role: "admin", people: { list: [], rows: [], me: null, loaded: false, error: "" } };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function emit() { version++; listeners.forEach((fn) => fn(version)); }
@@ -103,7 +103,7 @@ async function flush() {
       // Palvelin hylkäsi muutoksen: uudelleenyritys ei auta, joten palataan palvelimen tilaan.
       persist();
       setSave("error", "Muutos hylättiin (" + e.message + "). Näkymä palautettiin tallennettuun tilaan.");
-      try { if (planId === state.planId) await showPlan(planId); } catch (x) { /* seuraava päivitys yrittää uudelleen */ }
+      try { if (state.role === "member") await loadOverview(); else if (planId === state.planId) await showPlan(planId); } catch (x) { /* seuraava päivitys yrittää uudelleen */ }
       if (queue.length) flush();
       return;
     }
@@ -203,7 +203,7 @@ async function refresh() {
 export async function loadPeople() {
   try {
     const b = await call("/people");
-    state.people = { list: b.people.map((p) => p.name), me: b.me.person, loaded: true, error: "" };
+    state.people = { list: b.people.map((p) => p.name), rows: b.people, me: b.me.person, loaded: true, error: "" };
   } catch (e) {
     state.people = Object.assign({}, state.people, { error: "Henkilölistaa ei saatu ladattua (" + e.message + ")." });
   }
@@ -213,11 +213,21 @@ export async function addPerson(name) { const b = await call("/people", { method
 export async function linkMe(name) { const b = await call("/me", { method: "PUT", body: JSON.stringify({ name }) }); await loadPeople(); return b.name; }
 export async function unlinkMe() { await call("/me", { method: "DELETE" }); await loadPeople(); }
 
+// Henkilöiden hallinta (ylläpitäjä). Nimen muutos päivittää vastuut palvelimella, joten tiedot ladataan sen jälkeen uudelleen.
+async function reloadAll() {
+  await loadPeople();
+  // Sekä avoimen suunnitelman rivit että koonti, koska nimi on voinut muuttua kummassakin.
+  try { if (state.planId) await loadItems(state.planId); if (state.overviewActive) await loadOverview(); } catch (e) { /* seuraava kierros yrittää uudelleen */ }
+}
+export async function renamePerson(from, to) { await call("/people/rename", { method: "POST", body: JSON.stringify({ from, to }) }); await reloadAll(); }
+export async function deletePerson(name) { await call("/people/delete", { method: "POST", body: JSON.stringify({ name }) }); await loadPeople(); }
+export async function setPersonEmail(name, email) { await call("/people/email", { method: "POST", body: JSON.stringify({ name, email }) }); await loadPeople(); }
+
 // Kooste kaikista suunnitelmista. Odottavat muutokset lisätään palvelimen tilan päälle.
 export async function loadOverview() {
   const seen = mutations;
   try {
-    const b = await call("/overview");
+    const b = await call(state.role === "member" ? "/mine" : "/overview");
     if (seen !== mutations) return;
     const byPlan = new Map();
     b.items.forEach((i) => { if (!byPlan.has(i.plan_id)) byPlan.set(i.plan_id, new Map()); byPlan.get(i.plan_id).set(i.id, i); });
@@ -269,6 +279,19 @@ export async function init() {
   restoreQueue();
   document.addEventListener("visibilitychange", () => { if (document.hidden) commitFocused(); });
   window.addEventListener("pagehide", commitFocused);
+  // Jäsen ei saa suunnitelmalistaa: palvelin kertoo roolin, ja jäsenelle ladataan vain oma koonti (Omat).
+  let who = null;
+  try { who = await call("/people"); } catch (e) { /* ylläpitäjä toimii ilman henkilölistaa */ }
+  if (who && who.role === "member") {
+    state.role = "member"; state.email = who.me.email;
+    state.people = { list: [], rows: [], me: who.me.person, loaded: true, error: "" };
+    state.loaded = true; emit();
+    if (queue.length) { setSave("saving"); flush(); }
+    setInterval(refresh, POLL_MS);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("beforeunload", (e) => { commitFocused(); if (queue.length || sending) e.preventDefault(); });
+    return;
+  }
   const b = await call("/plans");
   state.plans = b.plans; state.email = b.email;
   let want = "";

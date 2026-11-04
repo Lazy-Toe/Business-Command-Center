@@ -3,8 +3,11 @@
 // tunnisteen ja sähköpostin ja vasta sitten lukee tai kirjoittaa Supabaseen salaisella avaimella.
 // Salainen avain ja sallitut osoitteet ovat Cloudflaren salaisuuksina, eivät repossa:
 //   SUPABASE_SECRET_KEY  Supabasen secret key (sb_secret_...)
-//   ALLOWED_EMAILS       sallitut osoitteet pilkulla eroteltuna
+//   ALLOWED_EMAILS       ylläpitäjät (näkevät ja muuttavat kaiken) pilkulla eroteltuna
+//   MEMBER_EMAILS        (valinnainen) jäsenet: näkevät ja muuttavat vain omat tehtävänsä ja scorecardinsa
 //   ACCESS_AUD           (valinnainen) Access-sovelluksen AUD-tunniste
+
+import { scopeFor, memberMayApply } from "./public/app/core/scope.js";
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const KIND_RE = /^[a-z][a-z0-9_-]{0,31}$/;
@@ -37,7 +40,8 @@ async function accessKeys(env, force) {
   return certCache.keys;
 }
 
-export async function verifyAccess(request, env) {
+// Tarkistaa Cloudflare Accessin allekirjoitetun tunnisteen ja palauttaa sähköpostin. Pääsyn rooli ratkaistaan erikseen.
+export async function verifyToken(request, env) {
   const token = request.headers.get("Cf-Access-Jwt-Assertion");
   if (!token) return null;
   const parts = token.split(".");
@@ -64,9 +68,15 @@ export async function verifyAccess(request, env) {
     if (aud.indexOf(env.ACCESS_AUD) < 0) return null;
   }
   const email = String(payload.email || "").toLowerCase();
-  const allowed = String(env.ALLOWED_EMAILS || "").toLowerCase().split(",").map(function (s) { return s.trim(); }).filter(Boolean);
-  if (!email || allowed.indexOf(email) < 0) return null;
-  return email;
+  return email || null;
+}
+
+const emailList = function (v) { return String(v || "").toLowerCase().split(",").map(function (s) { return s.trim(); }).filter(Boolean); };
+// admin: kaikki oikeudet. member: vain omat rivit. Muut eivät pääse sisään. Ylläpitäjä voittaa, jos osoite on molemmissa.
+export function roleOf(email, env) {
+  if (emailList(env.ALLOWED_EMAILS).indexOf(email) >= 0) return "admin";
+  if (emailList(env.MEMBER_EMAILS).indexOf(email) >= 0) return "member";
+  return null;
 }
 
 function sbHeaders(env, extra) {
@@ -148,10 +158,48 @@ function cleanName(v) {
 }
 const OVERVIEW_KINDS = "task,row,risk,metric,role,stream,section";
 
+// Jäsenen pyynnöt. Vain: oma henkilö, omat rivit ja omien rivien sallitut kentät. Kaikki muu on 403.
+async function personOf(env, email) {
+  const rows = await db(env, "bcc_people?select=name,email");
+  const p = rows.find(function (r) { return r.email && r.email.toLowerCase() === email; });
+  return p ? p.name : null;
+}
+const SCOPE_COLS = "plan_id,id,kind,parent_id,position,data";
+async function memberApi(request, env, url, email) {
+  const method = request.method;
+  if (url.pathname === "/api/people" && method === "GET") {
+    return json({ role: "member", me: { email: email, person: await personOf(env, email) }, people: [] });
+  }
+  if (url.pathname === "/api/mine" && method === "GET") {
+    const person = await personOf(env, email);
+    const plans = await db(env, "bcc_plans?select=" + PLAN_COLS + "&archived_at=is.null&order=created_at");
+    const active = new Set(plans.map(function (p) { return p.id; }));
+    const rows = (await fetchAll(env, "bcc_items?select=" + SCOPE_COLS + "&kind=in.(task,role,metric,stream)&order=plan_id,position,id")).filter(function (r) { return active.has(r.plan_id); });
+    const scope = scopeFor(rows, person);
+    const shown = new Set(scope.items.map(function (i) { return i.plan_id; }));
+    return json({ plans: plans.filter(function (p) { return shown.has(p.id); }), items: scope.items });
+  }
+  const m = url.pathname.match(/^\/api\/plans\/([^/]+)\/items$/);
+  if (m && method === "POST") {
+    const id = decodeURIComponent(m[1]);
+    if (!ID_RE.test(id)) return json({ error: "forbidden" }, 403);
+    const ops = cleanOps((await readJson(request)).ops);
+    // Tunniste liitetään riveille tässä, jotta tarkistus ei riipu siitä, mitä sarakkeita kysely palauttaa.
+    const rows = (await fetchAll(env, "bcc_items?select=" + SCOPE_COLS + "&plan_id=eq." + encodeURIComponent(id) + "&order=position,id")).map(function (r) { return Object.assign({}, r, { plan_id: id }); });
+    const scope = scopeFor(rows, await personOf(env, email));
+    // Koko pyyntö hylätään, jos yksikin muutos on omien rivien ja sallittujen kenttien ulkopuolella.
+    if (!memberMayApply(ops, id, scope.mine)) return json({ error: "out_of_scope" }, 422);
+    const n = await db(env, "rpc/bcc_apply_batch", { method: "POST", body: JSON.stringify({ p_plan: id, p_ops: ops }) });
+    return json({ ok: true, applied: n });
+  }
+  return json({ error: "forbidden" }, 403);
+}
+
 async function api(request, env, url) {
   if (!env.SUPABASE_SECRET_KEY || !env.ALLOWED_EMAILS || !env.ACCESS_TEAM || !env.SUPABASE_URL) return json({ error: "not_configured" }, 503);
-  const email = await verifyAccess(request, env);
-  if (!email) return json({ error: "forbidden" }, 403);
+  const email = await verifyToken(request, env);
+  const role = email ? roleOf(email, env) : null;
+  if (!role) return json({ error: "forbidden" }, 403);
 
   const method = request.method;
   // Muutospyyntöjen on tultava omalta sivulta.
@@ -159,6 +207,9 @@ async function api(request, env, url) {
     const origin = request.headers.get("origin");
     if (origin && origin !== url.origin) return json({ error: "forbidden" }, 403);
   }
+
+  // Jäsenelle on oma, oletuksena kieltävä reittijoukko: mikään ylläpitäjän reitti ei ole häneltä saavutettavissa.
+  if (role === "member") return memberApi(request, env, url, email);
 
   if (url.pathname === "/api/plans") {
     if (method === "GET") {
@@ -184,13 +235,28 @@ async function api(request, env, url) {
     if (method === "GET") {
       const rows = await db(env, "bcc_people?select=name,email&order=name");
       const mine = rows.find(function (p) { return p.email && p.email.toLowerCase() === email; });
-      return json({ me: { email: email, person: mine ? mine.name : null }, people: rows.map(function (p) { return { name: p.name, linked: !!p.email }; }) });
+      return json({ role: "admin", me: { email: email, person: mine ? mine.name : null }, people: rows.map(function (p) { return { name: p.name, linked: !!p.email, email: p.email || "" }; }) });
     }
     if (method === "POST") {
       const b = await readJson(request);
       const name = await db(env, "rpc/bcc_add_person", { method: "POST", body: JSON.stringify({ p_name: cleanName(b.name) }) });
       return json({ ok: true, name: name });
     }
+  }
+  if (method === "POST" && /^\/api\/people\/(rename|delete|email)$/.test(url.pathname)) {
+    const b = await readJson(request), act = url.pathname.split("/").pop();
+    if (act === "rename") {
+      const name = await db(env, "rpc/bcc_rename_person", { method: "POST", body: JSON.stringify({ p_old: cleanName(b.from), p_new: cleanName(b.to) }) });
+      return json({ ok: true, name: name });
+    }
+    if (act === "delete") {
+      await db(env, "rpc/bcc_delete_person", { method: "POST", body: JSON.stringify({ p_name: cleanName(b.name) }) });
+      return json({ ok: true });
+    }
+    const mail = String(b.email || "").trim().toLowerCase();
+    if (mail && (mail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail))) throw bad("bad_email");
+    await db(env, "rpc/bcc_set_person_email", { method: "POST", body: JSON.stringify({ p_name: cleanName(b.name), p_email: mail }) });
+    return json({ ok: true });
   }
   if (url.pathname === "/api/me") {
     if (method === "PUT") {
@@ -258,7 +324,8 @@ export default {
         if (e.http) return json({ error: e.message }, e.http);
         // Tietokannan virheviesti jää lokiin eikä päädy vastaukseen.
         if (e.message === "db" && e.detail === "plan_not_found") return json({ error: "plan_not_found" }, 409);
-        if (e.message === "db" && e.detail === "person_taken") return json({ error: "person_taken" }, 409);
+        if (e.message === "db" && ["person_taken", "name_taken", "email_taken", "person_in_use"].indexOf(e.detail) >= 0) return json({ error: e.detail }, 409);
+        if (e.message === "db" && e.detail === "person_not_found") return json({ error: "person_not_found" }, 404);
         console.error(e.message, e.status || "", e.detail || "");
         if (e.message === "db") return json({ error: "db", status: e.status }, 502);
         return json({ error: "server" }, 500);
