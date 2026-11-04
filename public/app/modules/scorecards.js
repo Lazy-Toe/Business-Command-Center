@@ -1,7 +1,7 @@
 import { html, Text, Tools, AddButton, Input, ui, useCollapse, Head, pressable, mq, FACE, MOODNAME, ORDER, nextIn, uiChanged, sortProps, navigate } from "../core/ui.js";
 import { register } from "../core/registry.js";
 import { children, findSection, patch, add } from "../core/store.js";
-import { peopleOf } from "../core/calc.js";
+import { PersonSelect } from "../people.js";
 import { planParts, Task, phaseClass } from "./plan.js";
 import { goalValues } from "./goals.js";
 
@@ -50,29 +50,6 @@ function MetricRow({ m, list }) {
   </tr>`;
 }
 
-const NEW_PERSON = "__new";
-// Vastuuhenkilö valitaan listasta. Uusi nimi tallentuu osion henkilölistaan, jotta se pysyy valittavana, vaikka kenelläkään ei olisi sillä hetkellä vastuualuetta.
-function OwnerSelect({ role }) {
-  const sec = findSection("scorecards");
-  const cur = role.data.owner || "";
-  const names = peopleOf(sec.data.people, roles().map((x) => x.data.owner));
-  const change = (e) => {
-    const v = e.target.value;
-    if (v !== NEW_PERSON) { patch(role.id, { owner: v }); return; }
-    e.target.value = cur;
-    const n = (prompt("Henkilön nimi") || "").replace(/\s+/g, " ").trim().slice(0, 40);
-    if (!n) return;
-    const all = peopleOf(names, n), name = all.find((x) => x.toLowerCase() === n.toLowerCase());
-    patch(sec.id, { people: all });
-    patch(role.id, { owner: name });
-  };
-  return html`<select class="ownersel" aria-label="Vastuuhenkilö" value=${cur} onChange=${change}>
-    <option value="">Ei vastuuhenkilöä</option>
-    ${names.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}
-    <option value=${NEW_PERSON}>+ Lisää henkilö…</option>
-  </select>`;
-}
-
 export function RolePanel({ id }) {
   const small = mq("(max-width: 900px)");
   const r = roles().find((x) => x.id === id); if (!r) return null;
@@ -87,7 +64,7 @@ export function RolePanel({ id }) {
   return html`<section class="rolepanel">
     <div class="head" id="rp-head">
       <button type="button" class="backlink" onClick=${() => { showTab("kokonaisuus"); scrollTo(0, 0); }}>← Kokonaisuus</button>
-      <p class="eyebrow">Scorecard · <${OwnerSelect} role=${r} /></p>
+      <p class="eyebrow">Scorecard · <${PersonSelect} cls="ownersel" canAdd=${true} label="Vastuuhenkilö" value=${r.data.owner || ""} onPick=${(v) => patch(r.id, { owner: v })} /></p>
       <${Text} item=${r} field="title" tag="h2" cls="rp-title" mode="always" max=${60} ph="Vastuualue" />
       <${Text} item=${r} field="mission" tag="p" cls="rp-mission" mode="always" max=${240} ph="Tehtävä" />
       ${ui.edit && parts ? html`<label class="gyear">Työvirta <select aria-label="Työvirta" value=${r.data.stream} onChange=${(e) => patch(r.id, { stream: e.target.value })}><option value="">Ei työvirtaa</option>${parts.streams.map((w) => html`<option key=${w.id} value=${w.id}>${w.data.label}</option>`)}</select></label>` : null}

@@ -140,6 +140,12 @@ function cleanTitle(v) {
 }
 
 const PLAN_COLS = "id,title,created_at,updated_at";
+
+function cleanName(v) {
+  const t = String(v || "").replace(/\s+/g, " ").trim().slice(0, 60);
+  if (!t) throw bad("bad_name");
+  return t;
+}
 const OVERVIEW_KINDS = "task,row,risk,metric,role,stream,section";
 
 async function api(request, env, url) {
@@ -170,6 +176,31 @@ async function api(request, env, url) {
         await db(env, "bcc_plans", { method: "POST", headers: { prefer: "return=minimal" }, body: JSON.stringify({ id: b.id, title: title }) });
       }
       return json({ ok: true, id: b.id });
+    }
+  }
+
+  // Henkilöt ja kirjautuneen käyttäjän oma henkilö. Kirjautuminen kohdistaa Omat-näkymän, se ei rajaa pääsyä.
+  if (url.pathname === "/api/people") {
+    if (method === "GET") {
+      const rows = await db(env, "bcc_people?select=name,email&order=name");
+      const mine = rows.find(function (p) { return p.email && p.email.toLowerCase() === email; });
+      return json({ me: { email: email, person: mine ? mine.name : null }, people: rows.map(function (p) { return { name: p.name, linked: !!p.email }; }) });
+    }
+    if (method === "POST") {
+      const b = await readJson(request);
+      const name = await db(env, "rpc/bcc_add_person", { method: "POST", body: JSON.stringify({ p_name: cleanName(b.name) }) });
+      return json({ ok: true, name: name });
+    }
+  }
+  if (url.pathname === "/api/me") {
+    if (method === "PUT") {
+      const b = await readJson(request);
+      const name = await db(env, "rpc/bcc_link_person", { method: "POST", body: JSON.stringify({ p_email: email, p_name: cleanName(b.name) }) });
+      return json({ ok: true, name: name });
+    }
+    if (method === "DELETE") {
+      await db(env, "rpc/bcc_unlink_person", { method: "POST", body: JSON.stringify({ p_email: email }) });
+      return json({ ok: true });
     }
   }
 
@@ -227,6 +258,7 @@ export default {
         if (e.http) return json({ error: e.message }, e.http);
         // Tietokannan virheviesti jää lokiin eikä päädy vastaukseen.
         if (e.message === "db" && e.detail === "plan_not_found") return json({ error: "plan_not_found" }, 409);
+        if (e.message === "db" && e.detail === "person_taken") return json({ error: "person_taken" }, 409);
         console.error(e.message, e.status || "", e.detail || "");
         if (e.message === "db") return json({ error: "db", status: e.status }, 502);
         return json({ error: "server" }, 500);

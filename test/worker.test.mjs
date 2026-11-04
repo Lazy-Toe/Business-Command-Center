@@ -157,6 +157,46 @@ test("yli tuhat riviä haetaan kokonaan, arkistoitu ei näy koosteessa", async (
   await req("/plans/iso", { method: "DELETE" });
 });
 
+test("henkilöt: nykyiset vastuuhenkilöt tulevat listalle, kirjautuminen liitetään yhteen henkilöön", async () => {
+  const OTHER = "toinen@example.test";
+  const get = async (token) => (await req("/people", { token })).json();
+  assert.equal((await req("/people", { token: null })).status, 403);
+  const first = await get();
+  assert.ok(first.people.some((p) => p.name === "Harri"), "siirretyt vastuuhenkilöt mukana");
+  assert.deepEqual(first.me, { email: ME.toLowerCase(), person: null });
+  assert.ok(!JSON.stringify(first).includes(OTHER), "toisten osoitteita ei paljasteta");
+
+  assert.equal((await (await req("/people", { method: "POST", body: { name: "  Uusi   Henkilö " } })).json()).name, "Uusi Henkilö");
+  assert.equal((await (await req("/people", { method: "POST", body: { name: "uusi henkilö" } })).json()).name, "Uusi Henkilö", "sama nimi kirjainkoosta riippumatta");
+  assert.equal((await req("/people", { method: "POST", body: { name: "  " } })).status, 400);
+  assert.equal((await q("select count(*)::int n from bcc_people where lower(name) = 'uusi henkilö'"))[0].n, 1);
+
+  assert.equal((await req("/me", { method: "PUT", body: { name: "Harri" } })).status, 200);
+  assert.equal((await get()).me.person, "Harri");
+  assert.equal((await req("/me", { method: "PUT", body: { name: "harri" }, token: fake.token(OTHER) })).status, 409, "toisen henkilöä ei voi ottaa");
+  assert.equal((await get(fake.token(OTHER))).me.person, null);
+
+  assert.equal((await req("/me", { method: "PUT", body: { name: "Uusi Henkilö" } })).status, 200, "vaihto toiseen henkilöön");
+  assert.equal((await get()).me.person, "Uusi Henkilö");
+  assert.equal((await q("select count(*)::int n from bcc_people where email is not null"))[0].n, 1, "kirjautumisella vain yksi henkilö");
+  assert.equal((await req("/me", { method: "PUT", body: { name: "Harri" }, token: fake.token(OTHER) })).status, 200, "vapautunut henkilö otettavissa");
+
+  assert.equal((await req("/me", { method: "PUT", body: { name: "Toinen" }, headers: { origin: "https://evil.test" } })).status, 403, "toiselta sivulta ei muuteta");
+  assert.equal((await req("/me", { method: "DELETE", token: fake.token(OTHER) })).status, 200);
+  assert.equal((await get(fake.token(OTHER))).me.person, null);
+  assert.deepEqual((await q("select has_table_privilege('anon', 'bcc_people', 'select') a, has_function_privilege('anon', 'bcc_link_person(text, text)', 'execute') b"))[0], { a: false, b: false });
+});
+
+test("henkilöfunktiot toimivat service_role-oikeuksilla, ei vain pääkäyttäjänä", async () => {
+  await pg.exec("set role service_role");
+  try {
+    assert.equal((await q("select bcc_add_person('  Roolitesti ') n"))[0].n, "Roolitesti");
+    assert.equal((await q("select bcc_link_person('rooli@example.test', 'roolitesti') n"))[0].n, "Roolitesti");
+    await pg.exec("select bcc_unlink_person('rooli@example.test')");
+    assert.equal((await q("select count(*)::int n from bcc_people where lower(name) = 'roolitesti'"))[0].n, 1);
+  } finally { await pg.exec("reset role"); }
+});
+
 test("ajastus koskettaa tietokantaa", async () => {
   let p; await worker.scheduled({}, env, { waitUntil: (x) => { p = x; } });
   assert.ok(Array.isArray(await p));
