@@ -60,7 +60,7 @@ test("raha suomalaisittain", () => {
   assert.equal(fmtMoney(5, ""), "5,00");
 });
 
-const T = [{ id: "arviointi", data: { score: true } }, { id: "kommentti", data: {} }];
+const T = ["p", "q", "ERI"].flatMap((plan_id) => [{ id: "arviointi", plan_id, data: { score: true } }, { id: "kommentti", plan_id, data: {} }]).filter((t) => t.plan_id !== "ERI" || t.id === "kommentti");
 const roles = [{ id: "r1", plan_id: "p", data: { owner: "Mika" } }, { id: "r2", plan_id: "q", data: { owner: " mika " } }, { id: "r3", plan_id: "p", data: { owner: "Iida" } }];
 const rows = (actual) => [{ def: "d", formula: "ACTUAL / TARGET", target: "100", min: "", max: "", weight: "100", start: "", end: "", actual }];
 const f = (id, parent, plan, type, at, actual) => ({ id, parent_id: parent, plan_id: plan, data: { type, at, rows: rows(actual) } });
@@ -77,4 +77,5 @@ test("SCORE: viimeisin pisteytyslomake roolia kohden, keskiarvo rooleista, muut 
   assert.equal(scoreOfPerson("Mika", roles, [], T).score, null);
   assert.equal(scoreOfPerson("Mika", roles, [f("x", "r1", "p", "arviointi", "2026-01-01", "")], T).score, null, "lomake ilman toteumia ei anna pisteytystä");
   assert.equal(scoreOfPerson("Mika", roles, [f("x", "r1", "ERI", "arviointi", "2026-01-01", "50")], T).score, null, "saman tunnisteen rooli toisessa suunnitelmassa ei sekoitu");
+  assert.equal(scoreOfPerson("Mika", roles, [f("x", "r1", "p", "arviointi", "2026-01-01", "50")], T.filter((t) => t.plan_id !== "p")).score, null, "toisen suunnitelman pisteytystyyppi ei päde");
 });

@@ -34,13 +34,13 @@ export function Group({ title, list, open, late, hint }) {
     <ul class="tlist">${list.map((t) => html`<${Row} key=${t.plan_id + t.id} t=${t} open=${open} late=${late} />`)}</ul></section>`;
 }
 
-const ATT_LABEL = { row: "Mittari", metric: "Scorecard", risk: "Riski" };
+const ATT_LABEL = { row: "Mittari", metric: "Scorecard", risk: "Riski", form: "Ehdotus" };
 function Attention({ list, open }) {
   return html`<aside class="tattn" aria-label="Vaatii huomiota">
     <h2>Vaatii huomiota <span class="num">${list.length}</span></h2>
     ${list.length ? html`<ul>${list.map((a) => html`<li key=${a.plan_id + a.id}>
       <button type="button" onClick=${() => open(a.plan_id, a)}>
-        <span class="attk">${ATT_LABEL[a.kind]}${a.kind === "risk" ? " · taso 2" : a.kind === "metric" ? " · alle alarajan" : " · huono"}</span>
+        <span class="attk">${ATT_LABEL[a.kind]}${a.kind === "risk" ? " · taso 2" : a.kind === "metric" ? " · alle alarajan" : a.kind === "form" ? " · avoin" : " · huono"}</span>
         <b>${a.title || a.data.name || "Nimetön"}</b>
         <span class="tsub">${planName(a.plan_id)}${a.role ? " · " + a.role.data.title : ""}${a.owner ? " · " + a.owner : ""}</span>
       </button></li>`)}</ul>` : html`<p class="gs">Ei huonoksi arvioituja mittareita tai tason 2 riskejä.</p>`}

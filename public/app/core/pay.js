@@ -83,10 +83,11 @@ export function payResult(rule, fields, values, score) {
 // Useammalla roolilla SCORE on lopputulosten keskiarvo, ja rooli ilman pisteytystä ei vaikuta siihen.
 export function scoreOfPerson(person, roles, forms, types) {
   const same = (a) => !!a && String(a).trim().toLowerCase() === String(person).trim().toLowerCase();
-  const scoring = new Set(types.filter((t) => t.data.score).map((t) => t.id)), parts = [];
+  // Tyyppi tunnistetaan suunnitelman kanssa, jotta eri suunnitelmien samat tunnisteet eivät sekoitu.
+  const scoring = new Set(types.filter((t) => t.data.score).map((t) => t.plan_id + "/" + t.id)), parts = [];
   roles.filter((r) => same(r.data.owner)).forEach((r) => {
     const latest = forms
-      .filter((f) => f.parent_id === r.id && f.plan_id === r.plan_id && scoring.has(f.data.type))
+      .filter((f) => f.parent_id === r.id && f.plan_id === r.plan_id && scoring.has(f.plan_id + "/" + f.data.type))
       .sort((a, b) => String(b.data.at || "").localeCompare(String(a.data.at || "")))[0];
     if (!latest) return;
     const t = scoreForm(latest.data.rows).total;
