@@ -604,3 +604,24 @@ code { font-family: var(--f-mono); font-size: 0.82em; }
 .final { margin: 4px 0; font-size: 0.9rem; color: var(--muted); }
 .final b { font: 600 1.3rem var(--f-mono); color: var(--ink); }
 .final.big b { font-size: 2rem; }
+.formpanel { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); }
+.formpanel h3 { margin: 0 0 8px; font-size: 1rem; }
+.fbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fbar select { font: 400 0.88rem/1.3 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; min-width: 220px; max-width: 100%; }
+.fmeta { display: flex; flex-wrap: wrap; gap: 4px 28px; margin: 12px 0 8px; }
+.fmeta > div { display: flex; flex-direction: column; font-size: 0.9rem; }
+.fmeta span { font-size: 0.74rem; color: var(--muted); }
+.fcomment { white-space: pre-wrap; margin: 8px 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+.fdraft, .fview { margin-top: 10px; }
+.fdraft .mfrow { grid-template-columns: 110px minmax(0, 1fr); }
+.fdraft textarea { font: 400 0.9rem/1.4 var(--f-body); width: 100%; box-sizing: border-box; }
+.payrule { max-width: 940px; }
+.paygrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; }
+.paytest { background: var(--paper); padding: 14px; border: 1px solid var(--line); border-radius: 4px; align-self: start; }
+.paytest h3 { margin: 0 0 8px; font-size: 1rem; }
+.paytest .mfrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.payresult { font-size: 1.02rem; overflow-wrap: anywhere; }
+.varlist { list-style: none; padding: 0; margin: 8px 0; font-size: 0.84rem; display: flex; flex-direction: column; gap: 2px; }
+.paysec h3 { margin: 16px 0 6px; font-size: 1rem; }
+.ctr { text-align: center; }
+@media (max-width: 760px) { .paygrid { grid-template-columns: minmax(0, 1fr); } }

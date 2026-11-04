@@ -15,6 +15,7 @@ export async function createDb(oldRows) {
   await pg.exec(sql("002_alusta.sql"));
   await pg.exec(sql("003_kayttajat.sql"));
   await pg.exec(sql("004_henkilohallinta.sql"));
+  await pg.exec(sql("005_euromoduuli.sql"));
   return pg;
 }
 
@@ -61,6 +62,10 @@ export function fakeSupabase(pg, base) {
       if (path === "rpc/bcc_delete_person") { await pg.query("select bcc_delete_person($1)", [body.p_name]); return res(undefined, 204); }
       if (path === "rpc/bcc_set_person_email") { await pg.query("select bcc_set_person_email($1, $2)", [body.p_name, body.p_email]); return res(undefined, 204); }
       if (path === "rpc/bcc_unlink_person") { await pg.query("select bcc_unlink_person($1)", [body.p_email]); return res(undefined, 204); }
+      if (path === "rpc/bcc_pay_get") return res((await pg.query("select bcc_pay_get() as r")).rows[0].r);
+      if (path === "rpc/bcc_pay_set_def") { await pg.query("select bcc_pay_set_def($1, $2::jsonb, $3)", [body.p_key, JSON.stringify(body.p_data), body.p_by]); return res(undefined, 204); }
+      if (path === "rpc/bcc_pay_set_person") { await pg.query("select bcc_pay_set_person($1, $2::jsonb, $3)", [body.p_name, JSON.stringify(body.p_pay), body.p_by]); return res(undefined, 204); }
+      if (path === "rpc/bcc_pay_log_list") return res((await pg.query("select bcc_pay_log_list($1) as r", [body.p_limit])).rows[0].r);
       if (path === "rpc/bcc_apply_batch") return res((await pg.query("select bcc_apply_batch($1, $2::jsonb) as n", [body.p_plan, JSON.stringify(body.p_ops)])).rows[0].n);
       if (path === "rpc/bcc_duplicate_plan") return res((await pg.query("select bcc_duplicate_plan($1, $2, $3) as id", [body.p_source, body.p_id, body.p_title])).rows[0].id);
     } catch (e) { return res({ message: e.message }, 400); }

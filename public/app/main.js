@@ -80,8 +80,8 @@ function setView(v, how) {
 // Tänään-näkymästä suoraan kohteeseen sen omassa suunnitelmassa.
 async function openItem(planId, item) {
   await store.openPlan(planId);
-  const tab = item.kind === "metric" ? item.parent_id : item.kind === "role" ? item.id : "kokonaisuus";
-  if (item.parent_id && item.kind !== "metric" && item.kind !== "role") expandSection(item.parent_id);
+  const tab = item.kind === "metric" || item.kind === "form" ? item.parent_id : item.kind === "role" ? item.id : "kokonaisuus";
+  if (item.parent_id && item.kind !== "metric" && item.kind !== "role" && item.kind !== "form") expandSection(item.parent_id);
   setView("plan");
   showTab(tab);
   setTimeout(() => {

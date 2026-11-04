@@ -8,6 +8,9 @@
 //   ACCESS_AUD           (valinnainen) Access-sovelluksen AUD-tunniste
 
 import { scopeFor, memberMayApply } from "./public/app/core/scope.js";
+import { orderDefs, rowsFor } from "./public/app/core/scorecard.js";
+import { checkForm, nextStatus } from "./public/app/core/forms.js";
+import { cleanFields, cleanRules, cleanPerson } from "./public/app/core/pay.js";
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const KIND_RE = /^[a-z][a-z0-9_-]{0,31}$/;
@@ -156,7 +159,81 @@ function cleanName(v) {
   if (!t) throw bad("bad_name");
   return t;
 }
-const OVERVIEW_KINDS = "task,row,risk,metric,role,stream,section,goal,metricdef";
+const OVERVIEW_KINDS = "task,row,risk,metric,role,stream,section,goal,metricdef,form,formtype";
+
+// Lomakkeet ja euromoduuli. Euro-tiedot kulkevat vain ylläpitäjän rajapintojen (/api/pay) kautta, eivätkä ne ole missään sisältörivissä.
+const sameName = function (a, b) { return !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase(); };
+const newId = function () { return crypto.randomUUID().replace(/-/g, "").slice(0, 16); };
+async function planRows(env, planId) {
+  const rows = await fetchAll(env, "bcc_items?select=" + SCOPE_COLS + "&plan_id=eq." + encodeURIComponent(planId) + "&order=position,id");
+  return rows.map(function (r) { return Object.assign({}, r, { plan_id: planId }); });
+}
+
+// who: { admin, email, person }. Tekijä näytetään nimellä, ei koskaan sähköpostilla, koska jäsen näkee lomakkeen tekijän.
+// Tekijä, päivä, tyypin nimi ja tila kirjataan täällä, joten käyttäjä ei voi asettaa niitä.
+async function createForm(env, planId, b, who) {
+  const rows = await planRows(env, planId);
+  const role = rows.find(function (r) { return r.kind === "role" && !!b && r.id === b.role; });
+  if (!role || (!who.admin && !sameName(role.data.owner, who.person))) return json({ error: "out_of_scope" }, 422);
+  const defs = orderDefs(rows.filter(function (r) { return r.kind === "goal"; }), rows.filter(function (r) { return r.kind === "metricdef"; }));
+  const effective = rowsFor(role, defs, rows.filter(function (r) { return r.kind === "metric" && r.parent_id === role.id; }));
+  const c = checkForm(b, { types: rows.filter(function (r) { return r.kind === "formtype"; }), isAdmin: who.admin, effective: effective });
+  if (c.error) return c.code === "type" ? json({ error: "out_of_scope" }, 422) : json({ error: "bad_form", detail: c.error }, 400);
+  const id = newId();
+  const data = { type: c.type.id, typeName: c.type.data.name || "", comment: c.comment, rows: c.rows, at: new Date().toISOString(), by: who.person || "Ylläpitäjä", byPerson: who.person || "", status: c.type.data.proposal ? "open" : "" };
+  await db(env, "rpc/bcc_apply_batch", { method: "POST", body: JSON.stringify({ p_plan: planId, p_ops: [{ op: "put", id: id, kind: "form", parent_id: role.id, position: Date.now(), data: data }] }) });
+  return json({ ok: true, id: id });
+}
+
+// Ehdotuksen päätös on vain ylläpitäjän. Käyttöönotto vaatii, että ehdotus on avoin tai hyväksytty.
+async function decideForm(env, planId, formId, b, email) {
+  if (!ID_RE.test(formId)) return json({ error: "bad_id" }, 400);
+  const rows = await planRows(env, planId);
+  const form = rows.find(function (r) { return r.kind === "form" && r.id === formId; });
+  if (!form) return json({ error: "not_found" }, 404);
+  const type = rows.find(function (r) { return r.kind === "formtype" && r.id === form.data.type; });
+  const to = b && b.status;
+  if (!type || !type.data.proposal || !nextStatus(form.data.status || "open", to)) return json({ error: "bad_transition" }, 409);
+  const person = await personOf(env, email);
+  await db(env, "rpc/bcc_apply_batch", { method: "POST", body: JSON.stringify({ p_plan: planId, p_ops: [{ op: "patch", id: formId, data: { status: to, decidedBy: person || "Ylläpitäjä", decidedAt: new Date().toISOString() } }] }) });
+  return json({ ok: true });
+}
+
+async function payApi(request, env, url, email) {
+  const method = request.method, path = url.pathname;
+  const rpc = function (name, args) { return db(env, "rpc/" + name, { method: "POST", body: JSON.stringify(args || {}) }); };
+  if (path === "/api/pay" && method === "GET") return json(await rpc("bcc_pay_get"));
+  if (path === "/api/pay/log" && method === "GET") {
+    const n = Math.min(Math.max(parseInt(url.searchParams.get("limit"), 10) || 50, 1), 200);
+    return json({ log: await rpc("bcc_pay_log_list", { p_limit: n }) });
+  }
+  if (method !== "PUT") return json({ error: "not_found" }, 404);
+  const b = await readJson(request), cur = await rpc("bcc_pay_get");
+  if (path === "/api/pay/fields") {
+    const r = cleanFields(b.fields);
+    if (r.error) return json({ error: "bad_fields", detail: r.error }, 400);
+    // Kenttiä ei voi poistaa, jos jokin sääntö käyttää niitä.
+    const used = cleanRules(cur.rules, r.fields);
+    if (used.error) return json({ error: "fields_in_use", detail: used.error }, 409);
+    await rpc("bcc_pay_set_def", { p_key: "pay_fields", p_data: r.fields, p_by: email });
+    return json({ ok: true });
+  }
+  if (path === "/api/pay/rules") {
+    const r = cleanRules(b.rules, cur.fields);
+    if (r.error) return json({ error: "bad_rules", detail: r.error }, 400);
+    const keep = new Set(r.rules.map(function (x) { return x.id; }));
+    if (cur.people.some(function (p) { return p.pay && p.pay.rule && !keep.has(p.pay.rule); })) return json({ error: "rule_in_use" }, 409);
+    await rpc("bcc_pay_set_def", { p_key: "pay_rules", p_data: r.rules, p_by: email });
+    return json({ ok: true });
+  }
+  if (path === "/api/pay/person") {
+    const r = cleanPerson(b.pay, cur.fields, cur.rules);
+    if (r.error) return json({ error: "bad_pay", detail: r.error }, 400);
+    await rpc("bcc_pay_set_person", { p_name: cleanName(b.name), p_pay: r.pay, p_by: email });
+    return json({ ok: true });
+  }
+  return json({ error: "not_found" }, 404);
+}
 
 // Jäsenen pyynnöt. Vain: oma henkilö, omat rivit ja omien rivien sallitut kentät. Kaikki muu on 403.
 async function personOf(env, email) {
@@ -174,10 +251,16 @@ async function memberApi(request, env, url, email) {
     const person = await personOf(env, email);
     const plans = await db(env, "bcc_plans?select=" + PLAN_COLS + "&archived_at=is.null&order=created_at");
     const active = new Set(plans.map(function (p) { return p.id; }));
-    const rows = (await fetchAll(env, "bcc_items?select=" + SCOPE_COLS + "&kind=in.(task,role,metric,stream,metricdef)&order=plan_id,position,id")).filter(function (r) { return active.has(r.plan_id); });
+    const rows = (await fetchAll(env, "bcc_items?select=" + SCOPE_COLS + "&kind=in.(task,role,metric,stream,metricdef,form,formtype)&order=plan_id,position,id")).filter(function (r) { return active.has(r.plan_id); });
     const scope = scopeFor(rows, person);
     const shown = new Set(scope.items.map(function (i) { return i.plan_id; }));
     return json({ plans: plans.filter(function (p) { return shown.has(p.id); }), items: scope.items });
+  }
+  const fm = url.pathname.match(/^\/api\/plans\/([^/]+)\/forms$/);
+  if (fm && method === "POST") {
+    const pid = decodeURIComponent(fm[1]);
+    if (!ID_RE.test(pid)) return json({ error: "forbidden" }, 403);
+    return createForm(env, pid, await readJson(request), { admin: false, email: email, person: await personOf(env, email) });
   }
   const m = url.pathname.match(/^\/api\/plans\/([^/]+)\/items$/);
   if (m && method === "POST") {
@@ -210,6 +293,16 @@ async function api(request, env, url) {
 
   // Jäsenelle on oma, oletuksena kieltävä reittijoukko: mikään ylläpitäjän reitti ei ole häneltä saavutettavissa.
   if (role === "member") return memberApi(request, env, url, email);
+
+  if (url.pathname.indexOf("/api/pay") === 0) return payApi(request, env, url, email);
+  const formRoute = url.pathname.match(/^\/api\/plans\/([^/]+)\/forms(?:\/([^/]+)\/decide)?$/);
+  if (formRoute && method === "POST") {
+    const pid = decodeURIComponent(formRoute[1]);
+    if (!ID_RE.test(pid)) return json({ error: "bad_id" }, 400);
+    const fb = await readJson(request);
+    if (formRoute[2]) return decideForm(env, pid, decodeURIComponent(formRoute[2]), fb, email);
+    return createForm(env, pid, fb, { admin: true, email: email, person: await personOf(env, email) });
+  }
 
   if (url.pathname === "/api/plans") {
     if (method === "GET") {

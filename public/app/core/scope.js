@@ -2,6 +2,7 @@
 // joten sääntö on yksi ja sama sekä lukemiselle että kirjoittamiselle.
 import { ownerOf } from "./today.js";
 import { rowsFor } from "./scorecard.js";
+import { visibleForms } from "./forms.js";
 
 const same = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -31,8 +32,13 @@ export function scopeFor(items, person) {
     const roles = rows.filter((i) => i.kind === "role");
     const streams = new Set();
     const defs = rows.filter((d) => d.kind === "metricdef");
+    const types = rows.filter((t) => t.kind === "formtype"), allForms = rows.filter((f) => f.kind === "form");
+    let typesShown = false;
     roles.filter((r) => same(r.data.owner, person)).forEach((r) => {
       out.push(r); if (r.data.stream) streams.add(r.data.stream);
+      // Lomaketyypit nimineen ja valintoineen sekä ne roolin lomakkeet, jotka jäsen saa nähdä. Lomakkeita jäsen ei voi muuttaa.
+      if (!typesShown) { typesShown = true; types.forEach((t) => out.push(t)); }
+      visibleForms(r, allForms, types, { admin: false, person }).forEach((f) => out.push(f));
       const own = rows.filter((m) => m.kind === "metric" && m.parent_id === r.id), seen = new Set();
       // Vapaat mittarit ilman mallia.
       own.filter((m) => !m.data.def).forEach((m) => { out.push(m); mine.set(planId + "/" + m.id, "metric"); });

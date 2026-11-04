@@ -5,6 +5,8 @@ import { state, all, children, add, patch, remove } from "../core/store.js";
 import { compile, DEFAULT_FORMULA, FORMULA_PRESETS, FUNCTION_NAMES } from "../core/formula.js";
 import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber } from "../core/scorecard.js";
 import { fmt } from "../core/calc.js";
+import { sortTypes } from "../core/forms.js";
+import { PaySettings } from "./settings-pay.js";
 
 const FIELD_LABEL = { target: "Tavoite", min: "Alaraja", max: "Yläraja", weight: "Paino %", start: "Alkupäivä", end: "Loppupäivä" };
 const streamsOf = () => all("stream");
@@ -70,6 +72,21 @@ function DefRow({ def, onEdit }) {
   </tr>`;
 }
 
+// Lomaketyypit: nimi ja oikeudet määritellään täällä, eikä koodissa ole kiinteitä tyyppejä.
+const TYPE_FLAGS = [["memberCreate", "Jäsen saa luoda"], ["memberView", "Jäsen näkee"], ["table", "Taulukko"], ["proposal", "Ehdotus"], ["score", "Pisteytys"]];
+function FormTypes() {
+  const types = sortTypes(all("formtype"));
+  return html`<section class="tgroup">
+    <h2>Lomaketyypit <span class="num">${types.length}</span></h2>
+    <p class="gs">Lomake on jäädytetty kuva scorecardista. <b>Jäsen saa luoda</b>: jäsen voi tehdä tämän tyypin omalle scorecardilleen. <b>Jäsen näkee</b>: jäsen näkee tämän tyypin omalla scorecardillaan. <b>Taulukko</b>: lomakkeeseen tallentuvat scorecardin rivit. <b>Ehdotus</b>: vaatii ylläpitäjän päätöksen ja voidaan ottaa käyttöön. <b>Pisteytys</b>: tämän tyypin viimeisin lomake on euromoduulin pisteytyksen lähde. Ylläpitäjä saa aina luoda ja nähdä kaiken.</p>
+    ${types.length ? html`<div class="gtable-wrap"><table class="gtable sctable"><thead><tr><th>Nimi</th>${TYPE_FLAGS.map(([, l]) => html`<th key=${l}>${l}</th>`)}<th></th></tr></thead>
+      <tbody>${types.map((t) => html`<tr key=${t.id}><td class="nmtd"><${Text} item=${t} field="name" mode="always" max=${60} ph="Tyypin nimi" /></td>
+        ${TYPE_FLAGS.map(([k, l]) => html`<td key=${k} class="ctr"><input type="checkbox" aria-label=${(t.data.name || "Tyyppi") + ": " + l} checked=${!!t.data[k]} onChange=${(e) => patch(t.id, { [k]: e.target.checked })} /></td>`)}
+        <td><button type="button" class="stbtn" aria-label=${"Poista: " + (t.data.name || "tyyppi")} onClick=${() => { if (confirm("Poistetaanko lomaketyyppi \"" + (t.data.name || "nimetön") + "\"? Tallennetut lomakkeet säilyvät, mutta niiden tyyppi ei enää ole valittavissa.")) remove(t.id); }}>×</button></td></tr>`)}</tbody></table></div>` : html`<p class="gs">Ei vielä lomaketyyppejä.</p>`}
+    <div class="hact mfact"><button type="button" class="barbtn" onClick=${() => add("formtype", null, { name: "Uusi tyyppi", memberCreate: false, memberView: false, table: true, proposal: false, score: false })}>+ Uusi lomaketyyppi</button></div>
+  </section>`;
+}
+
 export function SettingsView() {
   const [edit, setEdit] = useState(null);
   const goals = all("goal");
@@ -95,5 +112,7 @@ export function SettingsView() {
       </section>`;
     }) : html`<p class="tclear">Ei vielä yhteisiä tavoitteita. Luo ensimmäinen painikkeesta ylhäällä ja lisää sille mittareita.</p>`}
     ${def ? html`<${DefEditor} key=${def.id} def=${def} onClose=${() => setEdit(null)} />` : null}
+    <${FormTypes} />
+    <${PaySettings} />
   </div>`;
 }
