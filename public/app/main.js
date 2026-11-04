@@ -3,6 +3,7 @@ import * as store from "./core/store.js";
 import { ui, onUi, setEdit, uiChanged, removeWithUndo, Tools, expandSection, navigate } from "./core/ui.js";
 import { TodayView } from "./views/today.js";
 import { MineView } from "./views/mine.js";
+import { SettingsView } from "./views/settings.js";
 import { moduleOf, allModules } from "./core/registry.js";
 import "./modules/index.js";
 import { roles, RolePanel, showTab } from "./modules/scorecards.js";
@@ -69,10 +70,10 @@ function checkImport(list) {
 function setView(v, how) {
   ui.view = v;
   if (v !== "plan" && ui.edit) setEdit(false);
-  state.overviewActive = v !== "plan";
+  state.overviewActive = v === "today" || v === "mine";
   document.body.classList.toggle("tab-role", v === "plan" && ui.tab !== "kokonaisuus");
   try { localStorage.setItem("bcc-view", v); } catch (e) { /* ei pakollinen */ }
-  if (how !== "pop") navigate(v === "today" ? location.pathname + location.search + "#tanaan" : v === "mine" ? location.pathname + location.search + "#omat" : (ui.tab === "kokonaisuus" ? location.pathname + location.search : "#" + ui.tab), how === "replace");
+  if (how !== "pop") navigate(v === "today" ? location.pathname + location.search + "#tanaan" : v === "mine" ? location.pathname + location.search + "#omat" : v === "settings" ? location.pathname + location.search + "#asetukset" : (ui.tab === "kokonaisuus" ? location.pathname + location.search : "#" + ui.tab), how === "replace");
   uiChanged();
 }
 
@@ -103,7 +104,7 @@ function AppBar() {
   const newPlan = act(async () => { const t = prompt("Uuden suunnitelman nimi"); if (t && t.trim()) { await store.createPlan(t.trim(), newPlanItems()); showTab("kokonaisuus"); setView("plan"); setEdit(true); } });
   const dup = act(async () => { const t = prompt("Kopion nimi", (plan ? plan.title : "") + " (kopio)"); if (t && t.trim()) { await store.duplicatePlan(t.trim()); setView("plan"); } });
   const rename = act(async () => { const t = prompt("Suunnitelman nimi", plan.title); if (t && t.trim()) await store.renamePlan(t.trim()); });
-  const del = act(async () => { if (state.plans.length > 1 && confirm("Poistetaanko suunnitelma \"" + plan.title + "\"? Tiedot säilyvät arkistoituna tietokannassa.")) { await store.deletePlan(); showTab("kokonaisuus"); if (ui.view !== "plan") store.loadOverview(); } });
+  const del = act(async () => { if (state.plans.length > 1 && confirm("Poistetaanko suunnitelma \"" + plan.title + "\"? Tiedot säilyvät arkistoituna tietokannassa.")) { await store.deletePlan(); showTab("kokonaisuus"); if (ui.view === "today" || ui.view === "mine") store.loadOverview(); } });
   const exp = act(async () => download(fileName(plan.title) + ".json", new Blob([JSON.stringify(store.exportPlan(), null, 1)], { type: "application/json" })));
   const imp = act(async () => {
     const f = await new Promise((res) => { const i = document.createElement("input"); i.type = "file"; i.accept = "application/json"; i.onchange = () => res(i.files[0]); i.click(); });
@@ -124,6 +125,7 @@ function AppBar() {
       <nav class="barnav" aria-label="Näkymät">
         <button type="button" class=${"barbtn todaybtn" + (ui.view === "today" ? " on" : "")} aria-pressed=${ui.view === "today" ? "true" : "false"} onClick=${() => { setView("today"); store.loadOverview(); }}>Tänään</button>
         <button type="button" class=${"barbtn todaybtn" + (ui.view === "mine" ? " on" : "")} aria-pressed=${ui.view === "mine" ? "true" : "false"} onClick=${() => { setView("mine"); store.loadOverview(); }}>Omat</button>
+        ${plan ? html`<button type="button" class=${"barbtn todaybtn" + (ui.view === "settings" ? " on" : "")} aria-pressed=${ui.view === "settings" ? "true" : "false"} onClick=${() => { setView("settings"); scrollTo(0, 0); }}>Asetukset</button>` : null}
         ${plan ? html`<button type="button" class=${"barbtn todaybtn" + (ui.view === "plan" && ui.tab === "kokonaisuus" ? " on" : "")} aria-pressed=${ui.view === "plan" && ui.tab === "kokonaisuus" ? "true" : "false"} onClick=${() => { showTab("kokonaisuus"); setView("plan"); scrollTo(0, 0); }}>Kokonaisuus</button>` : null}
       </nav>
       <div class="planmenu">
@@ -224,9 +226,10 @@ function App() {
   }, []);
   if (!state.loaded) return html`<div class="wrap"><p class="gs">Ladataan…</p></div>`;
   const plan = state.plans.find((p) => p.id === state.planId);
-  document.title = ui.view === "today" ? "Tänään · Business Command Center" : ui.view === "mine" ? "Omat · Business Command Center" : (plan ? plan.title : "Business Command Center");
+  document.title = ui.view === "today" ? "Tänään · Business Command Center" : ui.view === "mine" ? "Omat · Business Command Center" : ui.view === "settings" ? "Asetukset · Business Command Center" : (plan ? plan.title : "Business Command Center");
   const openIn = (p, it) => openItem(p, it).catch((e) => { state.save = "error"; state.error = "Avaus epäonnistui (" + e.message + ")."; uiChanged(); });
   if (ui.view === "mine") return html`<${AppBar} /><${MineView} open=${openIn} /><${Undo} />`;
+  if (ui.view === "settings") return html`<${AppBar} /><${SettingsView} /><${Undo} />`;
   if (ui.view === "today") return html`<${AppBar} /><${TodayView} open=${(p, it) => openItem(p, it).catch((e) => { state.save = "error"; state.error = "Avaus epäonnistui (" + e.message + ")."; uiChanged(); })} /><${Undo} />`;
   if (!plan) return html`<${AppBar} /><div class="wrap"><section><h2>Ei suunnitelmia</h2><p class="gs">Luo ensimmäinen valikosta Suunnitelma.</p></section></div>`;
   const list = sections();
@@ -269,14 +272,15 @@ function App() {
   let view = "today";
   try { view = localStorage.getItem("bcc-view") || "today"; } catch (e) { view = "today"; }
   const hash = (location.hash || "").slice(1);
-  if (hash === "tanaan") view = "today"; else if (hash === "omat") view = "mine"; else if (hash && roles().some((r) => r.id === hash)) view = "plan";
-  setView(view === "plan" || view === "mine" ? view : "today", "replace");
-  if (ui.view !== "plan") store.loadOverview();
+  if (hash === "tanaan") view = "today"; else if (hash === "omat") view = "mine"; else if (hash === "asetukset") view = "settings"; else if (hash && roles().some((r) => r.id === hash)) view = "plan";
+  setView(["plan", "mine", "settings"].includes(view) ? view : "today", "replace");
+  if (ui.view === "today" || ui.view === "mine") store.loadOverview();
   render(html`<${App} />`, rootEl);
   // Selaimen Takaisin ja Eteenpäin vaihtavat näkymää osoitteen tunnisteen mukaan.
   window.addEventListener("popstate", () => {
     const id = (location.hash || "").slice(1);
     if (id === "tanaan" || id === "omat") { setView(id === "omat" ? "mine" : "today", "pop"); store.loadOverview(); return; }
+    if (id === "asetukset") { setView("settings", "pop"); return; }
     showTab(roles().some((r) => r.id === id) ? id : "kokonaisuus", true);
     setView("plan", "pop");
   });

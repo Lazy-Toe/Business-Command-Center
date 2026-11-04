@@ -581,3 +581,23 @@ span.editable:empty { display: inline-block; }
 .stbtn { background: none; border: none; padding: 0; cursor: pointer; color: inherit; }
 .tfixed { font: 400 0.82rem/1.2 var(--f-body); color: var(--ink); padding: 4px 0; }
 .hact { display: flex; flex-wrap: wrap; gap: 6px; }
+.settings .tfilters { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.settings .tgroup { margin-bottom: 20px; }
+.settings .tgroup h2 { flex-wrap: wrap; }
+.defrow { cursor: pointer; }
+.defrow:hover, .defrow:focus-visible { background: var(--accent-soft); outline: none; }
+.chip { display: inline-block; font-size: 0.74rem; padding: 1px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); }
+.mform { max-width: 680px; }
+.mfrow { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 6px 0; }
+.mfrow > label:first-child { font-weight: 600; font-size: 0.86rem; }
+.mfrow > .gs, .mfrow > textarea, .mfrow > .mfinline { grid-column: 2 / 4; }
+.mfrow input, .mfrow select, .mfrow textarea { font: 400 0.88rem/1.3 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 5px 7px; min-width: 0; }
+.mfrow textarea { font-family: var(--f-mono); resize: vertical; width: 100%; box-sizing: border-box; }
+.mfrow input[type="checkbox"] { padding: 0; }
+.mflock { font-size: 0.78rem; color: var(--muted); display: flex; gap: 4px; align-items: center; }
+.mfinline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mfact { margin-top: 12px; }
+.goaltable h3 { margin: 14px 0 6px; font-size: 1rem; }
+.lockedcell { color: var(--muted); }
+code { font-family: var(--f-mono); font-size: 0.82em; }
+@media (max-width: 640px) { .mfrow { grid-template-columns: minmax(0, 1fr); } .mfrow > .gs, .mfrow > textarea, .mfrow > .mfinline { grid-column: 1; } }
