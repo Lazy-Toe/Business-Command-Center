@@ -725,3 +725,10 @@ body.has-rail { padding-left: 62px; }
 .bulkbar { font-size: 0.86rem; gap: 8px 14px; }
 .bulkbar .barbtn { font: 500 0.84rem/1.2 var(--f-body); min-height: 30px; padding: 4px 11px; border-radius: 3px; }
 .bulkbar select, .bulkbar input[type="date"] { min-height: 30px; box-sizing: border-box; }
+.periodsel { font: 400 0.8rem/1.2 var(--f-body); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 3px 4px; margin-left: 6px; width: 5.5em; cursor: pointer; }
+.periodsel:hover { border-color: var(--accent); color: var(--ink); }
+.taskstable.gtable select.periodsel { width: 5.5em; max-width: 5.5em; }
+.taskstable.gtable .grouphead select.periodsel.grp { width: auto; max-width: none; margin-left: 14px; font-weight: 400; padding: 4px 8px; }
+.taskstable.gtable td:has(input[type="date"]) { white-space: nowrap; }
+.bulkbar .grow { flex: 1; }
+.bulkbar select { min-width: 8.5em; }
