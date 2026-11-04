@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calcGoals, template, cleanNum, fmt } from "../public/app/core/calc.js";
+import { calcGoals, template, cleanNum, fmt, peopleOf } from "../public/app/core/calc.js";
 
 const input = {
   baseYear: "2026", targetYear: "2027", estTotal: "6.574", projYears: [2027, 2028],
@@ -54,4 +54,9 @@ test("syötteen siivous", () => {
   assert.equal(cleanNum("12,5 %"), "12.5");
   assert.equal(cleanNum(""), "");
   assert.equal(cleanNum("abc"), null);
+});
+
+test("henkilölista yhdistää nimet kerran, järjestää ja ohittaa tyhjät", () => {
+  assert.deepEqual(peopleOf(["Harri", "mika", " "], ["MIKA", "Äiti  Maria", "", null, undefined]), ["Äiti Maria", "Harri", "mika"].sort((a, b) => a.localeCompare(b, "fi")));
+  assert.deepEqual(peopleOf(undefined, []), []);
 });

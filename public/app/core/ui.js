@@ -8,6 +8,13 @@ export const ui = { edit: false, undo: null, tab: "kokonaisuus", view: "today" }
 const uiListeners = new Set();
 export function onUi(fn) { uiListeners.add(fn); return () => uiListeners.delete(fn); }
 export function uiChanged() { uiListeners.forEach((fn) => fn()); }
+// Näkymän vaihto jättää selainhistoriaan merkinnän vain, jos osoite muuttuu. replace = korvaa nykyisen merkinnän.
+export function navigate(url, replace) {
+  try {
+    if (replace) history.replaceState(null, "", url);
+    else if (url !== location.pathname + location.search + location.hash) history.pushState(null, "", url);
+  } catch (e) { /* ei pakollinen */ }
+}
 export function setEdit(v) { ui.edit = v; document.body.classList.toggle("editing", v); uiChanged(); }
 
 // Muokattava teksti. mode "edit" = vain muokkaustilassa, "always" = aina.

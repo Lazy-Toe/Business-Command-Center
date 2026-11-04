@@ -1,10 +1,11 @@
 import { html, render, useEffect, useState } from "../vendor/htm-preact.js";
 import * as store from "./core/store.js";
-import { ui, onUi, setEdit, uiChanged, removeWithUndo, Tools, expandSection } from "./core/ui.js";
+import { ui, onUi, setEdit, uiChanged, removeWithUndo, Tools, expandSection, navigate } from "./core/ui.js";
 import { TodayView } from "./views/today.js";
 import { moduleOf, allModules } from "./core/registry.js";
 import "./modules/index.js";
 import { roles, RolePanel, showTab } from "./modules/scorecards.js";
+import { HistoryPanel } from "./history.js";
 
 const { state, sections } = store;
 
@@ -62,15 +63,14 @@ function checkImport(list) {
   });
 }
 
-function setView(v) {
+// how: ei annettu = uusi historiamerkintä, "replace" = korvaa nykyisen, "pop" = vastaus selaimen Takaisin-painikkeeseen.
+function setView(v, how) {
   ui.view = v;
   if (v === "today" && ui.edit) setEdit(false);
   state.overviewActive = v === "today";
   document.body.classList.toggle("tab-role", v === "plan" && ui.tab !== "kokonaisuus");
-  try {
-    localStorage.setItem("bcc-view", v);
-    history.replaceState(null, "", v === "today" ? "#tanaan" : (ui.tab === "kokonaisuus" ? location.pathname + location.search : "#" + ui.tab));
-  } catch (e) { /* ei pakollinen */ }
+  try { localStorage.setItem("bcc-view", v); } catch (e) { /* ei pakollinen */ }
+  if (how !== "pop") navigate(v === "today" ? location.pathname + location.search + "#tanaan" : (ui.tab === "kokonaisuus" ? location.pathname + location.search : "#" + ui.tab), how === "replace");
   uiChanged();
 }
 
@@ -94,6 +94,7 @@ function AppBar() {
   const plan = state.plans.find((p) => p.id === state.planId);
   const [open, setOpen] = useState(false);
   const [pdf, setPdf] = useState("PDF");
+  const [hist, setHist] = useState(false);
   const act = (fn) => async () => { setOpen(false); try { await fn(); } catch (e) { state.save = "error"; state.error = "Toiminto epäonnistui (" + e.message + ")."; uiChanged(); } };
   const newPlan = act(async () => { const t = prompt("Uuden suunnitelman nimi"); if (t && t.trim()) { await store.createPlan(t.trim(), newPlanItems()); showTab("kokonaisuus"); setView("plan"); setEdit(true); } });
   const dup = act(async () => { const t = prompt("Kopion nimi", (plan ? plan.title : "") + " (kopio)"); if (t && t.trim()) { await store.duplicatePlan(t.trim()); setView("plan"); } });
@@ -113,16 +114,20 @@ function AppBar() {
   const doPdf = async () => { setPdf("Luodaan…"); try { await makePdf(plan && plan.title); setPdf("PDF"); } catch (e) { setPdf("PDF epäonnistui"); setTimeout(() => setPdf("PDF"), 2500); } };
   return html`<div class="appbar">
     <div class="appbar-in">
-      <button type="button" class=${"barbtn todaybtn" + (ui.view === "today" ? " on" : "")} aria-pressed=${ui.view === "today" ? "true" : "false"} onClick=${() => { setView("today"); store.loadOverview(); }}>Tänään</button>
       <select class="planselect" aria-label="Suunnitelma" value=${state.planId || ""} onChange=${(e) => { const id = e.target.value; act(async () => { await store.openPlan(id); showTab("kokonaisuus"); setView("plan"); })().finally(uiChanged); }}>
         ${state.plans.map((p) => html`<option key=${p.id} value=${p.id}>${p.title}</option>`)}
       </select>
+      <nav class="barnav" aria-label="Näkymät">
+        <button type="button" class=${"barbtn todaybtn" + (ui.view === "today" ? " on" : "")} aria-pressed=${ui.view === "today" ? "true" : "false"} onClick=${() => { setView("today"); store.loadOverview(); }}>Tänään</button>
+        ${plan ? html`<button type="button" class=${"barbtn todaybtn" + (ui.view === "plan" && ui.tab === "kokonaisuus" ? " on" : "")} aria-pressed=${ui.view === "plan" && ui.tab === "kokonaisuus" ? "true" : "false"} onClick=${() => { showTab("kokonaisuus"); setView("plan"); scrollTo(0, 0); }}>Kokonaisuus</button>` : null}
+      </nav>
       <div class="planmenu">
         <button type="button" class="barbtn" aria-haspopup="menu" aria-expanded=${open ? "true" : "false"} onClick=${() => setOpen(!open)}>Suunnitelma</button>
         ${open ? html`<div class="menu" role="menu">
           <button type="button" role="menuitem" onClick=${newPlan}>Uusi suunnitelma</button>
           ${plan ? html`<button type="button" role="menuitem" onClick=${dup}>Monista tämä</button>
           <button type="button" role="menuitem" onClick=${rename}>Nimeä uudelleen</button>
+          <button type="button" role="menuitem" onClick=${() => { setOpen(false); setHist(true); }}>Muutoshistoria</button>
           <button type="button" role="menuitem" onClick=${exp}>Vie tiedostoon (JSON)</button>` : null}
           <button type="button" role="menuitem" onClick=${imp}>Tuo tiedostosta</button>
           ${plan && state.plans.length > 1 ? html`<button type="button" role="menuitem" class="danger" onClick=${del}>Poista suunnitelma</button>` : null}
@@ -133,6 +138,7 @@ function AppBar() {
       ${ui.view === "plan" ? html`<button type="button" class="barbtn" disabled=${pdf !== "PDF"} onClick=${doPdf}>${pdf}</button>
       <button type="button" class=${"barbtn primary" + (ui.edit ? " on" : "")} aria-pressed=${ui.edit ? "true" : "false"} onClick=${() => setEdit(!ui.edit)}>${ui.edit ? "Valmis" : "Muokkaa"}</button>` : null}
     </div>
+    ${hist ? html`<${HistoryPanel} onClose=${() => setHist(false)} />` : null}
   </div>`;
 }
 
@@ -250,7 +256,14 @@ function App() {
   try { view = localStorage.getItem("bcc-view") || "today"; } catch (e) { view = "today"; }
   const hash = (location.hash || "").slice(1);
   if (hash === "tanaan") view = "today"; else if (hash && roles().some((r) => r.id === hash)) view = "plan";
-  setView(view === "plan" ? "plan" : "today");
+  setView(view === "plan" ? "plan" : "today", "replace");
   if (ui.view === "today") store.loadOverview();
   render(html`<${App} />`, rootEl);
+  // Selaimen Takaisin ja Eteenpäin vaihtavat näkymää osoitteen tunnisteen mukaan.
+  window.addEventListener("popstate", () => {
+    const id = (location.hash || "").slice(1);
+    if (id === "tanaan") { setView("today", "pop"); store.loadOverview(); return; }
+    showTab(roles().some((r) => r.id === id) ? id : "kokonaisuus", true);
+    setView("plan", "pop");
+  });
 })();

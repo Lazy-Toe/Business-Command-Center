@@ -106,3 +106,13 @@ export function template(tpl, fallback, values) {
   const b = fill(fallback, values);
   return b != null ? b : String(fallback || "");
 }
+
+// Valittavat henkilöt: tallennetut nimet ja vastuualueiden nykyiset vastuuhenkilöt. Sama nimi vain kerran, kirjainkoolla ei ole väliä.
+export function peopleOf(...lists) {
+  const seen = new Map();
+  lists.flat().forEach((n) => {
+    const t = String(n == null ? "" : n).replace(/\s+/g, " ").trim();
+    if (t && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
+  });
+  return [...seen.values()].sort((a, b) => a.localeCompare(b, "fi"));
+}
