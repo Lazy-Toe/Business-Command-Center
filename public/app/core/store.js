@@ -14,7 +14,7 @@ const POLL_MS = 20000;
 const RETRY_MS = 5000;
 const MAX_BATCH_CHARS = 800000;
 const QUEUE_KEY = "bcc-queue";
-const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream", "section", "goal", "metricdef", "form", "formtype"]);
+const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream", "section", "goal", "metricdef", "form", "formtype", "phase"]);
 const listeners = new Set();
 let items = new Map(), queue = [], sending = false, retryTimer = null, version = 0, mutations = 0, inflight = [];
 
@@ -250,6 +250,20 @@ export function patchIn(planId, id, data) {
   const it = planId === state.planId ? items.get(id) : null;
   if (it) items.set(id, Object.assign({}, it, { data: Object.assign({}, it.data, data) }));
   enqueue([{ op: "patch", id, data }], planId);
+  emit();
+}
+
+// Useita tehtäviä kerralla ([{ planId, id, data }]): koostenäkymä ja avoin suunnitelma päivitetään kerran, ja muutokset jonotetaan suunnitelmittain.
+export function patchManyIn(list) {
+  if (!list.length) return;
+  const upd = new Map(list.map((p) => [p.planId + "/" + p.id, p.data])), byPlan = new Map();
+  if (state.overview) state.overview.items = state.overview.items.map((i) => { const d = upd.get(i.plan_id + "/" + i.id); return d ? Object.assign({}, i, { data: Object.assign({}, i.data, d) }) : i; });
+  list.forEach(({ planId, id, data }) => {
+    if (planId === state.planId) { const it = items.get(id); if (it) items.set(id, Object.assign({}, it, { data: Object.assign({}, it.data, data) })); }
+    if (!byPlan.has(planId)) byPlan.set(planId, []);
+    byPlan.get(planId).push({ op: "patch", id, data });
+  });
+  byPlan.forEach((ops, planId) => enqueue(ops, planId));
   emit();
 }
 
