@@ -14,10 +14,11 @@ const POLL_MS = 20000;
 const RETRY_MS = 5000;
 const MAX_BATCH_CHARS = 800000;
 const QUEUE_KEY = "bcc-queue";
+const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream", "section"]);
 const listeners = new Set();
 let items = new Map(), queue = [], sending = false, retryTimer = null, version = 0, mutations = 0, inflight = [];
 
-export const state = { plans: [], planId: null, email: "", save: "idle", error: "", loaded: false };
+export const state = { plans: [], planId: null, email: "", save: "idle", error: "", loaded: false, overview: null, overviewError: "", overviewActive: false };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function emit() { version++; listeners.forEach((fn) => fn(version)); }
@@ -63,9 +64,8 @@ function applyLocal(map, op) {
 }
 
 // Muutokset näkyvät heti, tallennus etenee järjestyksessä. Peräkkäiset kentät samaan riviin yhdistetään.
-function enqueue(ops) {
+function enqueue(ops, planId = state.planId) {
   mutations++;
-  const planId = state.planId;
   ops.forEach((op) => {
     const last = queue[queue.length - 1];
     if (last && last.planId === planId && op.op === "patch" && last.op.op === "patch" && last.op.id === op.id) {
@@ -192,8 +192,41 @@ async function loadItems(planId) {
 }
 
 async function refresh() {
-  if (document.hidden || !state.planId || queue.length || sending) return;
-  try { await loadItems(state.planId); } catch (e) { /* seuraava kierros yrittää uudelleen */ }
+  if (document.hidden || queue.length || sending) return;
+  try {
+    if (state.overviewActive) await loadOverview();
+    else if (state.planId) await loadItems(state.planId);
+  } catch (e) { /* seuraava kierros yrittää uudelleen */ }
+}
+
+// Kooste kaikista suunnitelmista. Odottavat muutokset lisätään palvelimen tilan päälle.
+export async function loadOverview() {
+  const seen = mutations;
+  try {
+    const b = await call("/overview");
+    if (seen !== mutations) return;
+    const byPlan = new Map();
+    b.items.forEach((i) => { if (!byPlan.has(i.plan_id)) byPlan.set(i.plan_id, new Map()); byPlan.get(i.plan_id).set(i.id, i); });
+    inflight.concat(queue).forEach((x) => { const m = byPlan.get(x.planId); if (m && (x.op.op !== "put" || OVERVIEW_KINDS.has(x.op.kind))) applyLocal(m, x.op); });
+    const out = [];
+    byPlan.forEach((m, planId) => m.forEach((i) => out.push(Object.assign({}, i, { plan_id: planId }))));
+    state.plans = b.plans;
+    state.overview = { items: out };
+    state.overviewError = "";
+    emit();
+  } catch (e) {
+    state.overviewError = "Koosteen päivitys epäonnistui (" + e.message + ").";
+    emit();
+  }
+}
+
+// Muutos mihin tahansa suunnitelmaan koostenäkymästä.
+export function patchIn(planId, id, data) {
+  if (state.overview) state.overview.items = state.overview.items.map((i) => (i.plan_id === planId && i.id === id ? Object.assign({}, i, { data: Object.assign({}, i.data, data) }) : i));
+  const it = planId === state.planId ? items.get(id) : null;
+  if (it) items.set(id, Object.assign({}, it, { data: Object.assign({}, it.data, data) }));
+  enqueue([{ op: "patch", id, data }], planId);
+  emit();
 }
 
 // Näkymä vaihtuu vasta, kun tiedot on saatu. Odottavat muutokset lisätään palvelimen tilan päälle.

@@ -1,7 +1,8 @@
-import { html, Text, Tools, AddButton, ui, dragProps, dropProps, pressable, mq, useEscape, useCollapse, Head, uiChanged } from "../core/ui.js";
+import { html, Text, Tools, AddButton, Input, ui, dragProps, dropProps, pressable, mq, useEscape, useCollapse, Head, uiChanged } from "../core/ui.js";
 import { register } from "../core/registry.js";
 import { children, findSection, patch, add, moveBefore, nextPosition, shift } from "../core/store.js";
 import { useState } from "../../vendor/htm-preact.js";
+import { fmtDate, isLate, todayISO, ownerOf } from "../core/today.js";
 
 export const focus = { p: "", ws: "" };
 export function toggleFocusPhase(id) { focus.p = focus.p === id ? "" : id; uiChanged(); }
@@ -16,7 +17,8 @@ export function planParts() {
     const stream = streams.some((w) => w.id === t.data.stream) ? t.data.stream : streams[0] && streams[0].id;
     return phase === t.data.phase && stream === t.data.stream ? t : Object.assign({}, t, { data: Object.assign({}, t.data, { phase, stream }) });
   });
-  return { section: s, phases, streams, tasks };
+  const sc = findSection("scorecards");
+  return { section: s, phases, streams, tasks, roles: sc ? children(sc.id, "role") : [] };
 }
 export function taskCounts(parts, phaseId) {
   const list = parts.tasks.filter((t) => t.data.phase === phaseId);
@@ -31,6 +33,16 @@ const LABEL = { todo: "Ei aloitettu", doing: "Käynnissä", done: "Valmis" };
 const NEXT = { todo: "doing", doing: "done", done: "todo" };
 const NOTE_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 
+const CAL_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`;
+
+// Määräpäivä ja vastuuhenkilö. Ilman omaa vastuuhenkilöä käytetään työvirran vastuualueen omistajaa.
+function TaskMeta({ task, inherited }) {
+  return html`<span class="taskmeta" onClick=${(e) => e.stopPropagation()} onKeyDown=${(e) => e.stopPropagation()}>
+    <label>Määräpäivä <input type="date" value=${task.data.due || ""} onChange=${(e) => patch(task.id, { due: e.target.value })} /></label>
+    <label>Vastuu <${Input} maxlength="60" placeholder=${inherited || "Nimi"} value=${task.data.owner || ""} onChange=${(e) => patch(task.id, { owner: e.target.value.trim().slice(0, 60) })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></label>
+  </span>`;
+}
+
 function Note({ task, close }) {
   return html`<textarea class="nta" rows="2" maxlength="2000" aria-label="Muistiinpano" defaultValue=${task.data.note || ""} ref=${(n) => { if (n && document.activeElement !== n && !n.dataset.f) { n.dataset.f = "1"; n.focus(); } }}
     onClick=${(e) => e.stopPropagation()}
@@ -44,16 +56,23 @@ function Note({ task, close }) {
 
 export function Task({ task, list, parts, withTag }) {
   const [noting, setNoting] = useState(false);
+  const [meta, setMeta] = useState(false);
+  const inherited = parts.roles ? ownerOf({ data: { stream: task.data.stream } }, parts.roles) : "";
+  const shownOwner = task.data.owner || inherited;
+  const late = isLate(task, todayISO());
   const st = LABEL[task.data.status] ? task.data.status : "todo";
   const stream = parts.streams.find((s) => s.id === task.data.stream);
   const cycle = () => patch(task.id, { status: NEXT[st] });
   const dim = (focus.p && task.data.phase !== focus.p) || (focus.ws && task.data.stream !== focus.ws);
   const work = ui.edit ? {} : Object.assign(pressable(cycle), { title: LABEL[st] + " · klikkaa vaihtaaksesi", "aria-label": task.data.title + ": " + LABEL[st] });
-  return html`<div class=${"item s-" + st + (ui.edit ? " edit" : " clickable")} style=${{ "--c": wsColor(stream) }} ...${work} ...${dragProps(task, "task")}
+  return html`<div data-item=${task.id} class=${"item s-" + st + (ui.edit ? " edit" : " clickable")} style=${{ "--c": wsColor(stream) }} ...${work} ...${dragProps(task, "task")}
     ...${dropProps("task", (id) => { if (id !== task.id) moveBefore(id, task.id, parts.tasks.filter((t) => t.data.phase === task.data.phase && t.data.stream === task.data.stream), { phase: task.data.phase, stream: task.data.stream }); })}>
     ${withTag ? html`<span class="mtag">${stream ? stream.data.label : ""}</span>` : null}
     <${Text} item=${task} field="title" tag="p" cls="it" ph="Tehtävä" />
     <${Text} item=${task} field="detail" tag="p" cls="io" ph="Tarkennus" />
+    ${task.data.due || task.data.owner ? html`<span class="taskinfo">${task.data.due ? html`<span class=${"duechip" + (late ? " late" : "")}>${late ? "Myöhässä · " : ""}${fmtDate(task.data.due)}</span>` : null}${task.data.owner || (task.data.due && shownOwner) ? html`<span class="ownerchip">${shownOwner}</span>` : null}</span>` : null}
+    <button type="button" class=${"dbtn" + (task.data.due ? " has" : "")} title="Määräpäivä ja vastuuhenkilö" aria-label="Määräpäivä ja vastuuhenkilö" aria-expanded=${meta ? "true" : "false"} onClick=${(e) => { e.stopPropagation(); setMeta(!meta); }}>${CAL_ICON}</button>
+    ${meta ? html`<${TaskMeta} task=${task} inherited=${inherited} />` : null}
     ${!noting ? html`<button type="button" class=${"nbtn" + (task.data.note ? " has" : "")} title=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} aria-label=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} onClick=${(e) => { e.stopPropagation(); setNoting(true); }}>${NOTE_ICON}</button>` : null}
     ${noting ? html`<${Note} task=${task} close=${() => setNoting(false)} />` : task.data.note ? html`<p class="inote">${task.data.note}</p>` : null}
     ${ui.edit ? html`<span class="tasksel" onClick=${(e) => e.stopPropagation()}>

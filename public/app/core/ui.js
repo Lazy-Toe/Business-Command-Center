@@ -4,7 +4,7 @@ import { patch, remove, addMany, shift, moveBefore, children as childrenOf } fro
 
 export { html };
 
-export const ui = { edit: false, undo: null, tab: "kokonaisuus" };
+export const ui = { edit: false, undo: null, tab: "kokonaisuus", view: "today" };
 const uiListeners = new Set();
 export function onUi(fn) { uiListeners.add(fn); return () => uiListeners.delete(fn); }
 export function uiChanged() { uiListeners.forEach((fn) => fn()); }
@@ -112,12 +112,18 @@ export function sortProps(item, list, group, label) {
 function readCollapsed() { try { return JSON.parse(localStorage.getItem("bcc-collapsed") || "{}") || {}; } catch (e) { return {}; } }
 const collapsed = readCollapsed();
 export const SectionCtx = createContext(null);
+export function expandSection(id) {
+  if (!collapsed[id]) return;
+  delete collapsed[id];
+  try { localStorage.setItem("bcc-collapsed", JSON.stringify(collapsed)); } catch (e) { /* ei pakollinen */ }
+}
 export function useCollapse(section) {
-  const [c, set] = useState(!!collapsed[section.id]);
+  const [, set] = useState(0);
+  const c = !!collapsed[section.id];
   const toggle = () => {
     if (collapsed[section.id]) delete collapsed[section.id]; else collapsed[section.id] = 1;
     try { localStorage.setItem("bcc-collapsed", JSON.stringify(collapsed)); } catch (e) { /* ei pakollinen */ }
-    set(!c);
+    set((x) => x + 1);
   };
   // Muokkaustilassa kaikki osiot ovat auki, koska taittopainiketta ei silloin ole.
   return { c: c && !ui.edit, toggle };

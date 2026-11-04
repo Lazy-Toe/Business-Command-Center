@@ -118,6 +118,20 @@ test("monistus on erillinen, poisto arkistoi", async () => {
   assert.equal((await req("/plans/kopio1/items", { method: "POST", body: { ops: [{ op: "del", id: "sec-hero" }] } })).status, 409, "arkistoitua ei muokata");
 });
 
+test("yli tuhat riviä haetaan kokonaan, arkistoitu ei näy koosteessa", async () => {
+  const ops = Array.from({ length: 1000 }, (_, i) => ({ op: "put", id: "iso" + i, kind: "task", position: i, data: { title: "t" + i } }));
+  await req("/plans", { method: "POST", body: { id: "iso", title: "Iso" } });
+  assert.equal((await req("/plans/iso/items", { method: "POST", body: { ops } })).status, 200);
+  assert.equal((await req("/plans/iso/items", { method: "POST", body: { ops: [{ op: "put", id: "lisa", kind: "task", position: 5000 }] } })).status, 200);
+  assert.equal((await (await req("/plans/iso/items")).json()).items.length, 1001);
+  const o = await (await req("/overview")).json();
+  assert.equal(o.items.filter((x) => x.plan_id === "iso").length, 1001);
+  assert.ok(!o.items.some((x) => x.plan_id === "kopio1"), "arkistoitu ei näy");
+  assert.ok(o.items.every((x) => ["task", "row", "risk", "metric", "role", "stream", "section"].includes(x.kind)));
+  assert.equal((await req("/overview", { token: null })).status, 403);
+  await req("/plans/iso", { method: "DELETE" });
+});
+
 test("ajastus koskettaa tietokantaa", async () => {
   let p; await worker.scheduled({}, env, { waitUntil: (x) => { p = x; } });
   assert.ok(Array.isArray(await p));
