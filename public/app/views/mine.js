@@ -48,7 +48,7 @@ function WhoAmI({ error }) {
     <header class="thead"><div><p class="eyebrow">Omat</p><h1>Kuka olet?</h1></div></header>
     <div class="whoami">
       <p>Liitä kirjautumisesi${state.email ? " (" + state.email + ")" : ""} henkilöön. Sen jälkeen tämä näkymä näyttää vain sinun tehtäväsi ja scorecardisi kaikista suunnitelmista.</p>
-      <${PersonSelect} cls="whosel" label="Valitse henkilö" value="" empty="Valitse henkilö" onPick=${pick} />
+      <${PersonSelect} cls="whosel" canAdd=${true} label="Valitse henkilö" value="" empty="Valitse henkilö" onPick=${pick} />
       ${msg ? html`<p class="gs bad">${msg}</p>` : null}
       ${error ? html`<p class="gs bad">${error}</p>` : null}
     </div>

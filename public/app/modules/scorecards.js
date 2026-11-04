@@ -64,7 +64,7 @@ export function RolePanel({ id }) {
   return html`<section class="rolepanel">
     <div class="head" id="rp-head">
       <button type="button" class="backlink" onClick=${() => { showTab("kokonaisuus"); scrollTo(0, 0); }}>← Kokonaisuus</button>
-      <p class="eyebrow">Scorecard · <${PersonSelect} cls="ownersel" label="Vastuuhenkilö" value=${r.data.owner || ""} onPick=${(v) => patch(r.id, { owner: v })} /></p>
+      <p class="eyebrow">Scorecard · <${PersonSelect} cls="ownersel" canAdd=${true} label="Vastuuhenkilö" value=${r.data.owner || ""} onPick=${(v) => patch(r.id, { owner: v })} /></p>
       <${Text} item=${r} field="title" tag="h2" cls="rp-title" mode="always" max=${60} ph="Vastuualue" />
       <${Text} item=${r} field="mission" tag="p" cls="rp-mission" mode="always" max=${240} ph="Tehtävä" />
       ${ui.edit && parts ? html`<label class="gyear">Työvirta <select aria-label="Työvirta" value=${r.data.stream} onChange=${(e) => patch(r.id, { stream: e.target.value })}><option value="">Ei työvirtaa</option>${parts.streams.map((w) => html`<option key=${w.id} value=${w.id}>${w.data.label}</option>`)}</select></label>` : null}

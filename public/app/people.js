@@ -5,12 +5,15 @@ import { peopleOf } from "./core/calc.js";
 
 const NEW_PERSON = "__new";
 
-// Yhteinen henkilölista sekä nykyisen suunnitelman vastuuhenkilöt, jotta valinta toimii myös ilman henkilölistaa.
+// Valittavat henkilöt ovat Kokonaisuudessa nimetyt: kaikkien suunnitelmien vastuualueiden vastuuhenkilöt
+// sekä erikseen lisätyt. Tehtävän nykyinen arvo näkyy aina, vaikka se ei olisi listalla.
 export function peopleNames(...extra) {
-  return peopleOf(state.people.list, all("role").map((r) => r.data.owner), all("task").map((t) => t.data.owner), extra);
+  const overviewRoles = state.overview ? state.overview.items.filter((i) => i.kind === "role").map((r) => r.data.owner) : [];
+  return peopleOf(state.people.list, overviewRoles, all("role").map((r) => r.data.owner), extra);
 }
 
-export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenkilöä" }) {
+// canAdd: uuden henkilön voi nimetä vain siellä, missä vastuuhenkilöt nimetään (vastuualueen otsikko).
+export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenkilöä", canAdd = false }) {
   const names = peopleNames(value);
   const change = async (e) => {
     const v = e.target.value;
@@ -25,6 +28,6 @@ export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenk
   return html`<select class=${cls || "personsel"} aria-label=${label || "Henkilö"} value=${value || ""} onChange=${change}>
     <option value="">${empty}</option>
     ${names.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}
-    <option value=${NEW_PERSON}>+ Lisää henkilö…</option>
+    ${canAdd ? html`<option value=${NEW_PERSON}>+ Lisää henkilö…</option>` : null}
   </select>`;
 }

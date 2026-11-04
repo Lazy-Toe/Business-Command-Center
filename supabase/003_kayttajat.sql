@@ -52,10 +52,11 @@ grant all on public.bcc_people to service_role;
 revoke all on function public.bcc_clean_name(text), public.bcc_add_person(text), public.bcc_link_person(text, text), public.bcc_unlink_person(text) from public, anon, authenticated;
 grant execute on function public.bcc_add_person(text), public.bcc_link_person(text, text), public.bcc_unlink_person(text) to service_role;
 
--- Nykyiset vastuuhenkilöt tulevat valittaviksi: vastuualueiden ja tehtävien omistajat sekä aiemmin tallennetut nimet.
+-- Nykyiset vastuuhenkilöt tulevat valittaviksi: vastuualueiden vastuuhenkilöt sekä aiemmin tallennetut nimet.
+-- Tehtävien vapaasti kirjoitetut nimet jätetään pois, jottei kirjoitusvirheistä tule valittavia henkilöitä.
 insert into public.bcc_people (name)
 select distinct on (lower(n)) n from (
-  select bcc_clean_name(data->>'owner') n from public.bcc_items where kind in ('role', 'task')
+  select bcc_clean_name(data->>'owner') n from public.bcc_items where kind = 'role'
   union all
   select bcc_clean_name(p) from public.bcc_items, jsonb_array_elements_text(case when jsonb_typeof(data->'people') = 'array' then data->'people' else '[]'::jsonb end) p where kind = 'section'
 ) s where n <> ''
