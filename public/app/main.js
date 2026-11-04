@@ -1,6 +1,6 @@
 import { html, render, useEffect, useState } from "../vendor/htm-preact.js";
 import * as store from "./core/store.js";
-import { ui, onUi, setEdit, uiChanged, removeWithUndo, Tools, expandSection, navigate } from "./core/ui.js";
+import { ui, onUi, setEdit, uiChanged, removeWithUndo, Tools, expandSection, navigate, useEscape } from "./core/ui.js";
 import { TodayView } from "./views/today.js";
 import { MineView } from "./views/mine.js";
 import { SettingsView } from "./views/settings.js";
@@ -8,6 +8,10 @@ import { moduleOf, allModules } from "./core/registry.js";
 import "./modules/index.js";
 import { roles, RolePanel, showTab } from "./modules/scorecards.js";
 import { HistoryPanel } from "./history.js";
+import { Rail, SubNav } from "./rail.js";
+import { sectionEntries } from "./core/nav.js";
+import { buildToday, todayISO } from "./core/today.js";
+import { buildMine } from "./core/mine.js";
 import { PeoplePanel } from "./people-panel.js";
 
 const { state, sections } = store;
@@ -42,8 +46,12 @@ async function makePdf(title) {
   if (!window.html2canvas) await loadScript("vendor/html2canvas.min.js");
   if (!window.jspdf) await loadScript("vendor/jspdf.umd.min.js");
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  // Vasen palkki ja osiolista eivät kuulu PDF:ään, ja niiden viemä tila palautetaan kuvan jälkeen.
+  const layout = ["has-rail", "has-subnav"].filter((c) => document.body.classList.contains(c));
+  layout.forEach((c) => document.body.classList.remove(c));
   const w = document.documentElement.clientWidth, h = document.body.scrollHeight, scale = Math.min(2, 30000 / h);
-  const canvas = await window.html2canvas(document.body, { logging: false, scale, backgroundColor: getComputedStyle(document.body).backgroundColor, windowWidth: w, width: w, height: h, x: 0, y: 0, scrollX: 0, scrollY: -window.scrollY, ignoreElements: (el) => el.classList && el.classList.contains("appbar") });
+  let canvas;
+  try { canvas = await window.html2canvas(document.body, { logging: false, scale, backgroundColor: getComputedStyle(document.body).backgroundColor, windowWidth: w, width: w, height: h, x: 0, y: 0, scrollX: 0, scrollY: -window.scrollY, ignoreElements: (el) => el.classList && (el.classList.contains("appbar") || el.classList.contains("rail") || el.classList.contains("subnav")) }); } finally { layout.forEach((c) => document.body.classList.add(c)); }
   const pw = 210, ph = canvas.height * pw / canvas.width;
   const pdf = new window.jspdf.jsPDF({ orientation: ph > pw ? "portrait" : "landscape", unit: "mm", format: [pw, ph], compress: true });
   pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, pw, ph);
@@ -99,7 +107,22 @@ function AppBar() {
   const [pdf, setPdf] = useState("PDF");
   const [hist, setHist] = useState(false);
   const [ppl, setPpl] = useState(false);
+  const [subOpen, setSubOpen] = useState(false);
+  useEscape(() => setSubOpen(false));
+  // Jäsenellä on vain Omat-näkymä, joten hänellä ei ole kuvakepalkkia.
+  document.body.classList.toggle("has-rail", state.role !== "member");
   if (state.role === "member") return html`<div class="appbar"><div class="appbar-in"><b>Omat</b><${SaveState} /></div></div>`;
+  // Punainen merkki näyttää myöhässä olevien tehtävien määrän, kun koonti on ladattu.
+  const ov = state.overview ? state.overview.items : null, day = todayISO();
+  const lateAll = ov ? buildToday(ov, day, {}).late.length : 0, lateMine = ov && state.people.me ? buildMine(ov, state.people.me, day).late.length : 0;
+  const railItems = [
+    { id: "today", label: "Tänään", icon: "today", active: ui.view === "today", badge: lateAll, onClick: () => { setView("today"); store.loadOverview(); } },
+    { id: "mine", label: "Omat", icon: "mine", active: ui.view === "mine", badge: lateMine, onClick: () => { setView("mine"); store.loadOverview(); } },
+    ...(plan ? [{ id: "overview", label: "Kokonaisuus", icon: "overview", active: ui.view === "plan", onClick: () => { const was = ui.view === "plan"; showTab("kokonaisuus"); setView("plan"); scrollTo(0, 0); setSubOpen(was ? !subOpen : true); } },
+      { id: "settings", label: "Asetukset", icon: "settings", active: ui.view === "settings", onClick: () => { setView("settings"); scrollTo(0, 0); } }] : []),
+    ...(plan ? [{ id: "history", label: "Muutoshistoria", icon: "history", group: "bottom", onClick: () => setHist(true) }] : []),
+    { id: "people", label: "Henkilöt", icon: "people", group: "bottom", onClick: () => setPpl(true) }
+  ];
   const act = (fn) => async () => { setOpen(false); try { await fn(); } catch (e) { state.save = "error"; state.error = "Toiminto epäonnistui (" + e.message + ")."; uiChanged(); } };
   const newPlan = act(async () => { const t = prompt("Uuden suunnitelman nimi"); if (t && t.trim()) { await store.createPlan(t.trim(), newPlanItems()); showTab("kokonaisuus"); setView("plan"); setEdit(true); } });
   const dup = act(async () => { const t = prompt("Kopion nimi", (plan ? plan.title : "") + " (kopio)"); if (t && t.trim()) { await store.duplicatePlan(t.trim()); setView("plan"); } });
@@ -117,26 +140,28 @@ function AppBar() {
     setView("plan");
   });
   const doPdf = async () => { setPdf("Luodaan…"); try { await makePdf(plan && plan.title); setPdf("PDF"); } catch (e) { setPdf("PDF epäonnistui"); setTimeout(() => setPdf("PDF"), 2500); } };
-  return html`<div class="appbar">
+  // Kokonaisuuden osioiden otsikot: siirtyminen suoraan osioon tai vastuualueeseen.
+  const showSub = !!plan && ui.view === "plan";
+  document.body.classList.toggle("has-subnav", showSub);
+  const goEntry = (e) => {
+    setSubOpen(false); showTab("kokonaisuus"); setView("plan"); expandSection(e.id);
+    setTimeout(() => { const w = document.querySelector('[data-sid="' + CSS.escape(e.id) + '"]'), n = w && (w.closest("section") || w.firstElementChild); if (n) n.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }, 80);
+  };
+  const goRole = (r) => { setSubOpen(false); setView("plan"); showTab(r.id); scrollTo(0, 0); };
+  return html`<${Rail} items=${railItems} />
+  ${showSub ? html`<${SubNav} title=${plan.title} entries=${sectionEntries(sections(), (t) => (moduleOf(t) || {}).label)} roles=${roles()} activeTab=${ui.tab} open=${subOpen} onEntry=${goEntry} onRole=${goRole} onClose=${() => setSubOpen(false)} />` : null}
+  <div class="appbar">
     <div class="appbar-in">
       <select class="planselect" aria-label="Suunnitelma" value=${state.planId || ""} onChange=${(e) => { const id = e.target.value; act(async () => { await store.openPlan(id); showTab("kokonaisuus"); setView("plan"); })().finally(uiChanged); }}>
         ${state.plans.map((p) => html`<option key=${p.id} value=${p.id}>${p.title}</option>`)}
       </select>
-      <nav class="barnav" aria-label="Näkymät">
-        <button type="button" class=${"barbtn todaybtn" + (ui.view === "today" ? " on" : "")} aria-pressed=${ui.view === "today" ? "true" : "false"} onClick=${() => { setView("today"); store.loadOverview(); }}>Tänään</button>
-        <button type="button" class=${"barbtn todaybtn" + (ui.view === "mine" ? " on" : "")} aria-pressed=${ui.view === "mine" ? "true" : "false"} onClick=${() => { setView("mine"); store.loadOverview(); }}>Omat</button>
-        ${plan ? html`<button type="button" class=${"barbtn todaybtn" + (ui.view === "settings" ? " on" : "")} aria-pressed=${ui.view === "settings" ? "true" : "false"} onClick=${() => { setView("settings"); scrollTo(0, 0); }}>Asetukset</button>` : null}
-        ${plan ? html`<button type="button" class=${"barbtn todaybtn" + (ui.view === "plan" && ui.tab === "kokonaisuus" ? " on" : "")} aria-pressed=${ui.view === "plan" && ui.tab === "kokonaisuus" ? "true" : "false"} onClick=${() => { showTab("kokonaisuus"); setView("plan"); scrollTo(0, 0); }}>Kokonaisuus</button>` : null}
-      </nav>
       <div class="planmenu">
         <button type="button" class="barbtn" aria-haspopup="menu" aria-expanded=${open ? "true" : "false"} onClick=${() => setOpen(!open)}>Suunnitelma</button>
         ${open ? html`<div class="menu" role="menu">
           <button type="button" role="menuitem" onClick=${newPlan}>Uusi suunnitelma</button>
           ${plan ? html`<button type="button" role="menuitem" onClick=${dup}>Monista tämä</button>
           <button type="button" role="menuitem" onClick=${rename}>Nimeä uudelleen</button>
-          <button type="button" role="menuitem" onClick=${() => { setOpen(false); setHist(true); }}>Muutoshistoria</button>
           <button type="button" role="menuitem" onClick=${exp}>Vie tiedostoon (JSON)</button>` : null}
-          <button type="button" role="menuitem" onClick=${() => { setOpen(false); setPpl(true); }}>Henkilöt</button>
           <button type="button" role="menuitem" onClick=${imp}>Tuo tiedostosta</button>
           ${plan && state.plans.length > 1 ? html`<button type="button" role="menuitem" class="danger" onClick=${del}>Poista suunnitelma</button>` : null}
         </div>` : null}
@@ -162,7 +187,7 @@ function Tabs() {
 
 function SectionShell({ section, list, children }) {
   const m = moduleOf(section.data.type);
-  return html`<div class="sectool-wrap" data-section=${section.data.type}>
+  return html`<div class="sectool-wrap" data-section=${section.data.type} data-sid=${section.id}>
     ${ui.edit ? html`<div class="sectool"><span class="secname">${m ? m.label : section.data.type}</span>
       <${Tools} item=${section} list=${list} label=${section.data.title || (m && m.label)} cls="on">
         ${m && !m.placement ? html`<button type="button" title="Leveys" aria-label="Vaihda leveyttä" onClick=${() => store.patch(section.id, { width: section.data.width === "half" ? "" : "half" })}>${section.data.width === "half" ? "Leveys: puolet" : "Leveys: koko"}</button>` : null}
