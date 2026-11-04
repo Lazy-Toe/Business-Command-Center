@@ -6,9 +6,14 @@ import { goalValues } from "./goals.js";
 
 const CADS = ["viikko", "kuukausi", "kvartaali"];
 export const roles = () => { const s = findSection("scorecards"); return s ? children(s.id, "role") : []; };
-export function showTab(id) {
+// Näkymän vaihto jättää selainhistoriaan merkinnän, jotta Takaisin palaa edelliseen näkymään. quiet = vastaus Takaisin-painikkeeseen.
+export function showTab(id, quiet) {
+  const changed = ui.tab !== id;
   ui.tab = id;
-  try { localStorage.setItem("bcc-tab", id); history.replaceState(null, "", id === "kokonaisuus" ? location.pathname + location.search : "#" + id); } catch (e) { /* ei pakollinen */ }
+  try {
+    localStorage.setItem("bcc-tab", id);
+    if (!quiet) history[changed ? "pushState" : "replaceState"](null, "", id === "kokonaisuus" ? location.pathname + location.search : "#" + id);
+  } catch (e) { /* ei pakollinen */ }
   document.body.classList.toggle("tab-role", id !== "kokonaisuus");
   uiChanged();
 }
@@ -60,6 +65,7 @@ export function RolePanel({ id }) {
   }) : [];
   return html`<section class="rolepanel">
     <div class="head" id="rp-head">
+      <button type="button" class="backlink" onClick=${() => { showTab("kokonaisuus"); scrollTo(0, 0); }}>← Kokonaisuus</button>
       <p class="eyebrow">Scorecard · <${Text} item=${r} field="owner" cls="rp-owner" mode="always" max=${40} ph="Vastuuhenkilö" /></p>
       <${Text} item=${r} field="title" tag="h2" cls="rp-title" mode="always" max=${60} ph="Vastuualue" />
       <${Text} item=${r} field="mission" tag="p" cls="rp-mission" mode="always" max=${240} ph="Tehtävä" />

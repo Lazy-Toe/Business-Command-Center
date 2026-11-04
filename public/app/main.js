@@ -218,4 +218,9 @@ function App() {
   if (!want) { try { want = localStorage.getItem("bcc-tab") || ""; } catch (e) { want = ""; } }
   if (roles().some((r) => r.id === want)) { ui.tab = want; document.body.classList.add("tab-role"); }
   render(html`<${App} />`, rootEl);
+  // Selaimen Takaisin ja Eteenpäin vaihtavat näkymää tunnisteen mukaan.
+  window.addEventListener("popstate", () => {
+    const id = (location.hash || "").slice(1);
+    showTab(roles().some((r) => r.id === id) ? id : "kokonaisuus", true);
+  });
 })();
