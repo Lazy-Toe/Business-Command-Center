@@ -152,7 +152,7 @@ test("yli tuhat riviä haetaan kokonaan, arkistoitu ei näy koosteessa", async (
   const o = await (await req("/overview")).json();
   assert.equal(o.items.filter((x) => x.plan_id === "iso").length, 1001);
   assert.ok(!o.items.some((x) => x.plan_id === "kopio1"), "arkistoitu ei näy");
-  assert.ok(o.items.every((x) => ["task", "row", "risk", "metric", "role", "stream", "section"].includes(x.kind)));
+  assert.ok(o.items.every((x) => ["task", "row", "risk", "metric", "role", "stream", "section", "goal", "metricdef", "form", "formtype", "phase"].includes(x.kind)));
   assert.equal((await req("/overview", { token: null })).status, 403);
   await req("/plans/iso", { method: "DELETE" });
 });

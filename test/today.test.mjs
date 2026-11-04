@@ -27,6 +27,12 @@ const items = [
 ];
 const ids = (l) => l.map((x) => x.id);
 
+test("tehtävä kertoo myös vastuualueen oman omistajan, vaikka vastuu olisi asetettu käsin", () => {
+  const r = buildToday(items, T), by = (id) => [...r.late, ...r.today, ...r.week, ...r.later, ...r.doing, ...r.noDate].find((x) => x.id === id);
+  assert.deepEqual([by("now").owner, by("now").inherited], ["Iida", ""], "t: oma vastuu, tehtävällä ei ole työvirtaa");
+  assert.deepEqual([by("late").owner, by("late").inherited], ["Mika", "Mika"], "peritty on myös vastuualueen omistaja");
+});
+
 test("avoin ehdotus nousee huomioon, päätetty ei, ja vain ehdotustyypin lomake", () => {
   const more = [
     { plan_id: "a", id: "t-eh", kind: "formtype", data: { name: "Ehdotus", proposal: true } }, { plan_id: "a", id: "t-ko", kind: "formtype", data: { name: "Kommentti" } },

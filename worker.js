@@ -159,7 +159,7 @@ function cleanName(v) {
   if (!t) throw bad("bad_name");
   return t;
 }
-const OVERVIEW_KINDS = "task,row,risk,metric,role,stream,section,goal,metricdef,form,formtype";
+const OVERVIEW_KINDS = "task,row,risk,metric,role,stream,section,goal,metricdef,form,formtype,phase";
 
 // Lomakkeet ja euromoduuli. Euro-tiedot kulkevat vain ylläpitäjän rajapintojen (/api/pay) kautta, eivätkä ne ole missään sisältörivissä.
 const sameName = function (a, b) { return !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase(); };

@@ -43,7 +43,7 @@ export function buildToday(items, today, filter = {}) {
       const owner = ownerOf(t, roles), stream = streams.find((s) => s.id === t.data.stream);
       if (t.data.status === "done") return;
       if (owner) owners.add(owner);
-      tasks.push(Object.assign({}, t, { owner, stream }));
+      tasks.push(Object.assign({}, t, { owner, stream, inherited: ownerOf({ data: { stream: t.data.stream } }, roles) }));
     });
   });
 
