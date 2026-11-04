@@ -18,7 +18,7 @@ const OVERVIEW_KINDS = new Set(["task", "row", "risk", "metric", "role", "stream
 const listeners = new Set();
 let items = new Map(), queue = [], sending = false, retryTimer = null, version = 0, mutations = 0, inflight = [];
 
-export const state = { plans: [], planId: null, email: "", save: "idle", error: "", loaded: false, overview: null, overviewError: "", overviewActive: false };
+export const state = { plans: [], planId: null, email: "", save: "idle", error: "", loaded: false, overview: null, overviewError: "", overviewActive: false, people: { list: [], me: null, loaded: false, error: "" } };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function emit() { version++; listeners.forEach((fn) => fn(version)); }
@@ -199,6 +199,20 @@ async function refresh() {
   } catch (e) { /* seuraava kierros yrittää uudelleen */ }
 }
 
+// Henkilölista ja kirjautuneen käyttäjän oma henkilö. Virhe ei estä muuta käyttöä.
+export async function loadPeople() {
+  try {
+    const b = await call("/people");
+    state.people = { list: b.people.map((p) => p.name), me: b.me.person, loaded: true, error: "" };
+  } catch (e) {
+    state.people = Object.assign({}, state.people, { error: "Henkilölistaa ei saatu ladattua (" + e.message + ")." });
+  }
+  emit();
+}
+export async function addPerson(name) { const b = await call("/people", { method: "POST", body: JSON.stringify({ name }) }); await loadPeople(); return b.name; }
+export async function linkMe(name) { const b = await call("/me", { method: "PUT", body: JSON.stringify({ name }) }); await loadPeople(); return b.name; }
+export async function unlinkMe() { await call("/me", { method: "DELETE" }); await loadPeople(); }
+
 // Kooste kaikista suunnitelmista. Odottavat muutokset lisätään palvelimen tilan päälle.
 export async function loadOverview() {
   const seen = mutations;
@@ -262,6 +276,7 @@ export async function init() {
   const plan = b.plans.find((p) => p.id === want) || b.plans[0];
   if (plan) await openPlan(plan.id); else { state.loaded = true; emit(); }
   if (queue.length) { setSave("saving"); flush(); }
+  loadPeople();
   setInterval(refresh, POLL_MS);
   document.addEventListener("visibilitychange", refresh);
   window.addEventListener("beforeunload", (e) => { commitFocused(); if (queue.length || sending) e.preventDefault(); });

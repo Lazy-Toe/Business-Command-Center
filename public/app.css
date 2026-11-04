@@ -570,3 +570,12 @@ span.editable:empty { display: inline-block; }
   .tfilters { margin-top: 0; }
 }
 .barnav { display: flex; gap: 4px; }
+.personsel { font: 400 0.82rem/1.2 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 4px 6px; max-width: 100%; }
+.tfield .personsel { min-width: 0; }
+.whoami { max-width: 560px; margin-top: 24px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; display: flex; flex-direction: column; gap: 12px; }
+.whosel { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--ink); }
+.linkbtn { font: inherit; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
+.mrole { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.mrhead { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.mrhead h3 { font-size: 1rem; margin: 0; }
+.stbtn { background: none; border: none; padding: 0; cursor: pointer; color: inherit; }

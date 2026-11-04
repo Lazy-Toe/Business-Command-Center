@@ -17,6 +17,7 @@ Yksityinen johtamisen keskipiste: yhdessä paikassa suunnitelmat, vastuut, mitta
 - `bcc_plans`: suunnitelmat. Poisto arkistoi (`archived_at`), tiedot säilyvät.
 - `bcc_items`: kaikki sisältö yleisinä riveinä: `kind`, `parent_id`, `position`, `data` (jsonb). Tunniste on yksilöllinen suunnitelman sisällä, joten monistus säilyttää tunnisteet.
 - `bcc_item_history`: rivin edeltävä tila jokaisesta sisältömuutoksesta ja poistosta, 180 päivää. Palautus tehdään SQL:llä.
+- `bcc_people`: henkilöt (nimi, valinnainen kirjautumisen sähköposti). Vastuuhenkilöt nimetään vastuualueiden otsikossa, ja tehtävän vastuu valitaan vain nimetyistä. Vastuukentät (`owner`) tallentavat henkilön nimen, ja Omat-näkymä kohdistuu liittämällä kirjautuminen henkilöön (`/api/me`). Kirjautuminen ei rajaa pääsyä: sallitut osoitteet määrää edelleen `ALLOWED_EMAILS`. Rakenne on tiedostossa `003_kayttajat.sql`.
 - `bcc_status`: vanha taulu, varmuuskopio. Älä kirjoita siihen.
 
 Tehtävän `data`: `title`, `detail`, `phase`, `stream`, `status`, `note`, `due` (VVVV-KK-PP), `owner`. Ilman omaa vastuuhenkilöä käytetään roolin omistajaa, jonka työvirta on sama.

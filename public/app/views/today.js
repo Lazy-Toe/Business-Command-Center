@@ -1,8 +1,9 @@
 // Etusivu: kaikkien suunnitelmien myöhässä olevat ja seuraavat tehtävät sekä huomiota vaativat luvut.
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
-import { Input, ui, uiChanged } from "../core/ui.js";
+import { ui, uiChanged } from "../core/ui.js";
 import { state, loadOverview, patchIn } from "../core/store.js";
 import { buildToday, todayISO, fmtLong } from "../core/today.js";
+import { PersonSelect } from "../people.js";
 
 const planName = (id) => { const p = state.plans.find((x) => x.id === id); return p ? p.title : ""; };
 
@@ -13,7 +14,7 @@ function markDone(t) {
   uiChanged();
 }
 
-function Row({ t, open, late }) {
+export function Row({ t, open, late }) {
   return html`<li class=${"trow" + (late ? " late" : "")} style=${{ "--c": "var(--ws-" + ((t.stream && t.stream.data.color) || "ihmiset") + ")" }}>
     <button type="button" class="tcheck" title="Merkitse valmiiksi" aria-label=${"Merkitse valmiiksi: " + (t.data.title || "tehtävä")} onClick=${() => markDone(t)}></button>
     <div class="tmain">
@@ -21,13 +22,13 @@ function Row({ t, open, late }) {
       <span class="tsub">${planName(t.plan_id)}${t.stream ? " · " + t.stream.data.label : ""}${t.data.status === "doing" ? " · käynnissä" : ""}</span>
     </div>
     <div class="tfields">
-      <label class="tfield"><span>Vastuu</span><${Input} maxlength="60" placeholder=${t.owner || "Nimi"} value=${t.data.owner || ""} aria-label=${"Vastuu: " + (t.data.title || "")} onChange=${(e) => patchIn(t.plan_id, t.id, { owner: e.target.value.trim().slice(0, 60) })} onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }} /></label>
+      <label class="tfield"><span>Vastuu</span><${PersonSelect} label=${"Vastuu: " + (t.data.title || "")} value=${t.data.owner || ""} empty=${t.owner ? "Perii: " + t.owner : "Ei vastuuhenkilöä"} onPick=${(v) => patchIn(t.plan_id, t.id, { owner: v })} /></label>
       <label class="tfield"><span>Määräpäivä</span><input type="date" value=${t.data.due || ""} aria-label=${"Määräpäivä: " + (t.data.title || "")} onChange=${(e) => patchIn(t.plan_id, t.id, { due: e.target.value })} /></label>
     </div>
   </li>`;
 }
 
-function Group({ title, list, open, late, hint }) {
+export function Group({ title, list, open, late, hint }) {
   if (!list.length) return null;
   return html`<section class="tgroup"><h2>${title} <span class="num">${list.length}</span></h2>${hint ? html`<p class="gs">${hint}</p>` : null}
     <ul class="tlist">${list.map((t) => html`<${Row} key=${t.plan_id + t.id} t=${t} open=${open} late=${late} />`)}</ul></section>`;
