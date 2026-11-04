@@ -601,3 +601,6 @@ span.editable:empty { display: inline-block; }
 .lockedcell { color: var(--muted); }
 code { font-family: var(--f-mono); font-size: 0.82em; }
 @media (max-width: 640px) { .mfrow { grid-template-columns: minmax(0, 1fr); } .mfrow > .gs, .mfrow > textarea, .mfrow > .mfinline { grid-column: 1; } }
+.final { margin: 4px 0; font-size: 0.9rem; color: var(--muted); }
+.final b { font: 600 1.3rem var(--f-mono); color: var(--ink); }
+.final.big b { font-size: 2rem; }
