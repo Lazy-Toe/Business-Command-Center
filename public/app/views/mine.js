@@ -39,13 +39,14 @@ function Scorecard({ sc, open }) {
   const r = sc.role, t = totals(sc.rows);
   return html`<article class="mrole">
     <div class="mrhead">
-      <div><h3>${r.data.title || "Vastuualue"}</h3><span class="tsub">${planName(sc.plan_id)}${r.data.mission ? " · " + r.data.mission : ""}</span></div>
+      <div><h3>${r.data.title || "Vastuualue"}</h3><span class="tsub">${planName(sc.plan_id)}${r.data.mission ? " · " + r.data.mission : ""}</span>
+        ${t.count ? html`<p class="final">Lopputulos <b>${fmt(t.weighted, 3)}</b><span class="gs"> · painot yhteensä ${fmt(t.weight, 0)} %</span></p>` : null}</div>
       ${open ? html`<button type="button" class="barbtn" onClick=${() => open(sc.plan_id, r)}>Avaa suunnitelmassa</button>` : null}
     </div>
     ${sc.rows.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
       <thead><tr><th>Tavoite</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Toteuma</th><th>Tulos</th><th>Paino</th><th>Painotettu</th></tr></thead>
       <tbody>${sc.rows.map((x) => html`<${GoalRow} key=${x.def.id} sc=${sc} x=${x} />`)}</tbody>
-      ${t.count ? html`<tfoot><tr><td colspan="8"><b>Yhteensä</b></td><td class="num"><b>${fmt(t.weighted, 3)}</b></td></tr></tfoot>` : null}
+      ${t.count ? html`<tfoot><tr><td colspan="7"><b>Lopputulos</b></td><td class="num">${fmt(t.weight, 0)}</td><td class="num"><b>${fmt(t.weighted, 3)}</b></td></tr></tfoot>` : null}
     </table></div>` : null}
     ${sc.free.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
       <thead><tr><th>Oma mittari</th><th>Rytmi</th><th>Lähtötaso</th><th>Tavoite</th><th>Toteuma</th></tr></thead>

@@ -25,7 +25,7 @@ function View({ section }) {
     <${Head} section=${section} c=${c} toggle=${toggle} />
     <div class="lead">
       ${list.map((r) => html`<article key=${r.id} class="lcard" title=${"Avaa " + r.data.title} ...${pressable(() => { showTab(r.id); scrollTo(0, 0); })} ...${sortProps(r, list, "role")}>
-        <p class="role">${r.data.owner}</p><h3>${r.data.title}</h3>
+        <p class="role">${r.data.owner}</p><h3>${r.data.title}</h3><${Final} t=${roleTotals(r)} />
         <ul>${roleMetricNames(r).map((n, i) => html`<li key=${i}>${n}</li>`)}</ul>
         <${Tools} item=${r} list=${list} label=${r.data.title} />
       </article>`)}
@@ -37,6 +37,10 @@ function View({ section }) {
     </div>
   </div>`;
 }
+
+// Roolin lopputulos: tavoiterivien painotettujen tulosten summa.
+const roleTotals = (r) => totals(rowsFor(r, orderDefs(all("goal"), all("metricdef")), children(r.id, "metric")));
+const Final = ({ t, big }) => (t.count ? html`<p class=${"final" + (big ? " big" : "")}>Lopputulos <b>${fmt(t.weighted, 3)}</b><span class="gs"> · painot yhteensä ${fmt(t.weight, 0)} %</span></p>` : null);
 
 // Roolin tavoitteiden ja vapaiden mittarien nimet yleisnäkymän korttiin.
 function roleMetricNames(r) {
@@ -87,7 +91,7 @@ function GoalTable({ r }) {
     ${list.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
       <thead><tr><th>Tavoite</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Toteuma</th><th>Tulos</th><th>Paino %</th><th>Painotettu</th><th></th></tr></thead>
       <tbody>${list.map((x) => html`<${GoalRow} key=${x.def.id} x=${x} role=${r} />`)}</tbody>
-      ${t.count ? html`<tfoot><tr><td colspan="7"><b>Yhteensä</b></td><td class="num">${fmt(t.weight, 0)}</td><td class="num"><b>${fmt(t.weighted, 3)}</b></td><td></td></tr></tfoot>` : null}
+      ${t.count ? html`<tfoot><tr><td colspan="7"><b>Lopputulos</b></td><td class="num">${fmt(t.weight, 0)}</td><td class="num"><b>${fmt(t.weighted, 3)}</b></td><td></td></tr></tfoot>` : null}
     </table></div>` : html`<p class="gs">${r.data.stream ? "Työvirran tavoitteita ei ole vielä määritelty Asetuksissa." : "Valitse vastuualueelle työvirta muokkaustilassa, niin työvirran tavoitteet tulevat tähän automaattisesti."}</p>`}
     ${extra.length ? html`<select class="cadsel" aria-label="Lisää tavoite" value="" onChange=${(e) => { if (e.target.value) add("metric", r.id, { def: e.target.value }); e.target.value = ""; }}><option value="">+ Lisää tavoite käsin…</option>${extra.map((d) => html`<option key=${d.id} value=${d.id}>${d.data.name || "Nimetön"}</option>`)}</select>` : null}
     ${hidden.length ? html`<p class="gs">Piilotettu: ${hidden.map((d) => html`<button type="button" class="linkbtn" key=${d.id} onClick=${() => patch(r.id, { hide: hide.filter((h) => h !== d.id) })}>${d.data.name || "Nimetön"} (näytä)</button> `)}</p>` : null}
@@ -111,6 +115,7 @@ export function RolePanel({ id }) {
       <p class="eyebrow">Scorecard · <${PersonSelect} cls="ownersel" canAdd=${true} label="Vastuuhenkilö" value=${r.data.owner || ""} onPick=${(v) => patch(r.id, { owner: v })} /></p>
       <${Text} item=${r} field="title" tag="h2" cls="rp-title" mode="always" max=${60} ph="Vastuualue" />
       <${Text} item=${r} field="mission" tag="p" cls="rp-mission" mode="always" max=${240} ph="Tehtävä" />
+      <${Final} t=${roleTotals(r)} big=${true} />
       ${ui.edit && parts ? html`<label class="gyear">Työvirta <select aria-label="Työvirta" value=${r.data.stream} onChange=${(e) => patch(r.id, { stream: e.target.value })}><option value="">Ei työvirtaa</option>${parts.streams.map((w) => html`<option key=${w.id} value=${w.id}>${w.data.label}</option>`)}</select></label>` : null}
     </div>
     <${GoalTable} r=${r} />

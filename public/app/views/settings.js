@@ -2,7 +2,7 @@
 import { html, useState } from "../../vendor/htm-preact.js";
 import { Text, Tools, AddButton, Input, ui, useEscape } from "../core/ui.js";
 import { state, all, children, add, patch, remove } from "../core/store.js";
-import { compile, DEFAULT_FORMULA, FORMULA_PRESETS } from "../core/formula.js";
+import { compile, DEFAULT_FORMULA, FORMULA_PRESETS, FUNCTION_NAMES } from "../core/formula.js";
 import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber } from "../core/scorecard.js";
 import { fmt } from "../core/calc.js";
 
@@ -48,7 +48,7 @@ function DefEditor({ def, onClose }) {
         <span class="mfinline"><select aria-label="Valmis kaava" value="" onChange=${(e) => { if (e.target.value) set("formula", e.target.value); e.target.value = ""; }}><option value="">Valmis kaava…</option>${FORMULA_PRESETS.map((p) => html`<option key=${p.label} value=${p.formula}>${p.label}</option>`)}</select></span>
         <textarea id="f-formula" rows="2" maxlength="200" spellcheck=${false} value=${v.formula} onInput=${(e) => set("formula", e.target.value)}></textarea>
         <span class=${"gs" + (c.ok ? "" : " bad")} role="status">${c.ok ? "Kaava kelpaa." : c.error}</span>
-        <span class="gs">Käytettävissä: <code>RANGE_MIN</code> <code>RANGE_MAX</code> <code>TARGET</code> <code>ACTUAL</code>, funktiot min, max, abs, round ja clamp.</span>
+        <span class="gs">Muuttujat: <code>RANGE_MIN</code> <code>RANGE_MAX</code> <code>TARGET</code> <code>ACTUAL</code> (myös {TARGET}). Operaattorit: + - * / % ^, vertailut, and, or, not ja ehto <code>ehto ? a : b</code>. Funktiot: ${FUNCTION_NAMES.join(", ")}. Desimaalimerkkinä käy piste tai pilkku, ja funktion arvot erotetaan pilkulla tai puolipisteellä.</span>
         ${c.ok ? html`<span class="mfinline gs">Esikatselu, toteuma <${Input} aria-label="Esimerkkitoteuma" maxlength="30" placeholder=${v.target || "–"} value=${sample} onChange=${(e) => setSample(e.target.value.trim())} /> tulos <b>${demo && demo.value != null ? fmt(demo.value, 3) : "–"}</b></span>` : null}
       </div>
       <div class="hact mfact">
