@@ -252,8 +252,9 @@ test("jäsen muuttaa vain omia rivejään sallituilla kentillä, kaikki muu hyl�
   await setupMember();
   const post = (plan, ops, email) => asJasen("/plans/" + plan + "/items", { method: "POST", body: { ops }, email });
   const data = async (id) => (await q("select data from bcc_items where id = $1", [id]))[0].data;
-  assert.equal((await post("jplan", [{ op: "patch", id: "tOwn", data: { status: "done", due: "2026-11-05" } }, { op: "patch", id: "mJ", data: { actual: "9 %", state: "good" } }])).status, 200);
-  assert.deepEqual([(await data("tOwn")).status, (await data("tOwn")).due, (await data("mJ")).actual, (await data("mJ")).state], ["done", "2026-11-05", "9 %", "good"]);
+  assert.equal((await post("jplan", [{ op: "patch", id: "tOwn", data: { status: "done", due: "2026-11-05" } }, { op: "patch", id: "mJ", data: { actual: "9 %" } }])).status, 200);
+  assert.deepEqual([(await data("tOwn")).status, (await data("tOwn")).due, (await data("mJ")).actual, (await data("mJ")).state], ["done", "2026-11-05", "9 %", undefined]);
+  assert.equal((await post("jplan", [{ op: "patch", id: "mJ", data: { state: "good" } }])).status, 422, "mittarin tilaa jäsen ei muuta");
   assert.equal((await data("tOwn")).title, "Oma tehtävä", "muut kentät säilyvät");
   assert.equal((await post("jplan", [{ op: "patch", id: "tInh", data: { status: "doing" } }])).status, 200, "peritty tehtävä on oma");
 
@@ -282,6 +283,41 @@ test("jäsen muuttaa vain omia rivejään sallituilla kentillä, kaikki muu hyl�
   assert.equal((await data("tOther")).status, "todo");
   assert.equal((await data("tOwn")).owner, "Jasen");
   assert.equal((await q("select count(*)::int n from bcc_items where id in ('uusi')"))[0].n, 0);
+});
+
+test("tavoitemallit: jäsen näkee oman roolinsa mallit vain luettavina ja kirjaa ensimmäisen toteuman tallentamattomalle riville", async () => {
+  await setupMember();
+  const admin = (ops) => req("/plans/jplan/items", { method: "POST", body: { ops } });
+  assert.equal((await admin([
+    put("gg", "goal", { name: "Liikevaihto" }), put("dA", "metricdef", { name: "Oma malli", stream: "s1", target: "100", min: "80", max: "150", weight: "20", formula: "ACTUAL / TARGET" }, "gg"),
+    put("dB", "metricdef", { name: "Muiden malli SALAINEN", stream: "s2", target: "7" }, "gg"), put("dC", "metricdef", { name: "Piilotettu", stream: "s1" }, "gg")
+  ])).status, 200);
+  assert.equal((await admin([{ op: "patch", id: "rJ", data: { hide: ["dC"] } }])).status, 200);
+  const post = (ops, plan = "jplan") => asJasen("/plans/" + plan + "/items", { method: "POST", body: { ops } });
+  const dbRow = async (id) => (await q("select kind, parent_id, data from bcc_items where plan_id = 'jplan' and id = $1", [id]))[0];
+
+  const m = await (await asJasen("/mine")).json();
+  assert.deepEqual(m.items.filter((i) => i.kind === "metricdef").map((i) => i.id), ["dA"], "vain oman työvirran, piilottamaton malli");
+  assert.ok(!JSON.stringify(m).includes("SALAINEN") && !JSON.stringify(m).includes("Liikevaihto"), "muiden mallit ja katalogi eivät vuoda");
+
+  const vid = "v-rJ-dA", put1 = (o) => ({ op: "put", id: vid, kind: "metric", parent_id: "rJ", data: { def: "dA", actual: "90" }, ...o });
+  for (const bad of [
+    put1({ id: "v-rJ-dB" }), put1({ id: "v-rJ-dC" }), put1({ parent_id: "rM" }), put1({ kind: "task" }), put1({ position: 5 }),
+    put1({ data: { def: "dB", actual: "1" } }), put1({ data: { def: "dA", actual: "1", target: "1" } }), put1({ id: "tOwn", kind: "task", parent_id: null, data: { status: "done" } })
+  ]) assert.equal((await post([bad])).status, 422, JSON.stringify(bad));
+  assert.equal((await dbRow(vid)), undefined, "hylätty ei tallennu");
+
+  assert.equal((await post([put1()])).status, 200);
+  assert.deepEqual(await dbRow(vid), { kind: "metric", parent_id: "rJ", data: { def: "dA", actual: "90" } });
+  assert.equal((await post([put1({ data: { def: "dA", actual: "1" } })])).status, 422, "tallennetun rivin voi enää vain päivittää");
+  assert.equal((await post([{ op: "patch", id: vid, data: { actual: "95" } }])).status, 200);
+  assert.equal((await dbRow(vid)).data.actual, "95");
+  assert.equal((await post([{ op: "patch", id: vid, data: { target: "1" } }])).status, 422, "tavoitetta ei muuteta jäsenenä");
+  assert.equal((await post([{ op: "patch", id: vid, data: { def: "dB" } }])).status, 422, "mallia ei vaihdeta");
+
+  const after = await (await asJasen("/mine")).json();
+  assert.ok(after.items.some((i) => i.id === vid), "tallennettu rivi näkyy nyt tavallisena rivinä");
+  assert.equal((await req("/plans/jplan/items", { method: "POST", body: { ops: [{ op: "patch", id: vid, data: { target: "120" } }] } })).status, 200, "ylläpitäjä voi asettaa henkilökohtaisen tavoitteen");
 });
 
 test("liittämätön jäsen ei näe eikä muuta mitään", async () => {

@@ -156,7 +156,7 @@ function cleanName(v) {
   if (!t) throw bad("bad_name");
   return t;
 }
-const OVERVIEW_KINDS = "task,row,risk,metric,role,stream,section";
+const OVERVIEW_KINDS = "task,row,risk,metric,role,stream,section,goal,metricdef";
 
 // Jäsenen pyynnöt. Vain: oma henkilö, omat rivit ja omien rivien sallitut kentät. Kaikki muu on 403.
 async function personOf(env, email) {
@@ -174,7 +174,7 @@ async function memberApi(request, env, url, email) {
     const person = await personOf(env, email);
     const plans = await db(env, "bcc_plans?select=" + PLAN_COLS + "&archived_at=is.null&order=created_at");
     const active = new Set(plans.map(function (p) { return p.id; }));
-    const rows = (await fetchAll(env, "bcc_items?select=" + SCOPE_COLS + "&kind=in.(task,role,metric,stream)&order=plan_id,position,id")).filter(function (r) { return active.has(r.plan_id); });
+    const rows = (await fetchAll(env, "bcc_items?select=" + SCOPE_COLS + "&kind=in.(task,role,metric,stream,metricdef)&order=plan_id,position,id")).filter(function (r) { return active.has(r.plan_id); });
     const scope = scopeFor(rows, person);
     const shown = new Set(scope.items.map(function (i) { return i.plan_id; }));
     return json({ plans: plans.filter(function (p) { return shown.has(p.id); }), items: scope.items });
