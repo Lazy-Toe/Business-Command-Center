@@ -1,4 +1,4 @@
-// Omat: kirjautuneen henkilön tehtävät ja scorecardit kaikista suunnitelmista.
+// Oma työpöytä: kirjautuneen henkilön tehtävät ja scorecardit kaikista suunnitelmista.
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
 import { Input } from "../core/ui.js";
 import { state, loadOverview, patchIn, setRowIn, linkMe, unlinkMe } from "../core/store.js";
@@ -61,7 +61,7 @@ function Scorecard({ sc, open, forms, types }) {
 function WhoAmI({ error }) {
   const [msg, setMsg] = useState("");
   if (state.role === "member") {
-    return html`<div class="wrap today"><header class="thead"><div><p class="eyebrow">Omat</p><h1>Ei vielä käytössä</h1></div></header>
+    return html`<div class="wrap today"><header class="thead"><div><p class="eyebrow">Oma työpöytä</p><h1>Ei vielä käytössä</h1></div></header>
       <div class="whoami"><p>Kirjautumistasi${state.email ? " (" + state.email + ")" : ""} ei ole vielä liitetty henkilöön. Pyydä ylläpitäjää liittämään se, niin tehtäväsi ja scorecardisi näkyvät tässä.</p></div></div>`;
   }
   const pick = async (name) => {
@@ -69,7 +69,7 @@ function WhoAmI({ error }) {
     try { setMsg(""); await linkMe(name); } catch (e) { setMsg(e.body && e.body.error === "person_taken" ? "Henkilö on jo liitetty toiseen kirjautumiseen." : "Liittäminen ei onnistunut (" + e.message + ")."); }
   };
   return html`<div class="wrap today">
-    <header class="thead"><div><p class="eyebrow">Omat</p><h1>Kuka olet?</h1></div></header>
+    <header class="thead"><div><p class="eyebrow">Oma työpöytä</p><h1>Kuka olet?</h1></div></header>
     <div class="whoami">
       <p>Liitä kirjautumisesi${state.email ? " (" + state.email + ")" : ""} henkilöön. Sen jälkeen tämä näkymä näyttää vain sinun tehtäväsi ja scorecardisi kaikista suunnitelmista.</p>
       <${PersonSelect} cls="whosel" canAdd=${true} label="Valitse henkilö" value="" empty="Valitse henkilö" onPick=${pick} />
@@ -91,7 +91,7 @@ export function MineView({ open: openIn }) {
   const bad = R.below;
   return html`<div class="wrap today">
     <header class="thead">
-      <div><p class="eyebrow">Omat</p><h1>${me}</h1><p class="lede">${fmtLong(today)}${state.role === "member" ? "" : html` · <button type="button" class="linkbtn" onClick=${() => unlinkMe().catch(() => {})}>Vaihda henkilö</button>`}</p></div>
+      <div><p class="eyebrow">Oma työpöytä</p><h1>${me}</h1><p class="lede">${fmtLong(today)}${state.role === "member" ? "" : html` · <button type="button" class="linkbtn" onClick=${() => unlinkMe().catch(() => {})}>Vaihda henkilö</button>`}</p></div>
       <div class="ledger tcount" aria-label="Yhteenveto">
         <div class="stat-cell"><b class=${"num" + (R.late.length ? " neg" : "")}>${R.late.length}</b><span>myöhässä</span></div>
         <div class="stat-cell"><b class="num">${R.today.length}</b><span>tänään</span></div>

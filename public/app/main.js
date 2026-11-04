@@ -109,15 +109,38 @@ function AppBar() {
   const [ppl, setPpl] = useState(false);
   const [subOpen, setSubOpen] = useState(false);
   useEscape(() => setSubOpen(false));
-  // Jäsenellä on vain Omat-näkymä, joten hänellä ei ole kuvakepalkkia.
+  const [pinned, setPinned] = useState(() => { try { return localStorage.getItem("bcc-subnav") !== "0"; } catch (e) { return true; } });
+  const [activeSec, setActiveSec] = useState("");
+  const showSub = !!plan && ui.view === "plan" && state.role !== "member";
+  const entriesKey = showSub ? sections().map((s) => s.id).join(",") : "";
+  // Seuraa, mikä osio on näkyvissä, jotta osiolista voi korostaa sen. Vastuualuenäkymässä osiot ovat piilossa, joten mitään ei korosteta.
+  useEffect(() => {
+    if (!showSub) return undefined;
+    let raf = 0;
+    const calc = () => {
+      raf = 0;
+      let cur = "";
+      if (ui.tab === "kokonaisuus") {
+        const all = [...document.querySelectorAll("[data-sid]")];
+        all.forEach((w) => { const n = w.closest("section") || w.firstElementChild; if (n && n.getBoundingClientRect().top <= 150) cur = w.dataset.sid; });
+        // Sivun alareunassa viimeinen osio on aktiivinen, vaikka se olisi liian lyhyt yltääkseen yläreunaan.
+        if (all.length && innerHeight + scrollY >= document.documentElement.scrollHeight - 4) cur = all[all.length - 1].dataset.sid;
+      }
+      setActiveSec((x) => (x === cur ? x : cur));
+    };
+    const on = () => { if (!raf) raf = requestAnimationFrame(calc); };
+    addEventListener("scroll", on, { passive: true }); addEventListener("resize", on); on();
+    return () => { removeEventListener("scroll", on); removeEventListener("resize", on); cancelAnimationFrame(raf); };
+  }, [showSub, ui.tab, entriesKey]);
+  // Jäsenellä on vain Oma työpöytä -näkymä, joten hänellä ei ole kuvakepalkkia.
   document.body.classList.toggle("has-rail", state.role !== "member");
-  if (state.role === "member") return html`<div class="appbar"><div class="appbar-in"><b>Omat</b><${SaveState} /></div></div>`;
+  if (state.role === "member") return html`<div class="appbar"><div class="appbar-in"><b>Oma työpöytä</b><${SaveState} /></div></div>`;
   // Punainen merkki näyttää myöhässä olevien tehtävien määrän, kun koonti on ladattu.
   const ov = state.overview ? state.overview.items : null, day = todayISO();
   const lateAll = ov ? buildToday(ov, day, {}).late.length : 0, lateMine = ov && state.people.me ? buildMine(ov, state.people.me, day).late.length : 0;
   const railItems = [
     { id: "today", label: "Tänään", icon: "today", active: ui.view === "today", badge: lateAll, onClick: () => { setView("today"); store.loadOverview(); } },
-    { id: "mine", label: "Omat", icon: "mine", active: ui.view === "mine", badge: lateMine, onClick: () => { setView("mine"); store.loadOverview(); } },
+    { id: "mine", label: "Oma työpöytä", icon: "mine", active: ui.view === "mine", badge: lateMine, onClick: () => { setView("mine"); store.loadOverview(); } },
     ...(plan ? [{ id: "overview", label: "Kokonaisuus", icon: "overview", active: ui.view === "plan", onClick: () => { const was = ui.view === "plan"; showTab("kokonaisuus"); setView("plan"); scrollTo(0, 0); setSubOpen(was ? !subOpen : true); } },
       { id: "settings", label: "Asetukset", icon: "settings", active: ui.view === "settings", onClick: () => { setView("settings"); scrollTo(0, 0); } }] : []),
     ...(plan ? [{ id: "history", label: "Muutoshistoria", icon: "history", group: "bottom", onClick: () => setHist(true) }] : []),
@@ -140,16 +163,22 @@ function AppBar() {
     setView("plan");
   });
   const doPdf = async () => { setPdf("Luodaan…"); try { await makePdf(plan && plan.title); setPdf("PDF"); } catch (e) { setPdf("PDF epäonnistui"); setTimeout(() => setPdf("PDF"), 2500); } };
-  // Kokonaisuuden osioiden otsikot: siirtyminen suoraan osioon tai vastuualueeseen.
-  const showSub = !!plan && ui.view === "plan";
-  document.body.classList.toggle("has-subnav", showSub);
+  // Kokonaisuuden osioiden otsikot: siirtyminen suoraan osioon tai vastuualueeseen. Kiinnitetty lista on leveällä näytöllä aina näkyvissä (dock),
+  // ja muuten se aukeaa Kokonaisuus-kuvakkeesta (flyout).
+  const dock = showSub && pinned && matchMedia("(min-width: 1100px)").matches;
+  document.body.classList.toggle("has-subnav", dock);
+  const togglePin = () => { const v = !pinned; setPinned(v); setSubOpen(false); try { localStorage.setItem("bcc-subnav", v ? "1" : "0"); } catch (e) { /* ei pakollinen */ } };
   const goEntry = (e) => {
     setSubOpen(false); showTab("kokonaisuus"); setView("plan"); expandSection(e.id);
     setTimeout(() => { const w = document.querySelector('[data-sid="' + CSS.escape(e.id) + '"]'), n = w && (w.closest("section") || w.firstElementChild); if (n) n.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }, 80);
   };
-  const goRole = (r) => { setSubOpen(false); setView("plan"); showTab(r.id); scrollTo(0, 0); };
+  // Vastuualueen scorecard on suunnitelman otsikkoalueen alla, joten sivu rullataan scorecardiin eikä alkuun.
+  const goRole = (r) => {
+    setSubOpen(false); setView("plan"); showTab(r.id);
+    setTimeout(() => { const n = document.querySelector(".rolepanel"); if (n) n.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }, 60);
+  };
   return html`<${Rail} items=${railItems} />
-  ${showSub ? html`<${SubNav} title=${plan.title} entries=${sectionEntries(sections(), (t) => (moduleOf(t) || {}).label)} roles=${roles()} activeTab=${ui.tab} open=${subOpen} onEntry=${goEntry} onRole=${goRole} onClose=${() => setSubOpen(false)} />` : null}
+  ${showSub ? html`<${SubNav} title=${plan.title} entries=${sectionEntries(sections(), (t) => (moduleOf(t) || {}).label)} roles=${roles()} activeTab=${ui.tab} activeSec=${activeSec} open=${subOpen && !dock} pinned=${pinned} onEntry=${goEntry} onRole=${goRole} onClose=${() => setSubOpen(false)} onTogglePin=${togglePin} />` : null}
   <div class="appbar">
     <div class="appbar-in">
       <select class="planselect" aria-label="Suunnitelma" value=${state.planId || ""} onChange=${(e) => { const id = e.target.value; act(async () => { await store.openPlan(id); showTab("kokonaisuus"); setView("plan"); })().finally(uiChanged); }}>
@@ -251,7 +280,7 @@ function App() {
   }, []);
   if (!state.loaded) return html`<div class="wrap"><p class="gs">Ladataan…</p></div>`;
   const plan = state.plans.find((p) => p.id === state.planId);
-  document.title = ui.view === "today" ? "Tänään · Business Command Center" : ui.view === "mine" ? "Omat · Business Command Center" : ui.view === "settings" ? "Asetukset · Business Command Center" : (plan ? plan.title : "Business Command Center");
+  document.title = ui.view === "today" ? "Tänään · Business Command Center" : ui.view === "mine" ? "Oma työpöytä · Business Command Center" : ui.view === "settings" ? "Asetukset · Business Command Center" : (plan ? plan.title : "Business Command Center");
   const openIn = (p, it) => openItem(p, it).catch((e) => { state.save = "error"; state.error = "Avaus epäonnistui (" + e.message + ")."; uiChanged(); });
   if (ui.view === "mine") return html`<${AppBar} /><${MineView} open=${openIn} /><${Undo} />`;
   if (ui.view === "settings") return html`<${AppBar} /><${SettingsView} /><${Undo} />`;

@@ -25,14 +25,19 @@ export function Rail({ items }) {
   </nav>`;
 }
 
-// Kokonaisuuden osioiden otsikot ja vastuualueet. Leveällä näytöllä lista on aina näkyvissä, kapealla se aukeaa Kokonaisuus-kuvakkeesta.
-export function SubNav({ title, entries, roles, activeTab, open, onEntry, onRole, onClose }) {
+// Kokonaisuuden osioiden otsikot ja vastuualueet. Kiinnitettynä (leveä näyttö) lista on aina näkyvissä, muuten se aukeaa Kokonaisuus-kuvakkeesta.
+// activeSec on osio, joka on parhaillaan näkyvissä sivulla, ja activeTab on avoin vastuualue.
+export function SubNav({ title, entries, roles, activeTab, activeSec, open, pinned, onEntry, onRole, onClose, onTogglePin }) {
+  const pinText = pinned ? "Piilota lista" : "Kiinnitä lista näkyviin";
   return html`${open ? html`<div class="subnav-back" onClick=${onClose}></div>` : null}
   <nav class=${"subnav" + (open ? " open" : "")} aria-label="Kokonaisuuden osiot">
-    <h2>${title}</h2>
-    ${entries.map((e) => html`<div key=${e.id}>
-      <button type="button" class="sub1" onClick=${() => onEntry(e)}>${e.label}</button>
-      ${e.type === "scorecards" ? roles.map((r) => html`<button key=${r.id} type="button" class=${"sub2" + (activeTab === r.id ? " on" : "")} aria-current=${activeTab === r.id ? "page" : undefined} onClick=${() => onRole(r)}>${r.data.title || "Vastuualue"}${r.data.owner ? html`<span class="own"> ${r.data.owner}</span>` : null}</button>`) : null}
-    </div>`)}
+    <div class="subhead">
+      <div><b>Kokonaisuus</b><span title=${title}>${title}</span></div>
+      <button type="button" class="subpin" aria-label=${pinText} title=${pinText} onClick=${onTogglePin}>${pinned ? "‹" : "›"}</button>
+    </div>
+    <h3>Osiot</h3>
+    <ul class="sublist">${entries.map((e) => html`<li key=${e.id}><button type="button" class=${"sub1" + (activeSec === e.id ? " on" : "")} aria-current=${activeSec === e.id ? "location" : undefined} title=${e.label} onClick=${() => onEntry(e)}><span>${e.label}</span></button></li>`)}</ul>
+    ${roles.length ? html`<h3>Vastuualueet</h3>
+    <ul class="sublist">${roles.map((r) => html`<li key=${r.id}><button type="button" class=${"subrole" + (activeTab === r.id ? " on" : "")} aria-current=${activeTab === r.id ? "page" : undefined} title=${(r.data.owner ? r.data.owner + ", " : "") + (r.data.title || "")} onClick=${() => onRole(r)}><b>${r.data.owner || "Ei vastuuhenkilöä"}</b><span>${r.data.title || "Vastuualue"}</span></button></li>`)}</ul>` : null}
   </nav>`;
 }

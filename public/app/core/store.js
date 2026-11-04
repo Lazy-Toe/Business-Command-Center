@@ -321,7 +321,7 @@ export async function init() {
   restoreQueue();
   document.addEventListener("visibilitychange", () => { if (document.hidden) commitFocused(); });
   window.addEventListener("pagehide", commitFocused);
-  // Jäsen ei saa suunnitelmalistaa: palvelin kertoo roolin, ja jäsenelle ladataan vain oma koonti (Omat).
+  // Jäsen ei saa suunnitelmalistaa: palvelin kertoo roolin, ja jäsenelle ladataan vain oma koonti (Oma työpöytä).
   let who = null;
   try { who = await call("/people"); } catch (e) { /* ylläpitäjä toimii ilman henkilölistaa */ }
   if (who && who.role === "member") {
