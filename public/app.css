@@ -679,6 +679,8 @@ body.has-rail { padding-left: 62px; }
 .bulkbar .linkbtn { color: var(--paper); }
 .taskstable td { vertical-align: middle; }
 .taskstable .ckcol { width: 34px; text-align: center; }
+.taskstable .grouprow th { text-align: left; background: var(--surface-2, var(--surface)); border-top: 2px solid var(--ink); font-size: 0.9rem; padding: 8px 10px; }
+.taskstable .grouprow .ckcol { background: var(--surface-2, var(--surface)); border-top: 2px solid var(--ink); }
 .taskstable tr.picked { background: var(--accent-soft); }
 .taskstable .nmtd .tsub { display: block; font-size: 0.74rem; color: var(--muted); }
 .taskstable select, .taskstable input[type="date"] { font: 400 0.84rem/1.2 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 4px 6px; max-width: 170px; }
@@ -690,3 +692,36 @@ body.has-rail { padding-left: 62px; }
 .taskstable .nmtd { min-width: 200px; max-width: 340px; }
 .taskstable input[type="date"] { min-width: 140px; }
 .taskstable select { min-width: 120px; max-width: 150px; }
+.multi { position: relative; font-size: 0.88rem; }
+.multi summary { cursor: pointer; list-style: none; padding: 5px 9px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--ink); white-space: nowrap; }
+.multi summary::-webkit-details-marker { display: none; }
+.multibox { position: absolute; z-index: 30; margin-top: 2px; min-width: 190px; max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); }
+.multibox label { display: flex; gap: 6px; align-items: baseline; color: var(--ink); }
+
+/* Tehtävätaulukko: tiivis, vasemmalle tasattu ja mahtuu leveyteen */
+.taskstable.gtable { min-width: 0; font-size: 0.88rem; }
+.taskstable.gtable th, .taskstable.gtable td { text-align: left; padding: 7px 10px; white-space: normal; vertical-align: middle; }
+.taskstable.gtable tbody td:first-child { font-family: inherit; font-weight: 400; }
+.taskstable.gtable thead th { padding-top: 9px; padding-bottom: 9px; white-space: nowrap; }
+.taskstable.gtable .ckcol { width: 32px; padding-left: 12px; padding-right: 0; }
+.taskstable.gtable input[type="checkbox"] { width: 15px; height: 15px; margin: 0; padding: 0; accent-color: var(--accent); cursor: pointer; vertical-align: middle; }
+.taskstable.gtable input[type="date"] { width: 9.6em; font: 400 0.84rem/1.2 var(--f-body); color: var(--ink); text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 3px 6px; }
+.taskstable.gtable select, .taskstable.gtable .personsel { width: 100%; max-width: 160px; }
+.taskstable.gtable .nmtd { min-width: 240px; width: 40%; }
+.taskstable.gtable td.gs { color: var(--muted); font-size: 0.82rem; max-width: 150px; }
+.taskstable.gtable tbody tr:hover { background: var(--paper); }
+.taskstable.gtable tbody tr.picked { background: var(--accent-soft); }
+.taskstable .grouprow th { font-family: var(--f-display); font-size: 0.92rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); padding: 10px 10px 8px; }
+.taskstable .grouprow .gs { font-weight: 400; margin-left: 8px; }
+.taskstable.gtable .grouprow th, .taskstable.gtable .grouprow td { background: var(--paper); border-top: 2px solid var(--line); }
+.taskfilters { gap: 8px 10px; padding: 10px 0 12px; margin-top: 0; }
+.taskfilters .tsearch { min-width: 200px; }
+.taskfilters .gyear, .taskfilters .multi summary { font-size: 0.86rem; }
+.taskfilters .multi summary { min-height: 32px; display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; }
+.taskfilters .multi summary::after { content: "▾"; color: var(--muted); font-size: 0.8em; }
+.taskfilters .multi[open] summary { border-color: var(--accent); }
+.taskfilters .gyear { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.8rem; }
+.taskfilters .gyear select { font: 400 0.86rem/1.2 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 0 8px; min-height: 32px; }
+.bulkbar { font-size: 0.86rem; gap: 8px 14px; }
+.bulkbar .barbtn { font: 500 0.84rem/1.2 var(--f-body); min-height: 30px; padding: 4px 11px; border-radius: 3px; }
+.bulkbar select, .bulkbar input[type="date"] { min-height: 30px; box-sizing: border-box; }
