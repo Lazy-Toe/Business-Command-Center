@@ -132,3 +132,21 @@ test("jaksovalinnat: myöhässä, tänään, huomenna, viikot, kuukausi ja ei p�
   assert.equal(g.flat().find((d) => d.date === "2026-11-05").tasks.length, 2);
   assert.ok(g.every((w) => w.length === 7) && g.length >= 5);
 });
+
+test("viikkotaso: viikon numero, viikon loppu, viikkoteksti ja valittavat viikot", async () => {
+  const { weekNumber, weekEnd, isWeekDue, fmtDue, weekSpan, weekOptions } = await import("../public/app/core/today.js");
+  assert.deepEqual(["2026-11-05", "2026-11-02", "2026-11-08", "2027-01-01", "2026-12-28", "2027-01-03", "2026-01-01", "2027-01-04"].map(weekNumber), [45, 45, 45, 53, 53, 53, 1, 1]);
+  assert.equal(weekEnd("2026-11-05"), "2026-11-08");
+  assert.equal(weekEnd("2026-11-08"), "2026-11-08", "sunnuntai on viikon loppu");
+  assert.equal(weekEnd("2026-11-09"), "2026-11-15");
+  assert.equal(isWeekDue("2026-11-08"), true);
+  assert.equal(isWeekDue("2026-11-06"), false);
+  assert.equal(fmtDue("2026-11-15"), "vko 46");
+  assert.equal(fmtDue("2026-11-13"), "13.11.2026");
+  assert.equal(fmtDue(""), "");
+  assert.equal(weekSpan("2026-11-12"), "9.–15.11.");
+  assert.equal(weekSpan("2026-12-02"), "30.11.–6.12.");
+  const o = weekOptions("2026-11-05", 3);
+  assert.deepEqual(o.map((x) => x.value), ["2026-11-08", "2026-11-15", "2026-11-22"]);
+  assert.equal(o[0].label, "Vko 45 (2.–8.11.)");
+});

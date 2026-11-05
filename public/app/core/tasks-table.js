@@ -1,6 +1,6 @@
 // Tehtävätaulukon logiikka ilman näkymää: rivien kokoaminen kaikista suunnitelmista, suodatus ja massamuutos.
 // Vastuu on tehtävän oma (owner) tai, jos sitä ei ole, sen vastuualueen omistaja, jonka työvirta on sama (kuten Tänään-näkymässä).
-import { suggestedOwner, isSaneDue } from "./today.js";
+import { suggestedOwner, isSaneDue, weekOptions } from "./today.js";
 import { hasStream } from "./streams.js";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -122,7 +122,7 @@ export function groupRows(rows, by) {
 // Valittavat jaksot määräpäivän asettamiseen: arvo on jakson viimeinen päivä. Kuukaudet edellisestä 14 kuukautta eteenpäin, neljännekset kuluvasta kuusi eteenpäin.
 export function periodOptions(today) {
   const m = /^(\d{4})-(\d{2})/.exec(today || "");
-  if (!m) return { months: [], quarters: [] };
+  if (!m) return { weeks: [], months: [], quarters: [] };
   const y0 = Number(m[1]), m0 = Number(m[2]), months = [], quarters = [];
   for (let i = -1; i < 14; i++) {
     const t = y0 * 12 + (m0 - 1) + i, y = Math.floor(t / 12), mo = (t % 12) + 1, iso = endISO(y, mo);
@@ -133,5 +133,5 @@ export function periodOptions(today) {
     const t = y0 * 4 + q0 + i, y = Math.floor(t / 4), q = (t % 4) + 1, iso = endISO(y, q * 3);
     quarters.push({ value: iso, label: "Q" + q + " " + String(y).slice(2) + " (" + fi(iso) + ")" });
   }
-  return { months, quarters };
+  return { weeks: weekOptions(today, 6), months, quarters };
 }

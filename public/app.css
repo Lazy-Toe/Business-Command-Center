@@ -868,3 +868,6 @@ body.has-rail { padding-left: 62px; }
 .accal-t { text-align: left; padding: 3px 6px; border: none; border-left: 3px solid var(--c); border-radius: 0 3px 3px 0; background: var(--paper); color: var(--ink); font: 500 0.78rem/1.25 var(--f-body); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .accal-t.late { color: var(--neg); }
 @media (max-width: 700px) { .accal-day { min-height: 64px; } }
+.weektag { margin-left: 8px; padding: 2px 7px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); font: 600 0.78rem/1.2 var(--f-body); white-space: nowrap; }
+.tgrid.full { grid-template-columns: minmax(0, 1fr); }
+.tgrid.full .tattn { order: 2; }
