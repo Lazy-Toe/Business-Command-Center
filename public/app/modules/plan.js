@@ -1,4 +1,4 @@
-import { html, Text, Tools, AddButton, ui, dragProps, dropProps, pressable, mq, useEscape, useCollapse, Head, uiChanged } from "../core/ui.js";
+import { html, Text, Tools, AddButton, ui, dragProps, dropProps, pressable, mq, useEscape, useCollapse, Head, uiChanged, DueInput } from "../core/ui.js";
 import { register } from "../core/registry.js";
 import { children, findSection, patch, add, moveBefore, nextPosition, shift } from "../core/store.js";
 import { useState } from "../../vendor/htm-preact.js";
@@ -39,7 +39,7 @@ const CAL_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none
 // Määräpäivä ja vastuuhenkilö. Ilman omaa vastuuhenkilöä käytetään työvirran vastuualueen omistajaa.
 function TaskMeta({ task, inherited }) {
   return html`<span class="taskmeta" onClick=${(e) => e.stopPropagation()} onKeyDown=${(e) => e.stopPropagation()}>
-    <label>Määräpäivä <input type="date" value=${task.data.due || ""} onChange=${(e) => patch(task.id, { due: e.target.value })} /></label>
+    <label>Määräpäivä <${DueInput} value=${task.data.due} onSave=${(v) => patch(task.id, { due: v })} /></label>
     <label>Vastuu <${PersonSelect} label="Vastuu" value=${task.data.owner || ""} empty=${inherited || "Ei vastuuhenkilöä"} onPick=${(v) => patch(task.id, { owner: v })} /></label>
   </span>`;
 }

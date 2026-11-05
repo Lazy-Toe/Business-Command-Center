@@ -19,6 +19,8 @@ export function fmtLong(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] + " " + d + "." + m + "." + y;
 }
+// Päivän kirjoitus näppäimistöllä tuottaa välivaiheessa kelvollisia päiviä, kuten vuoden 0002. Vain järkevä vuosi tallennetaan.
+export const isSaneDue = (v) => ISO.test(v || "") && +v.slice(0, 4) >= 2000 && +v.slice(0, 4) < 2100;
 export const hasDue = (t) => ISO.test(t.data.due || "");
 export const isLate = (t, today) => hasDue(t) && t.data.due < today && t.data.status !== "done";
 

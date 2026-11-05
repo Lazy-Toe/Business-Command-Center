@@ -631,8 +631,8 @@ code { font-family: var(--f-mono); font-size: 0.82em; }
 /* Vasen kuvakepalkki */
 body.has-rail { padding-left: 62px; }
 .rail { position: fixed; z-index: 35; left: 0; top: 0; bottom: 0; width: 62px; background: var(--band); display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 6px; box-sizing: border-box; }
-.rail-mark { width: 44px; height: 44px; display: grid; place-items: center; color: var(--band-accent); margin-bottom: 10px; }
-.rail-mark svg { width: 28px; height: 28px; }
+.rail-mark { padding: 0; border: none; background: none; cursor: pointer; border-radius: 6px; width: 44px; height: 44px; display: grid; place-items: center; color: var(--band-accent); margin-bottom: 10px; }
+.rail-mark svg { width: 32px; height: 32px; }
 .rail-group { display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .rail-spacer { flex: 1; }
 .railbtn { position: relative; width: 44px; height: 44px; border: none; border-radius: 6px; background: transparent; color: var(--band-muted); cursor: pointer; display: grid; place-items: center; padding: 0; }
@@ -732,3 +732,9 @@ body.has-rail { padding-left: 62px; }
 .taskstable.gtable td:has(input[type="date"]) { white-space: nowrap; }
 .bulkbar .grow { flex: 1; }
 .bulkbar select { min-width: 8.5em; }
+.rail-mark:focus-visible { outline: 2px solid var(--band-fg); outline-offset: 2px; }
+.bulkbar select:disabled, .bulkbar input:disabled, .bulkbar .barbtn:disabled { opacity: 0.55; cursor: default; }
+.rolesettings { margin-bottom: 36px; }
+.roletable th, .roletable td { text-align: left; }
+.roletable td.num { text-align: left; font-variant-numeric: tabular-nums; }
+.roletable .personsel { min-width: 170px; }

@@ -104,3 +104,11 @@ test("jaksot: kuukauden ja neljänneksen viimeinen päivä", () => {
   assert.equal(p.quarters[0].label, "Q4 2026 (31.12.)");
   assert.equal(p.quarters[1].value, "2027-03-31");
 });
+
+test("massamuutos hylkää kirjoituksen välivaiheen päivän", () => {
+  const rows = [{ plan_id: "a", id: "x", due: "" }];
+  assert.ok(bulkPatches(rows, { due: "0002-12-12" }).error);
+  assert.ok(bulkPatches(rows, { due: "2100-01-01" }).error);
+  assert.equal(bulkPatches(rows, { due: "2026-12-15" }).patches.length, 1);
+  assert.equal(bulkPatches(rows, { due: "" }).patches.length, 0);
+});
