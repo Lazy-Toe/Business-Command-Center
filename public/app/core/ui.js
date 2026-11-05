@@ -1,4 +1,5 @@
 // Yhteiset näkymäpalat: muokattava teksti, työkalut, osion otsikko ja raahaus.
+import { isSaneDue } from "./today.js";
 import { html, useRef, useLayoutEffect, useState, useEffect, createContext, useContext } from "../../vendor/htm-preact.js";
 import { patch, remove, addMany, shift, moveBefore, children as childrenOf } from "./store.js";
 
@@ -59,6 +60,13 @@ export function Input({ value, ...rest }) {
     if (n && document.activeElement !== n && n.value !== (value || "")) n.value = value || "";
   });
   return html`<input ref=${ref} type="text" ...${rest} />`;
+}
+
+// Määräpäivä: tallentuu vasta, kun päivä on järkevä tai tyhjä. Kesken jäänyt kirjoitus palautuu, kun kentästä poistutaan.
+export function DueInput({ value, onSave, ...rest }) {
+  return html`<${Input} type="date" min="2000-01-01" max="2099-12-31" value=${value || ""} ...${rest}
+    onChange=${(e) => { const v = e.target.value; if (v === (value || "")) return; if (!v || isSaneDue(v)) onSave(v); }}
+    onBlur=${(e) => { const v = e.target.value; if (v && !isSaneDue(v)) e.target.value = value || ""; }} />`;
 }
 
 export function removeWithUndo(item, label) {

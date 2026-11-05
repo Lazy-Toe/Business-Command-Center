@@ -1,9 +1,9 @@
 // Tehtävät: kaikki tehtävät kaikista suunnitelmista yhdessä taulukossa. Suodatus, rivin muokkaus ja massamuutos (vastuu, määräpäivä, tila).
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
-import { ui, uiChanged } from "../core/ui.js";
+import { ui, uiChanged, DueInput } from "../core/ui.js";
 import { state, loadOverview, patchManyIn } from "../core/store.js";
 import { taskRows, filterRows, bulkPatches, invertPatches, ownersIn, groupRows, periodOptions, GROUPS, STATUS_LABEL } from "../core/tasks-table.js";
-import { todayISO } from "../core/today.js";
+import { todayISO, isSaneDue } from "../core/today.js";
 import { peopleNames, PersonSelect } from "../people.js";
 
 const EMPTY = { q: "", plan: "", stream: [], phase: [], owner: [], status: [], due: "" };
@@ -19,6 +19,15 @@ function Multi({ label, value, options, onChange }) {
       ${value.length ? html`<button type="button" class="linkbtn" onClick=${() => onChange([])}>Tyhjennä</button>` : null}</div></details>`;
 }
 const INHERIT = "__inherit";
+
+// Massamuutoksen päivä otetaan käyttöön vasta painikkeesta, jotta kirjoitus kesken ei muuta valittuja tehtäviä.
+function BulkDate({ disabled, onApply }) {
+  const [v, setV] = useState("");
+  const ok = isSaneDue(v);
+  const go = () => { if (ok) { onApply(v); setV(""); } };
+  return html`<span class="bulkgrp"><input type="date" min="2000-01-01" max="2099-12-31" aria-label="Määräpäivä valituille" disabled=${disabled} value=${v} onInput=${(e) => setV(e.target.value)} onChange=${(e) => setV(e.target.value)} onKeyDown=${(e) => { if (e.key === "Enter") go(); }} />
+    <button type="button" class="barbtn" disabled=${disabled || !ok} onClick=${go}>Aseta päivä</button></span>`;
+}
 
 export function TasksView({ open }) {
   const [f, setF] = useState(() => { const x = ui.taskFilter || {}; ui.taskFilter = null; const m = Object.assign({}, EMPTY, x); ["stream", "phase", "owner", "status"].forEach((k) => { m[k] = Array.isArray(m[k]) ? m[k] : m[k] ? [m[k]] : []; }); return m; });
@@ -71,7 +80,7 @@ export function TasksView({ open }) {
   const periodOf = (v) => [...periods.months, ...periods.quarters].find((p) => p.value === v);
   const PeriodOpts = () => html`<optgroup label="Kuukausi">${periods.months.map((p) => html`<option key=${p.value} value=${p.value}>${p.label}</option>`)}</optgroup>
     <optgroup label="Neljännes">${periods.quarters.map((p) => html`<option key=${"q" + p.value} value=${p.value}>${p.label}</option>`)}</optgroup>`;
-  const PeriodPick = ({ label, onPick, cls, text }) => html`<select class=${"periodsel " + (cls || "")} aria-label=${label} title=${label} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) onPick(v, periodOf(v)); }}><option value="">${text}</option><${PeriodOpts} /></select>`;
+  const PeriodPick = ({ label, onPick, cls, text }) => html`<select class=${"periodsel " + (cls || "")} aria-label=${label} title=${label} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) onPick(v, periodOf(v)); }}><option value="">${text}</option>${PeriodOpts()}</select>`;
   const one = (r, data) => patchManyIn([{ planId: r.plan_id, id: r.id, data }]);
   const dirty = Object.keys(EMPTY).some((k) => (Array.isArray(f[k]) ? f[k].length : f[k]));
 
@@ -92,26 +101,26 @@ export function TasksView({ open }) {
       ${dirty ? html`<button type="button" class="linkbtn" onClick=${() => { setF(Object.assign({}, EMPTY)); setMsg(""); }}>Tyhjennä suodattimet</button>` : null}
     </div>
 
-    ${chosen.length ? html`<div class="bulkbar" role="region" aria-label="Massamuutos">
-      <b>${chosen.length} valittu</b>
-      <select aria-label="Vaihda vastuu" value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) apply({ owner: v === INHERIT ? "" : v }, v === INHERIT ? "vastuu vastuualueen mukaan" : "vastuu " + v); }}><option value="">Vastuu…</option>${names.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}<option value=${INHERIT}>Palauta vastuualueen mukaan</option></select>
-      <select aria-label="Vaihda määräpäivä" value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v === "__clear") apply({ due: "" }, "päivä tyhjennetty"); else if (v) apply({ due: v }, "määräpäivä " + (periodOf(v) || { label: v }).label); }}><option value="">Määräpäivä…</option><option value="__clear">Tyhjennä päivä</option><${PeriodOpts} /></select>
-      <input type="date" aria-label="Tai valitse päivä" title="Tai valitse päivä" value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) apply({ due: v }, "määräpäivä"); }} />
-      <select aria-label="Vaihda tila" value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) apply({ status: v }, "tila " + STATUS_LABEL[v]); }}><option value="">Tila…</option>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>
+    <div class="bulkbar" role="region" aria-label="Massamuutos">
+      <b>${chosen.length ? chosen.length + " valittu" : "Valitse rivit vasemmalta"}</b>
+      <select aria-label="Vaihda vastuu" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) apply({ owner: v === INHERIT ? "" : v }, v === INHERIT ? "vastuu vastuualueen mukaan" : "vastuu " + v); }}><option value="">Vastuu…</option>${names.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}<option value=${INHERIT}>Palauta vastuualueen mukaan</option></select>
+      <select aria-label="Vaihda määräpäivä" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v === "__clear") apply({ due: "" }, "päivä tyhjennetty"); else if (v) apply({ due: v }, "määräpäivä " + (periodOf(v) || { label: v }).label); }}><option value="">Määräpäivä…</option><option value="__clear">Tyhjennä päivä</option>${PeriodOpts()}</select>
+      <${BulkDate} disabled=${!chosen.length} onApply=${(v) => apply({ due: v }, "määräpäivä")} />
+      <select aria-label="Vaihda tila" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) apply({ status: v }, "tila " + STATUS_LABEL[v]); }}><option value="">Tila…</option>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>
       <span class="grow"></span>
-      <button type="button" class="linkbtn" onClick=${() => { setSel(new Set()); setMsg(""); }}>Tyhjennä valinta</button>
-    </div>` : null}
+      ${chosen.length ? html`<button type="button" class="linkbtn" onClick=${() => { setSel(new Set()); setMsg(""); }}>Tyhjennä valinta</button>` : null}
+    </div>
     ${msg ? html`<p class=${"gs" + (/virhe|Ei muutosta/i.test(msg) ? " bad" : "")} role="status">${msg}</p>` : null}
 
     ${shown.length ? html`<div class="gtable-wrap"><table class="gtable sctable taskstable">
       <thead><tr><th class="ckcol"><input type="checkbox" aria-label="Valitse kaikki näkyvät" checked=${allOn} onChange=${() => setSel(allOn ? new Set() : new Set(shown.map((r) => r.key)))} /></th>
         <th>Tehtävä</th>${COLS.map(([k, l]) => (col(k) ? html`<th key=${k}>${l}</th>` : null))}</tr></thead>
-      ${groups.map((g) => html`<tbody key=${"g" + g.key}>${by ? html`<tr class="grouprow"><td class="ckcol"><input type="checkbox" aria-label=${"Valitse ryhmä: " + g.label} checked=${g.rows.every((r) => sel.has(r.key))} onChange=${() => pick(g)} /></td><th colspan=${1 + COLS.filter(([k]) => col(k)).length} scope="colgroup"><span class="grouphead">${g.label} <span class="gs">${g.rows.length} tehtävää${g.rows.filter((r) => r.status === "done").length ? ", " + g.rows.filter((r) => r.status === "done").length + " valmista" : ""}</span>${col("due") ? html`<${PeriodPick} cls="grp" text="Aseta ryhmän määräpäivä…" label=${"Aseta määräpäivä ryhmälle: " + g.label} onPick=${(v, p) => apply({ due: v }, "määräpäivä " + (p ? p.label : v), g.rows)} />` : null}</span></th></tr>` : null}${g.rows.map((r) => { const i = shown.indexOf(r); return html`<tr key=${r.key} class=${sel.has(r.key) ? "picked" : ""}>
+      ${groups.map((g) => html`<tbody key=${"g" + g.key}>${by ? html`<tr class="grouprow"><td class="ckcol"><input type="checkbox" aria-label=${"Valitse ryhmä: " + g.label} checked=${g.rows.every((r) => sel.has(r.key))} onChange=${() => pick(g)} /></td><th colspan=${1 + COLS.filter(([k]) => col(k)).length} scope="colgroup"><span class="grouphead">${g.label} <span class="gs">${g.rows.length} tehtävää${g.rows.filter((r) => r.status === "done").length ? ", " + g.rows.filter((r) => r.status === "done").length + " valmista" : ""}</span>${col("due") ? html`${PeriodPick({ cls: "grp", text: "Aseta ryhmän määräpäivä…", label: "Aseta määräpäivä ryhmälle: " + g.label, onPick: (v, p) => apply({ due: v }, "määräpäivä " + (p ? p.label : v), g.rows) })}` : null}</span></th></tr>` : null}${g.rows.map((r) => { const i = shown.indexOf(r); return html`<tr key=${r.key} class=${sel.has(r.key) ? "picked" : ""}>
         <td class="ckcol"><input type="checkbox" aria-label=${"Valitse: " + (r.title || "tehtävä")} checked=${sel.has(r.key)} onClick=${(e) => toggle(r, i, e)} onChange=${() => {}} /></td>
         <td class="nmtd"><button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(r.plan_id, { id: r.id, kind: "task", parent_id: r.parent_id })}>${r.title || "Nimetön tehtävä"}</button>${state.plans.length > 1 ? html`<span class="tsub">${r.planTitle}</span>` : null}</td>
         ${col("stream") ? html`<td class="gs">${r.streamLabel || "–"}</td>` : null}${col("phase") ? html`<td class="gs">${r.phaseLabel || "–"}</td>` : null}
         ${col("owner") ? html`<td><span title=${r.owner ? "Asetettu tehtävälle" : r.effective ? "Vastuualueelta: " + (r.via || "") : ""}><${PersonSelect} cls=${"personsel" + (!r.owner && r.effective ? " inh" : "")} label=${"Vastuu: " + (r.title || "")} value=${r.owner} empty=${r.inherited || "Ei vastuuhenkilöä"} onPick=${(v) => one(r, { owner: v })} /></span></td>` : null}
-        ${col("due") ? html`<td><input type="date" aria-label=${"Määräpäivä: " + (r.title || "")} value=${r.due} onChange=${(e) => one(r, { due: e.target.value })} /><${PeriodPick} text="Jakso…" label=${"Aseta jakson loppu: " + (r.title || "")} onPick=${(v) => one(r, { due: v })} /></td>` : null}
+        ${col("due") ? html`<td><${DueInput} aria-label=${"Määräpäivä: " + (r.title || "")} value=${r.due} onSave=${(v) => one(r, { due: v })} />${PeriodPick({ text: "Jakso…", label: "Aseta jakson loppu: " + (r.title || ""), onPick: (v) => one(r, { due: v }) })}</td>` : null}
         ${col("status") ? html`<td><select aria-label=${"Tila: " + (r.title || "")} value=${r.status} onChange=${(e) => one(r, { status: e.target.value })}>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></td>` : null}
       </tr>`; })}</tbody>`)}</table></div>` : html`<p class="tclear">Ei tehtäviä näillä suodattimilla.</p>`}
   </div>`;

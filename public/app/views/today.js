@@ -1,6 +1,6 @@
 // Etusivu: kaikkien suunnitelmien myöhässä olevat ja seuraavat tehtävät sekä huomiota vaativat luvut.
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
-import { ui, uiChanged } from "../core/ui.js";
+import { ui, uiChanged, DueInput } from "../core/ui.js";
 import { state, loadOverview, patchIn } from "../core/store.js";
 import { buildToday, todayISO, fmtLong } from "../core/today.js";
 import { PersonSelect } from "../people.js";
@@ -23,7 +23,7 @@ export function Row({ t, open, late }) {
     </div>
     <div class="tfields">
       <label class="tfield"><span>Vastuu</span>${state.role === "member" ? html`<span class="tfixed">${t.owner || ""}</span>` : html`<${PersonSelect} label=${"Vastuu: " + (t.data.title || "")} value=${t.data.owner || ""} empty=${t.inherited || "Ei vastuuhenkilöä"} onPick=${(v) => patchIn(t.plan_id, t.id, { owner: v })} />`}</label>
-      <label class="tfield"><span>Määräpäivä</span><input type="date" value=${t.data.due || ""} aria-label=${"Määräpäivä: " + (t.data.title || "")} onChange=${(e) => patchIn(t.plan_id, t.id, { due: e.target.value })} /></label>
+      <label class="tfield"><span>Määräpäivä</span><${DueInput} value=${t.data.due} aria-label=${"Määräpäivä: " + (t.data.title || "")} onSave=${(v) => patchIn(t.plan_id, t.id, { due: v })} /></label>
     </div>
   </li>`;
 }

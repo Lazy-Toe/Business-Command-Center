@@ -1,6 +1,6 @@
 // Tehtävätaulukon logiikka ilman näkymää: rivien kokoaminen kaikista suunnitelmista, suodatus ja massamuutos.
 // Vastuu on tehtävän oma (owner) tai, jos sitä ei ole, sen vastuualueen omistaja, jonka työvirta on sama (kuten Tänään-näkymässä).
-import { ownerOf } from "./today.js";
+import { ownerOf, isSaneDue } from "./today.js";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 export const STATUS_LABEL = { todo: "Ei aloitettu", doing: "Käynnissä", done: "Valmis" };
@@ -47,7 +47,7 @@ export function filterRows(rows, f = {}, today = "") {
 export function bulkPatches(rows, change) {
   const c = change || {};
   if (c.owner !== undefined && (typeof c.owner !== "string" || c.owner.trim().length > 60)) return { error: "Virheellinen vastuuhenkilö." };
-  if (c.due !== undefined && (typeof c.due !== "string" || (c.due !== "" && !ISO.test(c.due)))) return { error: "Virheellinen määräpäivä." };
+  if (c.due !== undefined && (typeof c.due !== "string" || (c.due !== "" && !isSaneDue(c.due)))) return { error: "Virheellinen määräpäivä." };
   if (c.status !== undefined && !STATUSES.includes(c.status)) return { error: "Virheellinen tila." };
   const want = {};
   if (c.owner !== undefined) want.owner = c.owner.replace(/\s+/g, " ").trim();
