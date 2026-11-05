@@ -2,8 +2,10 @@
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
 import { ui, uiChanged, DueInput } from "../core/ui.js";
 import { state, loadOverview, patchIn } from "../core/store.js";
-import { buildToday, todayISO, fmtLong, fmtDate, inPeriod, byDueFirst, monthGrid, monthLabel, addDays } from "../core/today.js";
+import { buildToday, todayISO, fmtLong, inPeriod, byDueFirst, monthGrid, monthLabel, fmtDue, isWeekDue } from "../core/today.js";
 import { PersonSelect } from "../people.js";
+import { BoardBody } from "../modules/plan.js";
+import { weekBoard, dueForColumn } from "../core/weekboard.js";
 
 const planName = (id) => { const p = state.plans.find((x) => x.id === id); return p ? p.title : ""; };
 
@@ -59,7 +61,7 @@ function TRow({ t, open, today }) {
     <td class="ckcol"><button type="button" class="tcheck" title="Merkitse valmiiksi" aria-label=${"Merkitse valmiiksi: " + (t.data.title || "tehtävä")} onClick=${() => markDone(t)}></button></td>
     <td class="nmtd">${open ? html`<button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(t.plan_id, t)}>${t.data.title || "Nimetön tehtävä"}</button>` : html`<span class="ttitle">${t.data.title || "Nimetön tehtävä"}</span>`}${t.data.status === "doing" ? html`<span class="tsub"> · käynnissä</span>` : null}</td>
     <td>${state.role === "member" ? html`<span class="tfixed">${t.owner || ""}</span>` : html`<${PersonSelect} label=${"Vastuu: " + (t.data.title || "")} value=${t.data.owner || ""} empty="Ei vastuuhenkilöä" onPick=${(v) => patchIn(t.plan_id, t.id, { owner: v })} />`}</td>
-    <td><${DueInput} value=${t.data.due} aria-label=${"Määräpäivä: " + (t.data.title || "")} onSave=${(v) => patchIn(t.plan_id, t.id, { due: v })} /></td>
+    <td><${DueInput} value=${t.data.due} aria-label=${"Määräpäivä: " + (t.data.title || "")} onSave=${(v) => patchIn(t.plan_id, t.id, { due: v })} />${isWeekDue(t.data.due) ? html`<span class="weektag" title="Viikolle sitoutettu: päättyy sunnuntaina">${fmtDue(t.data.due)}</span>` : null}</td>
     <td class="gs">${t.stream ? t.stream.data.label : "–"}</td>
     <td class="gs">${planName(t.plan_id)}</td>
   </tr>`;
@@ -81,13 +83,18 @@ function Calendar({ list, today, open }) {
   </div>`;
 }
 
+// Viikkokalenterin taulun tila säilyy näkymän vaihdon yli.
+const weekFocus = { p: "", ws: "", wide: "", hideDone: true };
+
 export function TodayView({ open }) {
   const [owner, setOwner] = useState("");
   const [plan, setPlanState] = useState(() => lsGet("bcc-today-plan", ""));
   const setPlan = (v) => { setPlanState(v); lsSet("bcc-today-plan", v); };
   const [period, setPeriodState] = useState(() => lsGet("bcc-today-period", "todo"));
   const setPeriod = (v) => { setPeriodState(v); lsSet("bcc-today-period", v); };
-  const [mode, setModeState] = useState(() => lsGet("bcc-today-mode", "list"));
+  const [mode, setModeState] = useState(() => lsGet("bcc-today-mode", "weeks"));
+  const [by, setByState] = useState(() => lsGet("bcc-today-lanes", "owner"));
+  const setBy = (v) => { setByState(v); lsSet("bcc-today-lanes", v); };
   const setMode = (v) => { setModeState(v); lsSet("bcc-today-mode", v); };
   useEffect(() => { state.overviewActive = true; loadOverview(); return () => { state.overviewActive = false; }; }, []);
   const today = todayISO();
@@ -100,6 +107,21 @@ export function TodayView({ open }) {
   const periods = [["todo", "Aikataulutetut"], ["late", "Myöhässä"], ["today", "Tänään"], ["tomorrow", "Huomenna"], ["week", "Tämä viikko"], ["nextweek", "Ensi viikko"],
     ...[0, 1, 2].map((i) => { const k = monthKey(today, i); return ["m:" + k, monthLabel(k).split(" ")[0]]; }), ["none", "Ei päivää"]];
   const shown = all.filter((t) => inPeriod(t, period, today));
+  // Viikkokalenteri: sama taulukomponentti kuin Kokonaisuudessa, sarakkeina viikot. Tehtävän raahaus toiselle viikolle asettaa määräpäiväksi viikon sunnuntain.
+  const move = (key, col) => {
+    const due = dueForColumn(col), t = all.find((x) => x.plan_id + "/" + x.id === key);
+    if (due === null || !t || (t.data.due || "") === due) return;
+    const prev = t.data.due || "";
+    patchIn(t.plan_id, t.id, { due });
+    ui.undo = { label: (t.data.title || "Tehtävä") + ": " + (due ? "siirretty viikolle" : "päivä tyhjennetty"), run: () => patchIn(t.plan_id, t.id, { due: prev }) };
+    uiChanged();
+  };
+  const parts = mode === "weeks" ? Object.assign(weekBoard(all, today, by), {
+    section: null, roles: [], readonly: true, hideEmptyLanes: true, noGates: true, noStatus: true, minCol: 230, focus: weekFocus, onMove: move,
+    hint: "Raahaa tehtävä toiselle viikolle. Klikkaus vaihtaa tilan.",
+    cardTag: (t) => (state.plans.length > 1 ? planName(t.plan_id) + (t.stream ? " · " : "") : "") + (t.stream ? t.stream.data.label : ""),
+    save: (t, d) => patchIn(t.plan_id, t.id, d)
+  }) : null;
   return html`<div class="wrap today">
     <header class="thead">
       <div><p class="eyebrow">Johtamisen keskipiste</p><h1>Tänään</h1><p class="lede">${fmtLong(today)}</p></div>
@@ -111,17 +133,19 @@ export function TodayView({ open }) {
       </div>
     </header>
     <div class="actoolbar">
-      <div class="acviews" role="group" aria-label="Näkymä"><button type="button" class=${mode === "list" ? "on" : ""} aria-pressed=${mode === "list" ? "true" : "false"} onClick=${() => setMode("list")}>Lista</button><button type="button" class=${mode === "cal" ? "on" : ""} aria-pressed=${mode === "cal" ? "true" : "false"} onClick=${() => setMode("cal")}>Kalenteri</button></div>
+      <div class="acviews" role="group" aria-label="Näkymä"><button type="button" class=${mode === "weeks" ? "on" : ""} aria-pressed=${mode === "weeks" ? "true" : "false"} onClick=${() => setMode("weeks")}>Viikot</button><button type="button" class=${mode === "list" ? "on" : ""} aria-pressed=${mode === "list" ? "true" : "false"} onClick=${() => setMode("list")}>Lista</button><button type="button" class=${mode === "cal" ? "on" : ""} aria-pressed=${mode === "cal" ? "true" : "false"} onClick=${() => setMode("cal")}>Kalenteri</button></div>
       <span class="grow"></span>
-      <b class="account">${mode === "list" ? shown.length : all.filter((t) => t.data.due).length} tehtävää</b>
+      <b class="account">${mode === "list" ? shown.length : mode === "weeks" ? all.length : all.filter((t) => t.data.due).length} tehtävää</b>
+      ${mode === "weeks" ? html`<label class="gyear">Rivit <select value=${by} onChange=${(e) => setBy(e.target.value)}><option value="owner">Henkilöt</option><option value="stream">Työvirrat</option></select></label>` : null}
       <label class="gyear">Vastuu <select value=${owner} onChange=${(e) => setOwner(e.target.value)}><option value="">Kaikki</option>${R.owners.map((o) => html`<option key=${o} value=${o}>${o}</option>`)}</select></label>
       ${state.plans.length > 1 ? html`<label class="gyear">Suunnitelma <select value=${planOk ? plan : ""} onChange=${(e) => setPlan(e.target.value)}><option value="">Kaikki</option>${state.plans.map((p) => html`<option key=${p.id} value=${p.id}>${p.title}</option>`)}</select></label>` : null}
       ${state.overviewError ? html`<span class="savestate bad">${state.overviewError}</span>` : null}
     </div>
     ${mode === "list" ? html`<div class="acperiods" role="group" aria-label="Jakso">${periods.map(([k, l]) => html`<button type="button" key=${k} class=${period === k ? "on" : ""} aria-pressed=${period === k ? "true" : "false"} onClick=${() => setPeriod(k)}>${l} <span class="num">${count(k)}</span></button>`)}</div>` : null}
-    <div class="tgrid">
+    <div class=${"tgrid" + (mode === "weeks" ? " full" : "")}>
       <div class="tcol-main">
-        ${mode === "cal" ? html`<${Calendar} list=${all} today=${today} open=${open} />`
+        ${mode === "weeks" ? (all.length ? html`<${BoardBody} parts=${parts} />` : html`<p class="tclear">Ei avoimia tehtäviä.</p>`)
+          : mode === "cal" ? html`<${Calendar} list=${all} today=${today} open=${open} />`
           : shown.length ? html`<div class="gtable-wrap"><table class="gtable sctable taskstable actable"><thead><tr><th class="ckcol"></th><th>Tehtävä</th><th>Vastuu</th><th>Määräpäivä ↑</th><th>Työvirta</th><th>Suunnitelma</th></tr></thead>
             <tbody>${shown.map((t) => html`<${TRow} key=${t.plan_id + t.id} t=${t} open=${open} today=${today} />`)}</tbody></table></div>`
           : html`<p class="tclear">${all.length ? "Ei tehtäviä tällä valinnalla." : "Ei avoimia tehtäviä."}</p>`}

@@ -2,7 +2,7 @@ import { html, Text, Tools, AddButton, ui, dragProps, dropProps, pressable, mq, 
 import { register } from "../core/registry.js";
 import { children, findSection, patch, add, moveBefore, nextPosition, shift } from "../core/store.js";
 import { useState } from "../../vendor/htm-preact.js";
-import { fmtDate, isLate, todayISO, suggestedOwner } from "../core/today.js";
+import { fmtDue, isLate, todayISO, suggestedOwner } from "../core/today.js";
 import { PersonSelect } from "../people.js";
 import { visibleTasks, visibleStreams } from "../core/myboard.js";
 
@@ -78,12 +78,12 @@ export function Task({ task, list, parts, withTag }) {
   const cycle = () => saveTask(parts, task, { status: NEXT[st] });
   const dim = (f.p && task.data.phase !== f.p) || (f.ws && task.data.stream !== f.ws);
   const work = ed ? {} : Object.assign(pressable(cycle), { title: LABEL[st] + " · klikkaa vaihtaaksesi", "aria-label": task.data.title + ": " + LABEL[st] });
-  return html`<div data-item=${task.id} class=${"item s-" + st + (ed ? " edit" : " clickable")} style=${{ "--c": wsColor(stream) }} ...${work} ...${ed ? dragProps(task, "task") : {}}
+  return html`<div data-item=${task.id} class=${"item s-" + st + (ed ? " edit" : " clickable")} style=${{ "--c": wsColor(stream) }} ...${work} ...${ed ? dragProps(task, "task") : moveDrag(parts, task)}
     ...${ed ? dropProps("task", (id) => { if (id !== task.id) moveBefore(id, task.id, parts.tasks.filter((t) => t.data.phase === task.data.phase && t.data.stream === task.data.stream), { phase: task.data.phase, stream: task.data.stream }); }) : {}}>
-    ${withTag ? html`<span class="mtag">${stream ? stream.data.label : ""}</span>` : null}
+    ${withTag || parts.cardTag ? html`<span class="mtag">${parts.cardTag ? parts.cardTag(task) : stream ? stream.data.label : ""}</span>` : null}
     <${Text} item=${task} field="title" tag="p" cls="it" ph="Tehtävä" mode=${mode} />
     <${Text} item=${task} field="detail" tag="p" cls="io" ph="Tarkennus" mode=${mode} />
-    ${task.data.due || task.data.owner ? html`<span class="taskinfo">${task.data.due ? html`<span class=${"duechip" + (late ? " late" : "")}>${late ? "Myöhässä · " : ""}${fmtDate(task.data.due)}</span>` : null}${task.data.owner ? html`<span class="ownerchip">${task.data.owner}</span>` : null}</span>` : null}
+    ${task.data.due || task.data.owner ? html`<span class="taskinfo">${task.data.due ? html`<span class=${"duechip" + (late ? " late" : "")}>${late ? "Myöhässä · " : ""}${fmtDue(task.data.due)}</span>` : null}${task.data.owner ? html`<span class="ownerchip">${task.data.owner}</span>` : null}</span>` : null}
     <button type="button" class=${"dbtn" + (task.data.due ? " has" : "")} title="Määräpäivä ja vastuuhenkilö" aria-label="Määräpäivä ja vastuuhenkilö" aria-expanded=${meta ? "true" : "false"} onClick=${(e) => { e.stopPropagation(); setMeta(!meta); }}>${CAL_ICON}</button>
     ${meta ? html`<${TaskMeta} task=${task} parts=${parts} />` : null}
     ${!noting ? html`<button type="button" class=${"nbtn" + (task.data.note ? " has" : "")} title=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} aria-label=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} onClick=${(e) => { e.stopPropagation(); setNoting(true); }}>${NOTE_ICON}</button>` : null}
@@ -98,6 +98,19 @@ export function Task({ task, list, parts, withTag }) {
 
 // Uuden tehtävän vastuuhenkilöksi esitäytetään saman työvirran vastuualueen omistaja. Se on tavallinen valinta, jonka voi vaihtaa tai tyhjentää.
 function newTask(parts, phase, stream) { add("task", parts.section.id, { title: "", detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, parts.roles) }); }
+// Raahaus sarakkeiden välillä ilman muokkaustilaa (parts.onMove(avain, sarake, rivi)): käytössä Tänään-viikkokalenterissa, jossa sarake on viikko.
+let moving = null;
+const taskKey = (t) => (t.plan_id || "") + "/" + t.id;
+const moveDrag = (parts, task) => (parts.onMove && !ui.edit ? {
+  draggable: true,
+  onDragStart: (e) => { moving = taskKey(task); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", moving); },
+  onDragEnd: () => { moving = null; }
+} : {});
+const moveDrop = (parts, col, lane) => (parts.onMove && !ui.edit ? {
+  onDragOver: (e) => { if (moving) { e.preventDefault(); e.currentTarget.classList.add("dropover"); } },
+  onDragLeave: (e) => e.currentTarget.classList.remove("dropover"),
+  onDrop: (e) => { e.currentTarget.classList.remove("dropover"); if (!moving) return; e.preventDefault(); const k = moving; moving = null; parts.onMove(k, col, lane); }
+} : {});
 const cellDrop = (parts, phase, stream) => dropProps("task", (id) => moveBefore(id, null, parts.tasks.filter((t) => t.data.phase === phase && t.data.stream === stream), { phase, stream }));
 
 function GateCell({ ph, dim, parts, onPick }) {
@@ -132,7 +145,7 @@ function StreamHead({ w, parts }) {
       const lst = parts.tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id);
       if (!lst.length) return null;
       const dn = lst.reduce((a, t) => a + (t.data.status === "done" ? 1 : t.data.status === "doing" ? 0.5 : 0), 0), pc = Math.round(100 * dn / lst.length);
-      return html`<span key=${ph.id} class=${"rpl" + (pc === 100 ? " full" : "")}><span class="rpd">${(ph.data.label || "").replace(/^[^\d]*/, "")}</span><span class="rpb"><i style=${{ width: pc + "%" }}></i></span><span class="rpp">${pc} %</span></span>`;
+      return html`<span key=${ph.id} class=${"rpl" + (pc === 100 ? " full" : "")}><span class="rpd">${ph.data.short || (ph.data.label || "").replace(/^[^\d]*/, "")}</span><span class="rpb"><i style=${{ width: pc + "%" }}></i></span><span class="rpp">${pc} %</span></span>`;
     })}</span></span>
     ${ed ? html`<${Tools} item=${w} list=${parts.streams} label=${w.data.label} />` : null}
   </${Tag}>`;
@@ -156,13 +169,13 @@ function Wide({ parts, idx }) {
         return [
           html`<${StreamHead} key=${w.id} w=${w} parts=${parts} />`,
           html`<div key=${w.id + "w"} class=${"cell wide" + (dim ? " dim" : "")} ...${ed ? cellDrop(parts, ph.id, w.id) : {}}>
-            ${list.map((t) => html`<${Task} key=${t.id} task=${t} list=${list} parts=${parts} />`)}
+            ${list.map((t) => html`<${Task} key=${(t.plan_id || "") + t.id} task=${t} list=${list} parts=${parts} />`)}
             ${ed ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />` : null}
           </div>`
         ];
       })}
-      <div class="gl"><i class="diamond"></i>Päätösportti</div>
-      <${GateCell} ph=${ph} dim=${false} parts=${parts} />
+      ${parts.noGates ? null : html`<div class="gl"><i class="diamond"></i>Päätösportti</div>
+      <${GateCell} ph=${ph} dim=${false} parts=${parts} />`}
     </div></div>`;
 }
 
@@ -171,7 +184,7 @@ function Desktop({ parts }) {
   const wideIdx = f.wide ? phases.findIndex((p) => p.id === f.wide) : -1;
   if (wideIdx >= 0) return html`<${Wide} parts=${parts} idx=${wideIdx} />`;
   const tasks = visibleTasks(parts.tasks, f.hideDone), lanes = visibleStreams(streams, tasks, parts.hideEmptyLanes);
-  return html`<div class="matrix" style=${{ gridTemplateColumns: "210px repeat(" + Math.max(phases.length, 1) + ", minmax(0, 1fr))" }}>
+  return html`<div class="matrix" style=${{ gridTemplateColumns: "210px repeat(" + Math.max(phases.length, 1) + ", minmax(" + (parts.minCol || 0) + "px, 1fr))", minWidth: parts.minCol ? 210 + phases.length * parts.minCol + "px" : undefined }}>
     <div class="corner"></div>
     ${phases.map((ph, i) => html`<${PhaseHead} key=${ph.id} ph=${ph} i=${i} n=${phases.length} parts=${parts} />`)}
     ${lanes.map((w) => [
@@ -179,14 +192,14 @@ function Desktop({ parts }) {
       ...phases.map((ph) => {
         const list = tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id);
         const dim = (f.p && f.p !== ph.id) || (f.ws && f.ws !== w.id);
-        return html`<div key=${w.id + ph.id} class=${"cell" + (dim ? " dim" : "") + (ed ? "" : " pick")} onClick=${pickPhase(parts, ph)} ...${ed ? cellDrop(parts, ph.id, w.id) : {}}>
-          ${list.map((t) => html`<${Task} key=${t.id} task=${t} list=${list} parts=${parts} />`)}
+        return html`<div key=${w.id + ph.id} class=${"cell" + (dim ? " dim" : "") + (ed ? "" : " pick")} onClick=${pickPhase(parts, ph)} ...${ed ? cellDrop(parts, ph.id, w.id) : moveDrop(parts, ph.id, w.id)}>
+          ${list.map((t) => html`<${Task} key=${t.plan_id + t.id} task=${t} list=${list} parts=${parts} />`)}
           ${ed ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />` : null}
         </div>`;
       })
     ])}
-    <div class="gl"><i class="diamond"></i>Päätösportti</div>
-    ${phases.map((ph) => html`<${GateCell} key=${ph.id} ph=${ph} dim=${f.p && f.p !== ph.id} parts=${parts} onPick=${pickPhase(parts, ph)} />`)}
+    ${parts.noGates ? null : html`<div class="gl"><i class="diamond"></i>Päätösportti</div>
+    ${phases.map((ph) => html`<${GateCell} key=${ph.id} ph=${ph} dim=${f.p && f.p !== ph.id} parts=${parts} onPick=${pickPhase(parts, ph)} />`)}`}
   </div>`;
 }
 
@@ -196,7 +209,7 @@ function Mobile({ parts }) {
     const list = tasks.filter((t) => t.data.phase === ph.id);
     return html`<div key=${ph.id} class=${"mphase" + (f.p && f.p !== ph.id ? " dim" : "")}>
       <${PhaseHead} ph=${ph} i=${i} n=${parts.phases.length} parts=${parts} />
-      <div class="mlist">${list.map((t) => html`<${Task} key=${t.id} task=${t} list=${list} parts=${parts} withTag=${true} />`)}
+      <div class="mlist">${list.map((t) => html`<${Task} key=${(t.plan_id || "") + t.id} task=${t} list=${list} parts=${parts} withTag=${true} />`)}
         ${ed && parts.streams[0] ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, parts.streams[0].id)} cls="small" />` : null}</div>
       <${GateCell} ph=${ph} parts=${parts} />
     </div>`;
@@ -221,9 +234,9 @@ export function BoardBody({ parts, section }) {
       ${ed && section ? html`<${AddButton} label="Työvirta" cls="small" onAdd=${() => add("stream", section.id, { label: "Uusi työvirta", color: COLORS[parts.streams.length % COLORS.length] })} />
       <${AddButton} label="Vaihe" cls="small" onAdd=${() => add("phase", section.id, { label: "AJANJAKSO", title: "Uusi vaihe", note: "", weight: 30, gateTitle: "", gateText: "" })} />` : null}
     </div>
-    <div class="statusbar"><span class="tot num">${done} / ${parts.tasks.length} valmis · ${doing} käynnissä</span>
-      ${section ? html`<${Text} item=${section} field="hint" cls="save" ph="Ohje" />` : html`<span class="save">${hint}</span>`}</div>
-    <div class="matrix-wrap">${small ? html`<${Mobile} parts=${parts} />` : html`<${Desktop} parts=${parts} />`}</div>`;
+    <div class="statusbar">${parts.noStatus ? null : html`<span class="tot num">${done} / ${parts.tasks.length} valmis · ${doing} käynnissä</span>`}
+      ${section ? html`<${Text} item=${section} field="hint" cls="save" ph="Ohje" />` : html`<span class="save">${parts.hint || hint}</span>`}</div>
+    <div class="matrix-wrap" style=${parts.minCol ? { overflowX: "auto" } : undefined}>${small ? html`<${Mobile} parts=${parts} />` : html`<${Desktop} parts=${parts} />`}</div>`;
 }
 
 function View({ section }) {
