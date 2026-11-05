@@ -2,6 +2,14 @@
 import { buildToday } from "./today.js";
 import { rowsFor, freeRows, orderDefs } from "./scorecard.js";
 
+// Arvaa henkilön kirjautumisosoitteesta: nimen on löydyttävä osoitteen alkuosasta (makela.mika -> Mika). Vain yksiselitteinen osuma kelpaa.
+const plain = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+export function guessPerson(email, names) {
+  const parts = plain(email).split("@")[0].split(/[^a-z0-9]+/).filter(Boolean);
+  const hits = (names || []).filter((n) => { const w = plain(n).split(/\s+/).filter(Boolean); return w.length && w.every((x) => parts.includes(x)); });
+  return hits.length === 1 ? hits[0] : "";
+}
+
 const same = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
 
 // items: rivejä kaikista suunnitelmista ({ plan_id, id, kind, parent_id, position, data }).
