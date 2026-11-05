@@ -4,35 +4,50 @@ import { addDays, weekEnd, weekNumber, weekSpan, hasDue } from "./today.js";
 
 const COLORS = ["kate", "tekno", "kanava", "bc", "ihmiset", "myynti"];
 
-// Sarakkeet: late, w:<viikon sunnuntai> (weeks kpl), later, none.
-export function weekColumns(today, weeks = 5) {
-  const first = weekEnd(today), cols = [{ id: "late", data: { label: "", short: "!", title: "Myöhässä" } }];
-  for (let i = 0; i < weeks; i++) {
+const MONTHS = ["Tammikuu", "Helmikuu", "Maaliskuu", "Huhtikuu", "Toukokuu", "Kesäkuu", "Heinäkuu", "Elokuu", "Syyskuu", "Lokakuu", "Marraskuu", "Joulukuu"];
+const lastOfMonth = (key) => { const [y, m] = key.split("-").map(Number); return key + "-" + String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0"); };
+
+// Sarakkeet tehtävien mukaan, jotta mikään tehtävä ei jää näkymättömiin: Myöhässä (vain jos tehtäviä), tämä, ensi ja sitä seuraava viikko aina,
+// muut viikot kahdeksan viikon sisällä vain jos niillä on tehtäviä, sen jälkeen kuukausi kullekin kuukaudelle, jossa on tehtäviä, ja lopuksi Ei päivää.
+export function weekColumns(today, tasks = [], weeks = 3, horizon = 8) {
+  const first = weekEnd(today), lastWeek = addDays(first, 7 * (horizon - 1)), cols = [];
+  const dues = tasks.filter(hasDue).map((t) => t.data.due);
+  if (dues.some((d) => d < today)) cols.push({ id: "late", data: { label: "", short: "!", title: "Myöhässä" } });
+  const occupied = new Set(dues.filter((d) => d >= today && d <= lastWeek).map((d) => weekEnd(d)));
+  for (let i = 0; i < horizon; i++) {
     const end = addDays(first, 7 * i), n = weekNumber(end);
+    if (i >= weeks && !occupied.has(end)) continue;
     cols.push({ id: "w:" + end, data: { label: "VKO " + n + " · " + weekSpan(end), short: String(n), title: i === 0 ? "Tämä viikko" : i === 1 ? "Ensi viikko" : "Viikko " + n } });
   }
-  cols.push({ id: "later", data: { label: "", short: "»", title: "Myöhemmin" } }, { id: "none", data: { label: "", short: "–", title: "Ei päivää" } });
+  [...new Set(dues.filter((d) => d > lastWeek).map((d) => d.slice(0, 7)))].sort().forEach((k) => {
+    cols.push({ id: "m:" + k, data: { label: "", short: MONTHS[Number(k.slice(5)) - 1].slice(0, 3), title: MONTHS[Number(k.slice(5)) - 1] + " " + k.slice(0, 4) } });
+  });
+  cols.push({ id: "none", data: { label: "", short: "–", title: "Ei päivää" } });
   return cols;
 }
 
-// Mihin sarakkeeseen tehtävä kuuluu. Menneet päivät (ennen tätä päivää) ovat myöhässä, muuten määräpäivän viikko.
+// Mihin sarakkeeseen tehtävä kuuluu. Menneet päivät (ennen tätä päivää) ovat myöhässä, muuten määräpäivän viikko tai, kaukana, määräpäivän kuukausi.
 export function columnOf(task, today, cols) {
   if (!hasDue(task)) return "none";
   const due = task.data.due;
   if (due < today) return "late";
-  const id = "w:" + weekEnd(due);
-  return cols.some((c) => c.id === id) ? id : "later";
+  const week = "w:" + weekEnd(due);
+  if (cols.some((c) => c.id === week)) return week;
+  return "m:" + due.slice(0, 7);
 }
 
-// Uusi määräpäivä, kun tehtävä raahataan sarakkeeseen. null = siirto ei ole sallittu (Myöhässä ja Myöhemmin eivät ole kohteita).
+// Uusi määräpäivä, kun tehtävä raahataan sarakkeeseen: viikko antaa viikon sunnuntain, kuukausi kuukauden viimeisen päivän ja Ei päivää tyhjentää.
+// null = siirto ei ole sallittu (Myöhässä ei ole kohde).
 export function dueForColumn(colId) {
   if (colId === "none") return "";
-  return colId.startsWith("w:") ? colId.slice(2) : null;
+  if (colId.startsWith("w:")) return colId.slice(2);
+  if (colId.startsWith("m:")) return lastOfMonth(colId.slice(2));
+  return null;
 }
 
 // tasks: tehtävärivit ({ plan_id, id, data, owner, stream }), by: "owner" | "stream".
-export function weekBoard(tasks, today, by = "owner", weeks = 5) {
-  const cols = weekColumns(today, weeks), lanes = new Map();
+export function weekBoard(tasks, today, by = "owner") {
+  const cols = weekColumns(today, tasks), lanes = new Map();
   const laneOf = (t) => {
     const key = by === "stream" ? (t.stream && t.stream.data.label) || "" : String(t.owner || "").trim();
     if (!lanes.has(key)) lanes.set(key, { id: key, data: { label: key || (by === "stream" ? "Ei työvirtaa" : "Ei vastuuhenkilöä"), color: by === "stream" && t.stream ? t.stream.data.color || "ihmiset" : COLORS[lanes.size % COLORS.length] } });
