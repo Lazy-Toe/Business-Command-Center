@@ -756,3 +756,8 @@ body.has-rail { padding-left: 62px; }
 .pp.inline { display: block; }
 .pp.ownersel, .pp.whosel { border: none; padding: 0; background: none; }
 .eyebrow .pp > summary { text-transform: none; letter-spacing: 0; }
+.streamchecks { display: flex; flex-direction: column; gap: 3px; min-width: 150px; font-weight: 400; }
+.gyear .streamchecks { flex-direction: row; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.streamchecks .rolechk input { width: auto; flex: none; margin: 0; min-height: 0; }
+.streamchecks .rolechk { justify-content: flex-start; white-space: nowrap; }
+.taskspage .gtable-wrap { overflow: visible; }

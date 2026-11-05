@@ -1,8 +1,7 @@
 // Asetukset: yhteiset tavoitteet ja mittarimallit. Malli kuuluu työvirtaan, ja saman työvirran vastuualueille tavoite tulee automaattisesti.
 import { html, useState } from "../../vendor/htm-preact.js";
 import { Text, Tools, AddButton, Input, ui, uiChanged, useEscape } from "../core/ui.js";
-import { PersonSelect } from "../people.js";
-import { Multi } from "../multi.js";
+import { PersonSelect, StreamChecks } from "../people.js";
 import { roleStreams, hasStream, streamsPatch } from "../core/streams.js";
 import { state, all, children, add, patch, remove } from "../core/store.js";
 import { compile, DEFAULT_FORMULA, FORMULA_PRESETS, FUNCTION_NAMES } from "../core/formula.js";
@@ -127,7 +126,7 @@ function RolesSettings() {
         return html`<tr key=${r.id}>
           <td><b>${r.data.title || "Nimetön"}</b></td>
           <td><${PersonSelect} inline=${true} canAdd=${true} label=${"Vastuuhenkilö: " + (r.data.title || "")} value=${r.data.owner || ""} onPick=${(v) => change(r, "owner", v, "vastuuhenkilö")} /></td>
-          <td><${Multi} join=${true} none="Ei työvirtaa" label="" value=${own} options=${streamsOf().map((x) => [x.id, x.data.label])} onChange=${(list) => changeStreams(r, list)} /></td>
+          <td><${StreamChecks} label=${"Työvirrat: " + (r.data.title || "")} streams=${streamsOf()} value=${own} onChange=${(list) => changeStreams(r, list)} /></td>
           <td class="num">${n}</td>
           <td class="gs ${!own.length || dup.length ? "warn" : ""}">${!own.length ? "Ei työvirtaa: mittarit eivät tule automaattisesti" : dup.length ? "Jaettu työvirta: " + dup.map((x) => x.data.title || "Vastuualue").join(", ") : ""}</td></tr>`;
         })}</tbody></table></div>` : html`<p class="gs">Suunnitelmassa ei ole vastuualueita. Lisää ne Kokonaisuus-näkymässä.</p>`}
