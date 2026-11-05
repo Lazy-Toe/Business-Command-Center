@@ -131,7 +131,7 @@ export function periodOptions(today) {
   const q0 = Math.floor((m0 - 1) / 3);
   for (let i = 0; i < 6; i++) {
     const t = y0 * 4 + q0 + i, y = Math.floor(t / 4), q = (t % 4) + 1, iso = endISO(y, q * 3);
-    quarters.push({ value: iso, label: "Q" + q + " " + y + " (" + fi(iso) + ")" });
+    quarters.push({ value: iso, label: "Q" + q + " " + String(y).slice(2) + " (" + fi(iso) + ")" });
   }
   return { months, quarters };
 }

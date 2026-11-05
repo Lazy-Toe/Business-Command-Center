@@ -28,7 +28,7 @@ function FieldMenu({ field, title, rows, scope, names, periods, apply, applyPatc
       ${field === "due" ? html`<p class="bm-h">Kuukauden loppu</p>
         <div class="bm-grid months">${periods.months.slice(1, 7).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Neljänneksen loppu</p>
-        <div class="bm-grid">${periods.quarters.slice(0, 3).map((p) => html`<button type="button" key=${"q" + p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
+        <div class="bm-grid months">${periods.quarters.slice(0, 3).map((p) => html`<button type="button" key=${"q" + p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Muu päivä</p>
         <${BulkDate} onApply=${(v) => apply({ due: v }, "määräpäivä", rows)} />
         <button type="button" class="bm-btn wide quiet" onClick=${go({ due: "" }, "päivä tyhjennetty")}>Tyhjennä päivä</button>` : null}
