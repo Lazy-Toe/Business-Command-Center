@@ -27,7 +27,7 @@ function Card({ t, planId, color, tag, member }) {
 
 function Board({ b, title, open, member }) {
   const small = mq("(max-width: 900px)");
-  const [focus, setFocus] = useState(b.focus);
+  const [focus, setFocus] = useState(""); // ei oletushimmennystä: kaikki vaiheet ovat heti käytettävissä
   // wide: vaihe, joka on avattu koko taulun leveydelle (tietokoneella). Pienellä näytöllä vaiheen otsikko vain korostaa vaihetta.
   const [wide, setWide] = useState("");
   const toggle = (id) => (small ? setFocus((f) => (f === id ? "" : id)) : setWide((w) => (w === id ? "" : id)));
