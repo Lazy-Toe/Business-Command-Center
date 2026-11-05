@@ -37,6 +37,58 @@ export function suggestedOwner(stream, roles) {
   return r && r.data.owner ? r.data.owner : "";
 }
 
+const MONTH_NAMES = ["tammikuu", "helmikuu", "maaliskuu", "huhtikuu", "toukokuu", "kesäkuu", "heinäkuu", "elokuu", "syyskuu", "lokakuu", "marraskuu", "joulukuu"];
+// "2026-11" -> "Marraskuu 2026"
+export const monthLabel = (key) => { const n = MONTH_NAMES[Number(key.slice(5, 7)) - 1] || ""; return n.charAt(0).toUpperCase() + n.slice(1) + " " + key.slice(0, 4); };
+
+// Tänään-näkymän kuukausijako: kuluva kuukausi ja count-1 seuraavaa ovat aina mukana, vaikka kuukaudessa ei olisi tehtäviä.
+// dated: tehtävät, joilla on määräpäivä tänään jälkeen (tänään ja myöhässä olevat näytetään omissa ryhmissään). beyond: tehtävät viimeisen kuukauden jälkeen.
+export function monthBuckets(dated, today, count = 6) {
+  const [y, m] = today.slice(0, 7).split("-").map(Number), nowKey = today.slice(0, 7), keys = [];
+  for (let i = 0; i < count; i++) { const t = y * 12 + (m - 1) + i; keys.push(Math.floor(t / 12) + "-" + String((t % 12) + 1).padStart(2, "0")); }
+  const sorted = dated.slice().sort((a, b) => (a.data.due < b.data.due ? -1 : a.data.due > b.data.due ? 1 : 0));
+  return {
+    months: keys.map((k) => ({ key: k, label: monthLabel(k), current: k === nowKey, list: sorted.filter((t) => t.data.due.slice(0, 7) === k) })),
+    beyond: sorted.filter((t) => t.data.due.slice(0, 7) > keys[keys.length - 1])
+  };
+}
+
+// Viikko maanantaista sunnuntaihin. offset 0 = tämä viikko, 1 = ensi viikko.
+export function weekRange(today, offset = 0) {
+  const [y, m, d] = today.split("-").map(Number), dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
+  const start = addDays(today, -dow + 7 * offset);
+  return [start, addDays(start, 6)];
+}
+
+// Tänään-näkymän jaksovalinnat (kuten Pipedriven Activities): avain -> sopiiko tehtävä. Kuukausi on "m:VVVV-KK".
+export function inPeriod(t, key, today) {
+  const due = hasDue(t) ? t.data.due : "";
+  if (key === "none") return !due;
+  if (!due) return false;
+  if (key === "todo" || !key) return true;
+  if (key === "late") return due < today;
+  if (key === "today") return due === today;
+  if (key === "tomorrow") return due === addDays(today, 1);
+  if (key === "week" || key === "nextweek") { const [a, b] = weekRange(today, key === "week" ? 0 : 1); return due >= a && due <= b; }
+  if (key.startsWith("m:")) return due.slice(0, 7) === key.slice(2);
+  return true;
+}
+// Päivän mukaan, päivättömät viimeisenä.
+export const byDueFirst = (a, b) => (hasDue(a) ? (hasDue(b) ? (a.data.due < b.data.due ? -1 : a.data.due > b.data.due ? 1 : 0) : -1) : hasDue(b) ? 1 : 0);
+
+// Kuukausinäkymä: viikot maanantaista alkaen, jokaisessa päivässä sen päivän tehtävät.
+export function monthGrid(tasks, year, month) {
+  const first = year + "-" + String(month).padStart(2, "0") + "-01", dow = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
+  let cur = addDays(first, -dow);
+  const weeks = [];
+  do {
+    const days = [];
+    for (let i = 0; i < 7; i++, cur = addDays(cur, 1)) days.push({ date: cur, inMonth: cur.slice(0, 7) === first.slice(0, 7), tasks: tasks.filter((t) => hasDue(t) && t.data.due === cur) });
+    weeks.push(days);
+  } while (cur.slice(0, 7) === first.slice(0, 7) && weeks.length < 6);
+  return weeks;
+}
+
 const byDue = (a, b) => (a.data.due < b.data.due ? -1 : a.data.due > b.data.due ? 1 : 0);
 
 // items: rivejä kaikista suunnitelmista ({ plan_id, id, kind, parent_id, data }).
