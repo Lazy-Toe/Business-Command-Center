@@ -2,6 +2,7 @@
 // Katalogi: yhteinen tavoite (kind goal) -> mittarimalli (kind metricdef). Roolin rivit (kind metric) viittaavat malliin kentällä def.
 // Malli kuuluu työvirtaan, ja saman työvirran vastuualueille tavoite tulee automaattisesti, vaikka riviä ei ole vielä tallennettu.
 import { compile, DEFAULT_FORMULA } from "./formula.js";
+import { hasStream } from "./streams.js";
 
 export const LOCKABLE = ["target", "min", "max", "weight", "start", "end"];
 
@@ -43,7 +44,7 @@ export function orderDefs(goals, defs) {
 }
 
 // Malli tulee roolille automaattisesti, jos sillä on sama työvirta tai malli on annettu suoraan roolille (def.data.roles on roolien tunnisteet).
-const byStream = (def, role) => !!role.data.stream && def.data.stream === role.data.stream;
+const byStream = (def, role) => hasStream(role, def.data.stream);
 const byRole = (def, role) => Array.isArray(def.data.roles) && def.data.roles.includes(role.id);
 export const assignedTo = (def, role) => byStream(def, role) || byRole(def, role);
 
@@ -56,6 +57,24 @@ export function recipientsOf(def, roles, metricRows) {
     return (metricRows || []).some((m) => m.data.def === def.id && m.parent_id === role.id) ? { role, via: "manual" } : null;
   }).filter(Boolean);
 }
+
+// Muokkauksen valinta (picked = valittujen roolien tunnisteet) tallennusmuotoon. Työvirran kautta tuleva rooli on oletuksena valittu: poisto
+// piilottaa mallin roolilta (role.hide), ja valinnan palautus poistaa piilotuksen. Muut valitut roolit tallentuvat mallin roles-kenttään.
+// Palauttaa { roles: [tunnisteet], hide: [{ id, hide: [...] }] } vain roolille, jonka piilotuslista muuttuu.
+export function roleSelection(def, roles, picked) {
+  const want = new Set(picked), out = { roles: [], hide: [] };
+  roles.forEach((role) => {
+    const cur = role.data.hide || [], hidden = cur.includes(def.id);
+    if (byStream(def, role)) {
+      if (!want.has(role.id) && !hidden) out.hide.push({ id: role.id, hide: cur.concat(def.id) });
+      else if (want.has(role.id) && hidden) out.hide.push({ id: role.id, hide: cur.filter((x) => x !== def.id) });
+    } else if (want.has(role.id)) out.roles.push(role.id);
+  });
+  return out;
+}
+
+// Valittu alkutilassa: työvirran kautta tulevat (ellei piilotettu), suoraan annetut ja käsin lisätyt.
+export const initialPicked = (def, roles, metricRows) => recipientsOf(def, roles, metricRows).map((x) => x.role.id);
 
 // Roolin tavoiterivit: kaikki mallit, jotka tulevat roolille automaattisesti, sekä erikseen lisätyt (rivi viittaa malliin).
 // Piilotettu malli (role.data.hide) ei näy kummassakaan tapauksessa. Tallentamaton rivi on virtuaalinen, ja sen tunniste on kiinteä.

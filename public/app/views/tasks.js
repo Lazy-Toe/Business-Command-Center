@@ -5,29 +5,12 @@ import { state, loadOverview, patchManyIn } from "../core/store.js";
 import { taskRows, filterRows, bulkPatches, invertPatches, suggestPatches, ownersIn, groupRows, periodOptions, GROUPS, STATUS_LABEL } from "../core/tasks-table.js";
 import { todayISO, isSaneDue } from "../core/today.js";
 import { peopleNames, PersonSelect } from "../people.js";
+import { Multi } from "../multi.js";
 
 const EMPTY = { q: "", plan: "", stream: [], phase: [], owner: [], status: [], due: "" };
 const COLS = [["stream", "Työvirta"], ["phase", "Vaihe"], ["owner", "Vastuu"], ["due", "Määräpäivä"], ["status", "Tila"]];
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* ei pakollinen */ } };
-
-// Monivalinta: avautuva lista valintaruuduilla. Tyhjä valinta tarkoittaa kaikki.
-function Multi({ label, value, options, onChange }) {
-  const on = new Set(value), txt = !value.length ? "Kaikki" : value.length === 1 ? (options.find(([k]) => k === value[0]) || [0, value[0]])[1] : value.length + " valittu";
-  return html`<details class="multi"><summary><span class="gs">${label}</span> ${txt}</summary>
-    <div class="multibox">${options.map(([k, l]) => html`<label key=${k}><input type="checkbox" checked=${on.has(k)} onChange=${(e) => onChange(e.target.checked ? value.concat(k) : value.filter((x) => x !== k))} /> ${l}</label>`)}
-      ${value.length ? html`<button type="button" class="linkbtn" onClick=${() => onChange([])}>Tyhjennä</button>` : null}</div></details>`;
-}
-const SUGGEST = "__suggest";
-
-// Massamuutoksen päivä otetaan käyttöön vasta painikkeesta, jotta kirjoitus kesken ei muuta valittuja tehtäviä.
-function BulkDate({ disabled, onApply }) {
-  const [v, setV] = useState("");
-  const ok = isSaneDue(v);
-  const go = () => { if (ok) { onApply(v); setV(""); } };
-  return html`<span class="bulkgrp"><input type="date" min="2000-01-01" max="2099-12-31" aria-label="Määräpäivä valituille" disabled=${disabled} value=${v} onInput=${(e) => setV(e.target.value)} onChange=${(e) => setV(e.target.value)} onKeyDown=${(e) => { if (e.key === "Enter") go(); }} />
-    <button type="button" class="barbtn" disabled=${disabled || !ok} onClick=${go}>Aseta päivä</button></span>`;
-}
 
 export function TasksView({ open }) {
   const [f, setF] = useState(() => { const x = ui.taskFilter || {}; ui.taskFilter = null; const m = Object.assign({}, EMPTY, x); ["stream", "phase", "owner", "status"].forEach((k) => { m[k] = Array.isArray(m[k]) ? m[k] : m[k] ? [m[k]] : []; }); return m; });
