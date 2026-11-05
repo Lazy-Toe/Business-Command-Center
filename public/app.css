@@ -813,3 +813,12 @@ body.has-rail { padding-left: 62px; }
 .gmenus { margin-left: 18px; font-weight: 400; font-size: 0.82rem; color: var(--muted); }
 .taskstable th .fmenu .fm-box { text-transform: none; }
 .fm-box .bm-h:first-child { margin-top: 0; }
+
+/* Rivin oma muutosvalikko: sama ulkoasu kaikissa kolmessa sarakkeessa */
+.fmenu.cell > summary { padding: 5px 10px; min-height: 30px; box-sizing: border-box; display: inline-flex; align-items: center; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 0.86rem; }
+.fmenu.cell.none > summary { color: var(--muted); }
+.fmenu.cell > summary:hover, .fmenu.cell[open] > summary { border-color: var(--accent); }
+.fmenu.cell.st-done > summary { background: var(--ok-soft); border-color: var(--ok); }
+.fmenu.cell.st-doing > summary { background: var(--accent-soft); }
+.fmenu.right .fm-box { left: auto; right: 0; }
+.fmenu[data-flip] .fm-box { top: auto; bottom: calc(100% + 6px); }

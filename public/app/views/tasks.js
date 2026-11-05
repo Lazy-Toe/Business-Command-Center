@@ -1,10 +1,10 @@
 // Tehtävät: kaikki tehtävät kaikista suunnitelmista yhdessä taulukossa. Suodatus, rivin muokkaus ja massamuutos (vastuu, määräpäivä, tila).
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
-import { ui, uiChanged, DueInput } from "../core/ui.js";
+import { ui, uiChanged } from "../core/ui.js";
 import { state, loadOverview, patchManyIn } from "../core/store.js";
 import { taskRows, filterRows, bulkPatches, invertPatches, suggestPatches, ownersIn, groupRows, periodOptions, GROUPS, STATUS_LABEL } from "../core/tasks-table.js";
 import { todayISO, isSaneDue } from "../core/today.js";
-import { peopleNames, PersonSelect } from "../people.js";
+import { peopleNames } from "../people.js";
 import { Multi } from "../multi.js";
 
 const EMPTY = { q: "", plan: "", stream: [], phase: [], owner: [], status: [], due: "" };
@@ -16,11 +16,11 @@ const closeMenu = (e) => { const d = e.currentTarget.closest("details"); if (d) 
 
 // Yksi muutosvalikko kaikkiin paikkoihin (sarakeotsikko, ryhmän otsikko, valintapalkki). Valinta toimii yhdellä klikkauksella ja koskee aina
 // valikon kertomia rivejä (scope). up: aukeaa ylös (alapalkki), muuten alas.
-function FieldMenu({ field, title, rows, scope, names, periods, apply, applyPatches, up, cls }) {
+function FieldMenu({ field, title, rows, scope, names, periods, apply, applyPatches, up, cls, right }) {
   const run = (fn) => (e) => { fn(); closeMenu(e); };
   const go = (change, what) => run(() => apply(change, what, rows));
   const canSuggest = suggestPatches(rows).patches.length > 0;
-  return html`<details class=${"fmenu " + (up ? "up " : "") + (cls || "")}><summary title=${"Muuta: " + title}>${title}</summary>
+  return html`<details class=${"fmenu " + (up ? "up " : "") + (right ? "right " : "") + (cls || "")}><summary title=${"Muuta: " + title}>${title}</summary>
     <div class="fm-box"><p class="fm-scope">Koskee: <b>${scope}</b></p>
       ${field === "owner" ? html`<div class="bm-grid">${names.map((n) => html`<button type="button" key=${n} class="bm-btn" onClick=${go({ owner: n }, "vastuu " + n)}>${n}</button>`)}</div>
         ${canSuggest ? html`<button type="button" class="bm-btn wide" onClick=${run(() => applyPatches(suggestPatches(rows).patches, rows, "vastuualueen omistaja"))}>Vastuualueen omistaja (työvirran mukaan)</button>` : null}
@@ -114,12 +114,9 @@ export function TasksView({ open }) {
   // Jaksovalinta: arvo on jakson viimeinen päivä. Yksi valinta asettaa määräpäivän riville, ryhmälle tai valituille.
   // Valikon tiedot: koskee annettuja rivejä (scope kertoo ne tekstinä).
   const menuFor = (rows, scope) => (field, title) => ({ field, title, rows, scope, names, periods, apply, applyPatches });
-  const scopeRows = chosen.length ? chosen : shown;
-  const scopeText = chosen.length ? chosen.length + " valittua tehtävää" : "kaikkia " + shown.length + " näkyvää tehtävää";
-  const periodOf = (v) => [...periods.months, ...periods.quarters].find((p) => p.value === v);
-  const PeriodOpts = () => html`<optgroup label="Kuukausi">${periods.months.map((p) => html`<option key=${p.value} value=${p.value}>${p.label}</option>`)}</optgroup>
-    <optgroup label="Neljännes">${periods.quarters.map((p) => html`<option key=${"q" + p.value} value=${p.value}>${p.label}</option>`)}</optgroup>`;
-  const PeriodPick = ({ label, onPick, cls, text }) => html`<select class=${"periodsel " + (cls || "")} aria-label=${label} title=${label} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) onPick(v, periodOf(v)); }}><option value="">${text}</option>${PeriodOpts()}</select>`;
+  // Rivin oma valikko koskee aina vain sitä riviä. Useiden rivien muutos tehdään valintapalkista.
+  const cellMenu = (r, field, text) => menuFor([r], "vain tätä tehtävää")(field, text + " ▾");
+  const fmtD = (iso) => iso.slice(8, 10).replace(/^0/, "") + "." + iso.slice(5, 7).replace(/^0/, "") + "." + iso.slice(0, 4);
   const one = (r, data) => patchManyIn([{ planId: r.plan_id, id: r.id, data }]);
   const dirty = Object.keys(EMPTY).some((k) => (Array.isArray(f[k]) ? f[k].length : f[k]));
 
@@ -140,20 +137,20 @@ export function TasksView({ open }) {
       ${dirty ? html`<button type="button" class="linkbtn" onClick=${() => { setF(Object.assign({}, EMPTY)); setMsg(""); }}>Tyhjennä suodattimet</button>` : null}
     </div>
 
-    ${chosen.length ? null : html`<p class="gs bulkhint">Valitse rivejä vasemmalta (tai ryhmän otsikosta), niin voit muuttaa vastuun, määräpäivän tai tilan kaikille kerralla.</p>`}
+    ${chosen.length ? null : html`<p class="gs bulkhint">Klikkaa vastuuta, määräpäivää tai tilaa muuttaaksesi sen. Valitse useita rivejä vasemmalta (myös ryhmän otsikosta), niin voit muuttaa ne kaikki kerralla.</p>`}
     ${unowned.length ? html`<p class="gs unownedbar" role="status">${unowned.length} näkyvällä tehtävällä ei ole vastuuhenkilöä, eikä niitä näytetä kenenkään työpöydällä.${fillable ? html` <button type="button" class="barbtn" onClick=${() => applyPatches(suggestPatches(unowned).patches, unowned, "vastuualueen omistaja")}>Kirjaa vastuualueen omistaja (${fillable})</button>` : null}</p>` : null}
     ${msg ? html`<p class=${"gs" + (/virhe|Ei muutosta/i.test(msg) ? " bad" : "")} role="status">${msg}</p>` : null}
 
     ${shown.length ? html`<div class="gtable-wrap"><table class="gtable sctable taskstable">
       <thead><tr><th class="ckcol"><input type="checkbox" aria-label="Valitse kaikki näkyvät" checked=${allOn} onChange=${() => setSel(allOn ? new Set() : new Set(shown.map((r) => r.key)))} /></th>
-        <th>Tehtävä</th>${COLS.map(([k, l]) => (col(k) ? html`<th key=${k}>${l}${["owner", "due", "status"].includes(k) ? html` <${FieldMenu} ...${menuFor(scopeRows, scopeText)(k, "Muuta kaikille ▾")} cls="hd" />` : null}</th>` : null))}</tr></thead>
-      ${groups.map((g) => html`<tbody key=${"g" + g.key}>${by ? html`<tr class="grouprow"><td class="ckcol"><input type="checkbox" aria-label=${"Valitse ryhmä: " + g.label} checked=${g.rows.every((r) => sel.has(r.key))} onChange=${() => pick(g)} /></td><th colspan=${1 + COLS.filter(([k]) => col(k)).length} scope="colgroup"><span class="grouphead">${g.label} <span class="gs">${g.rows.length} tehtävää${g.rows.filter((r) => r.status === "done").length ? ", " + g.rows.filter((r) => r.status === "done").length + " valmista" : ""}</span><span class="gmenus">Muuta ryhmälle: <${FieldMenu} ...${menuFor(g.rows, "ryhmän " + g.rows.length + " tehtävää")("owner", "Vastuu ▾")} cls="gr" /><${FieldMenu} ...${menuFor(g.rows, "ryhmän " + g.rows.length + " tehtävää")("due", "Määräpäivä ▾")} cls="gr" /><${FieldMenu} ...${menuFor(g.rows, "ryhmän " + g.rows.length + " tehtävää")("status", "Tila ▾")} cls="gr" /></span></span></th></tr>` : null}${g.rows.map((r) => { const i = shown.indexOf(r); return html`<tr key=${r.key} class=${sel.has(r.key) ? "picked" : ""}>
+        <th>Tehtävä</th>${COLS.map(([k, l]) => (col(k) ? html`<th key=${k}>${l}</th>` : null))}</tr></thead>
+      ${groups.map((g) => html`<tbody key=${"g" + g.key}>${by ? html`<tr class="grouprow"><td class="ckcol"><input type="checkbox" aria-label=${"Valitse ryhmä: " + g.label} checked=${g.rows.every((r) => sel.has(r.key))} onChange=${() => pick(g)} /></td><th colspan=${1 + COLS.filter(([k]) => col(k)).length} scope="colgroup"><span class="grouphead">${g.label} <span class="gs">${g.rows.length} tehtävää${g.rows.filter((r) => r.status === "done").length ? ", " + g.rows.filter((r) => r.status === "done").length + " valmista" : ""}</span></span></th></tr>` : null}${g.rows.map((r) => { const i = shown.indexOf(r); return html`<tr key=${r.key} class=${sel.has(r.key) ? "picked" : ""}>
         <td class="ckcol"><input type="checkbox" aria-label=${"Valitse: " + (r.title || "tehtävä")} checked=${sel.has(r.key)} onClick=${(e) => toggle(r, i, e)} onChange=${() => {}} /></td>
         <td class="nmtd"><button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(r.plan_id, { id: r.id, kind: "task", parent_id: r.parent_id })}>${r.title || "Nimetön tehtävä"}</button>${state.plans.length > 1 ? html`<span class="tsub">${r.planTitle}</span>` : null}</td>
         ${col("stream") ? html`<td class="gs">${r.streamLabel || "–"}</td>` : null}${col("phase") ? html`<td class="gs">${r.phaseLabel || "–"}</td>` : null}
-        ${col("owner") ? html`<td><${PersonSelect} label=${"Vastuu: " + (r.title || "")} value=${r.owner} empty="Ei vastuuhenkilöä" onPick=${(v) => one(r, { owner: v })} /></td>` : null}
-        ${col("due") ? html`<td><${DueInput} aria-label=${"Määräpäivä: " + (r.title || "")} value=${r.due} onSave=${(v) => one(r, { due: v })} />${PeriodPick({ text: "Jakso…", label: "Aseta jakson loppu: " + (r.title || ""), onPick: (v) => one(r, { due: v }) })}</td>` : null}
-        ${col("status") ? html`<td><select aria-label=${"Tila: " + (r.title || "")} value=${r.status} onChange=${(e) => one(r, { status: e.target.value })}>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></td>` : null}
+        ${col("owner") ? html`<td><${FieldMenu} ...${cellMenu(r, "owner", r.owner || "Ei vastuuhenkilöä")} cls=${"cell" + (r.owner ? "" : " none")} /></td>` : null}
+        ${col("due") ? html`<td><${FieldMenu} ...${cellMenu(r, "due", r.due ? fmtD(r.due) : "Ei päivää")} cls=${"cell" + (r.due ? "" : " none")} right=${true} /></td>` : null}
+        ${col("status") ? html`<td><${FieldMenu} ...${cellMenu(r, "status", STATUS_LABEL[r.status])} cls=${"cell st-" + r.status} right=${true} /></td>` : null}
       </tr>`; })}</tbody>`)}</table></div>` : html`<p class="tclear">Ei tehtäviä näillä suodattimilla.</p>`}
     ${chosen.length ? html`<${BulkBar} count=${chosen.length} menu=${menuFor(chosen, chosen.length + " valittua tehtävää")} clear=${() => { setSel(new Set()); setMsg(""); }} />` : null}
   </div>`;
