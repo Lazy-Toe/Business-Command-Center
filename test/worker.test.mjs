@@ -223,9 +223,9 @@ test("jäsen näkee vain omat rivit, ei muiden sisältöä eikä suunnitelmia", 
   const r = await asJasen("/mine");
   assert.equal(r.status, 200);
   const b = await r.json();
-  assert.deepEqual(b.items.map((i) => i.id).sort(), ["mJ", "rJ", "s1", "tInh", "tOwn"]);
+  assert.deepEqual(b.items.map((i) => i.id).sort(), ["mJ", "rJ", "s1", "tOwn"]);
   assert.deepEqual(b.plans.map((p) => p.id), ["jplan"], "vain suunnitelma, jossa on jäsenen rivejä");
-  assert.equal(b.items.find((i) => i.id === "tInh").data.owner, "Jasen");
+  assert.ok(!b.items.some((i) => i.id === "tInh"), "työvirta ei siirrä tehtävää jäsenelle");
   const text = JSON.stringify(b);
   for (const secret of ["Muu", "salainen", "Muiden", "Toisen", "emce"]) assert.ok(!text.includes(secret), "vuotaa: " + secret);
   const me = await (await asJasen("/people")).json();
@@ -256,7 +256,7 @@ test("jäsen muuttaa vain omia rivejään sallituilla kentillä, kaikki muu hyl�
   assert.deepEqual([(await data("tOwn")).status, (await data("tOwn")).due, (await data("mJ")).actual, (await data("mJ")).state], ["done", "2026-11-05", "9 %", undefined]);
   assert.equal((await post("jplan", [{ op: "patch", id: "mJ", data: { state: "good" } }])).status, 422, "mittarin tilaa jäsen ei muuta");
   assert.equal((await data("tOwn")).title, "Oma tehtävä", "muut kentät säilyvät");
-  assert.equal((await post("jplan", [{ op: "patch", id: "tInh", data: { status: "doing" } }])).status, 200, "peritty tehtävä on oma");
+  assert.equal((await post("jplan", [{ op: "patch", id: "tInh", data: { status: "doing" } }])).status, 422, "tehtävä ilman jäsenen nimeä vastuuhenkilönä ei ole jäsenen");
 
   for (const [plan, ops] of [
     ["jplan", [{ op: "patch", id: "tOther", data: { status: "done" } }]],

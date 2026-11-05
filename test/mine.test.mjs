@@ -22,11 +22,11 @@ const items = [
 ];
 const ids = (l) => l.map((x) => x.id);
 
-test("omat tehtävät: oma tai työvirran kautta peritty vastuu, kirjainkoolla ei ole väliä, valmis ei näy", () => {
+test("omat tehtävät: vain valittu vastuuhenkilö, työvirta ei siirrä, kirjainkoolla ei ole väliä, valmis ei näy", () => {
   const r = buildMine(items, "Mika", T);
-  assert.deepEqual(ids(r.late), ["peritty"]);
+  assert.deepEqual(ids(r.late), [], "peritty-tehtävällä ei ole vastuuhenkilöä, joten se ei ole kenenkään");
   assert.deepEqual(ids(r.today), ["oma"]);
-  assert.equal(r.open, 2);
+  assert.equal(r.open, 1);
 });
 
 test("omat scorecardit: kaikkien suunnitelmien omat vastuualueet mittareineen järjestyksessä", () => {

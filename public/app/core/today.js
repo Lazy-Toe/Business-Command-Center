@@ -24,10 +24,15 @@ export const isSaneDue = (v) => ISO.test(v || "") && +v.slice(0, 4) >= 2000 && +
 export const hasDue = (t) => ISO.test(t.data.due || "");
 export const isLate = (t, today) => hasDue(t) && t.data.due < today && t.data.status !== "done";
 
-// Tehtävän oma vastuuhenkilö tai saman työvirran vastuualueen omistaja.
-export function ownerOf(task, roles) {
-  if (task.data.owner) return task.data.owner;
-  const r = (roles || []).find((x) => x.data.stream && x.data.stream === task.data.stream);
+// Tehtävä kuuluu henkilölle vain ja ainoastaan sen valitun vastuuhenkilön (owner) kautta. Työvirta ei siirrä tehtävää kenellekään.
+// Roolilistaparametri säilyy vanhojen kutsujen vuoksi, eikä sitä käytetä.
+export function ownerOf(task) {
+  return String((task.data && task.data.owner) || "").trim();
+}
+
+// Ehdotus tehtävän vastuuhenkilöksi: saman työvirran vastuualueen omistaja. Ehdotus ei ole vastuu ennen kuin se kirjataan tehtävälle.
+export function suggestedOwner(stream, roles) {
+  const r = (roles || []).find((x) => x.data.stream && x.data.stream === stream);
   return r && r.data.owner ? r.data.owner : "";
 }
 
@@ -45,7 +50,7 @@ export function buildToday(items, today, filter = {}) {
       const owner = ownerOf(t, roles), stream = streams.find((s) => s.id === t.data.stream);
       if (t.data.status === "done") return;
       if (owner) owners.add(owner);
-      tasks.push(Object.assign({}, t, { owner, stream, inherited: ownerOf({ data: { stream: t.data.stream } }, roles) }));
+      tasks.push(Object.assign({}, t, { owner, stream, suggested: suggestedOwner(t.data.stream, roles) }));
     });
   });
 

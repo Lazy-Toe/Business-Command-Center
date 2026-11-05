@@ -2,7 +2,7 @@ import { html, Text, Tools, AddButton, ui, dragProps, dropProps, pressable, mq, 
 import { register } from "../core/registry.js";
 import { children, findSection, patch, add, moveBefore, nextPosition, shift } from "../core/store.js";
 import { useState } from "../../vendor/htm-preact.js";
-import { fmtDate, isLate, todayISO, ownerOf } from "../core/today.js";
+import { fmtDate, isLate, todayISO, suggestedOwner } from "../core/today.js";
 import { PersonSelect } from "../people.js";
 
 export const focus = { p: "", ws: "" };
@@ -36,11 +36,11 @@ const NOTE_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="non
 
 const CAL_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`;
 
-// Määräpäivä ja vastuuhenkilö. Ilman omaa vastuuhenkilöä käytetään työvirran vastuualueen omistajaa.
-function TaskMeta({ task, inherited }) {
+// Määräpäivä ja vastuuhenkilö. Tehtävä kuuluu henkilölle vain valitun vastuuhenkilön kautta.
+function TaskMeta({ task }) {
   return html`<span class="taskmeta" onClick=${(e) => e.stopPropagation()} onKeyDown=${(e) => e.stopPropagation()}>
     <label>Määräpäivä <${DueInput} value=${task.data.due} onSave=${(v) => patch(task.id, { due: v })} /></label>
-    <label>Vastuu <${PersonSelect} label="Vastuu" value=${task.data.owner || ""} empty=${inherited || "Ei vastuuhenkilöä"} onPick=${(v) => patch(task.id, { owner: v })} /></label>
+    <label>Vastuu <${PersonSelect} label="Vastuu" value=${task.data.owner || ""} empty="Ei vastuuhenkilöä" onPick=${(v) => patch(task.id, { owner: v })} /></label>
   </span>`;
 }
 
@@ -58,8 +58,6 @@ function Note({ task, close }) {
 export function Task({ task, list, parts, withTag }) {
   const [noting, setNoting] = useState(false);
   const [meta, setMeta] = useState(false);
-  const inherited = parts.roles ? ownerOf({ data: { stream: task.data.stream } }, parts.roles) : "";
-  const shownOwner = task.data.owner || inherited;
   const late = isLate(task, todayISO());
   const st = LABEL[task.data.status] ? task.data.status : "todo";
   const stream = parts.streams.find((s) => s.id === task.data.stream);
@@ -71,9 +69,9 @@ export function Task({ task, list, parts, withTag }) {
     ${withTag ? html`<span class="mtag">${stream ? stream.data.label : ""}</span>` : null}
     <${Text} item=${task} field="title" tag="p" cls="it" ph="Tehtävä" />
     <${Text} item=${task} field="detail" tag="p" cls="io" ph="Tarkennus" />
-    ${task.data.due || task.data.owner ? html`<span class="taskinfo">${task.data.due ? html`<span class=${"duechip" + (late ? " late" : "")}>${late ? "Myöhässä · " : ""}${fmtDate(task.data.due)}</span>` : null}${task.data.owner || (task.data.due && shownOwner) ? html`<span class="ownerchip">${shownOwner}</span>` : null}</span>` : null}
+    ${task.data.due || task.data.owner ? html`<span class="taskinfo">${task.data.due ? html`<span class=${"duechip" + (late ? " late" : "")}>${late ? "Myöhässä · " : ""}${fmtDate(task.data.due)}</span>` : null}${task.data.owner ? html`<span class="ownerchip">${task.data.owner}</span>` : null}</span>` : null}
     <button type="button" class=${"dbtn" + (task.data.due ? " has" : "")} title="Määräpäivä ja vastuuhenkilö" aria-label="Määräpäivä ja vastuuhenkilö" aria-expanded=${meta ? "true" : "false"} onClick=${(e) => { e.stopPropagation(); setMeta(!meta); }}>${CAL_ICON}</button>
-    ${meta ? html`<${TaskMeta} task=${task} inherited=${inherited} />` : null}
+    ${meta ? html`<${TaskMeta} task=${task} />` : null}
     ${!noting ? html`<button type="button" class=${"nbtn" + (task.data.note ? " has" : "")} title=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} aria-label=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} onClick=${(e) => { e.stopPropagation(); setNoting(true); }}>${NOTE_ICON}</button>` : null}
     ${noting ? html`<${Note} task=${task} close=${() => setNoting(false)} />` : task.data.note ? html`<p class="inote">${task.data.note}</p>` : null}
     ${ui.edit ? html`<span class="tasksel" onClick=${(e) => e.stopPropagation()}>
@@ -84,7 +82,8 @@ export function Task({ task, list, parts, withTag }) {
   </div>`;
 }
 
-function newTask(parts, phase, stream) { add("task", parts.section.id, { title: "", detail: "", phase, stream, status: "todo", note: "" }); }
+// Uuden tehtävän vastuuhenkilöksi esitäytetään saman työvirran vastuualueen omistaja. Se on tavallinen valinta, jonka voi vaihtaa tai tyhjentää.
+function newTask(parts, phase, stream) { add("task", parts.section.id, { title: "", detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, parts.roles) }); }
 const cellDrop = (parts, phase, stream) => dropProps("task", (id) => moveBefore(id, null, parts.tasks.filter((t) => t.data.phase === phase && t.data.stream === stream), { phase, stream }));
 
 function GateCell({ ph, dim }) {

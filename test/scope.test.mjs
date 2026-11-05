@@ -22,16 +22,16 @@ const ids = (l) => l.map((x) => x.id).sort();
 
 test("jäsen saa vain omat tehtävät, vastuualueet ja mittarit sekä tarvittavat työvirrat", () => {
   const r = scopeFor(items, "Mika");
-  assert.deepEqual(ids(r.items), ["m1", "r1", "t-oma", "t-peritty", "w1", "w2"]);
+  assert.deepEqual(ids(r.items), ["m1", "r1", "t-oma", "w1", "w2"]);
   const text = JSON.stringify(r.items);
   for (const secret of ["Muun salainen", "Muun mittari", "Muun työvirta", "Tekno", "Toisessa", "Muiden osio", "Iida"]) assert.ok(!text.includes(secret), secret);
 });
 
-test("peritty vastuu kirjoitetaan tehtävään ja tehtävä, jonka omistaa toinen, ei kuulu jäsenelle työvirrasta huolimatta", () => {
+test("tehtävä kuuluu jäsenelle vain valitun vastuuhenkilön kautta: työvirta ei siirrä sitä, ja toisen tehtävä ei kuulu työvirrasta huolimatta", () => {
   const r = scopeFor(items, "Mika");
-  assert.equal(r.items.find((x) => x.id === "t-peritty").data.owner, "Mika");
+  assert.ok(!r.items.some((x) => x.id === "t-peritty"), "pelkkä työvirta ei riitä");
   assert.ok(!r.items.some((x) => x.id === "t-muu"));
-  assert.ok(!items.find((x) => x.id === "t-peritty").data.owner, "alkuperäinen rivi ei muutu");
+  assert.equal(r.items.find((x) => x.id === "t-oma").data.owner, "Mika");
 });
 
 test("ilman henkilöä tai tuntemattomalla henkilöllä ei näy mitään", () => {
@@ -83,7 +83,7 @@ catalog.find((x) => x.id === "r1").data.hide = ["d-piilo"];
 
 test("jäsen näkee vain oman roolinsa mallit ja rivit, ei katalogia eikä muiden malleja", () => {
   const r = scopeFor(catalog, "Mika");
-  assert.deepEqual(ids(r.items), ["d-lisa", "d-oma", "m1", "mr-lisa", "r1", "t-oma", "t-peritty", "w1", "w2"]);
+  assert.deepEqual(ids(r.items), ["d-lisa", "d-oma", "m1", "mr-lisa", "r1", "t-oma", "w1", "w2"]);
   const text = JSON.stringify(r.items);
   for (const secret of ["SALAINEN", "Piilotettu", "Liikevaihto", "mr-muu", "d-muu"]) assert.ok(!text.includes(secret), secret);
   assert.equal(r.mine.get("a/" + virtualId("r1", "d-oma")).kind, "vmetric", "tallentamaton rivi on kirjattavissa");
