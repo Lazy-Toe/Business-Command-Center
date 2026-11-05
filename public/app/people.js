@@ -5,6 +5,14 @@ import { peopleOf } from "./core/calc.js";
 
 const NEW_PERSON = "__new";
 
+// Vastuualueen työvirrat valintaruuduilla. Ruudut näkyvät suoraan, joten taulukon vieritys ei leikkaa niitä.
+export function StreamChecks({ streams, value, onChange, label }) {
+  const on = new Set(value);
+  return html`<div class="streamchecks" role="group" aria-label=${label || "Työvirrat"}>
+    ${streams.map((s) => html`<label key=${s.id} class="rolechk"><input type="checkbox" checked=${on.has(s.id)} onChange=${(e) => onChange(streams.map((x) => x.id).filter((id) => (id === s.id ? e.target.checked : on.has(id))))} /> ${s.data.label}</label>`)}
+  </div>`;
+}
+
 // Valittavat henkilöt ovat Kokonaisuudessa nimetyt: kaikkien suunnitelmien vastuualueiden vastuuhenkilöt
 // sekä erikseen lisätyt. Tehtävän nykyinen arvo näkyy aina, vaikka se ei olisi listalla.
 export function peopleNames(...extra) {

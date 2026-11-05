@@ -1,5 +1,5 @@
 // Tänään-näkymän logiikka ilman näkymää. Päivät ovat muodossa VVVV-KK-PP.
-import { scoreRow } from "./scorecard.js";
+import { scoreRow, hasStream } from "./scorecard.js";
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 export function todayISO(d = new Date()) {
@@ -32,7 +32,7 @@ export function ownerOf(task) {
 
 // Ehdotus tehtävän vastuuhenkilöksi: saman työvirran vastuualueen omistaja. Ehdotus ei ole vastuu ennen kuin se kirjataan tehtävälle.
 export function suggestedOwner(stream, roles) {
-  const r = (roles || []).find((x) => x.data.stream && x.data.stream === stream);
+  const r = (roles || []).find((x) => hasStream(x, stream));
   return r && r.data.owner ? r.data.owner : "";
 }
 

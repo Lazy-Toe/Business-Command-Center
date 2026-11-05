@@ -739,3 +739,7 @@ body.has-rail { padding-left: 62px; }
 .roletable .personsel { min-width: 170px; }
 .personsel.none { color: var(--muted); }
 .unownedbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 6px 0; }
+.streamchecks { display: flex; flex-direction: column; gap: 3px; min-width: 150px; font-weight: 400; }
+.gyear .streamchecks { flex-direction: row; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.streamchecks .rolechk input { width: auto; flex: none; margin: 0; min-height: 0; }
+.streamchecks .rolechk { justify-content: flex-start; white-space: nowrap; }

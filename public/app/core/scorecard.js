@@ -43,7 +43,15 @@ export function orderDefs(goals, defs) {
 }
 
 // Malli tulee roolille automaattisesti, jos sillä on sama työvirta tai malli on annettu suoraan roolille (def.data.roles on roolien tunnisteet).
-const byStream = (def, role) => !!role.data.stream && def.data.stream === role.data.stream;
+// Vastuualueella voi olla useita työvirtoja (streams). Vanhoilla riveillä on vain yksi (stream).
+export const roleStreams = (role) => {
+  const d = (role && role.data) || {};
+  return Array.isArray(d.streams) ? d.streams.filter(Boolean) : d.stream ? [d.stream] : [];
+};
+export const hasStream = (role, stream) => !!stream && roleStreams(role).includes(stream);
+// Tallennettava muutos: stream pitää ensimmäisen työvirran, jotta vanhat rivit ja viennit toimivat.
+export const streamsPatch = (list) => ({ streams: list, stream: list[0] || "" });
+const byStream = (def, role) => hasStream(role, def.data.stream);
 const byRole = (def, role) => Array.isArray(def.data.roles) && def.data.roles.includes(role.id);
 export const assignedTo = (def, role) => byStream(def, role) || byRole(def, role);
 

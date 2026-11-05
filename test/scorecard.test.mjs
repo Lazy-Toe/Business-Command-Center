@@ -103,3 +103,18 @@ test("recipientsOf kertoo kenelle malli tulee ja miksi", () => {
   const to = recipientsOf(d, roles, [{ parent_id: "r3", data: { def: "d8" } }]);
   assert.deepEqual(to.map((x) => [x.role.id, x.via]), [["r1", "stream"], ["r2", "role"], ["r3", "manual"]]);
 });
+
+test("vastuualueella voi olla useita työvirtoja, vanha yksi työvirta toimii", async () => {
+  const { roleStreams, hasStream, streamsPatch, assignedTo } = await import("../public/app/core/scorecard.js");
+  const uusi = { id: "r", data: { streams: ["a", "b"], stream: "a" } }, vanha = { id: "v", data: { stream: "a" } }, tyhja = { id: "t", data: { streams: [], stream: "" } };
+  assert.deepEqual(roleStreams(uusi), ["a", "b"]);
+  assert.deepEqual(roleStreams(vanha), ["a"]);
+  assert.deepEqual(roleStreams(tyhja), []);
+  assert.deepEqual(roleStreams({ data: {} }), []);
+  assert.ok(hasStream(uusi, "b") && !hasStream(uusi, "c") && !hasStream(uusi, ""));
+  assert.deepEqual(streamsPatch(["b", "a"]), { streams: ["b", "a"], stream: "b" });
+  assert.deepEqual(streamsPatch([]), { streams: [], stream: "" });
+  assert.ok(assignedTo({ data: { stream: "b" } }, uusi));
+  assert.ok(!assignedTo({ data: { stream: "b" } }, vanha));
+  assert.ok(!assignedTo({ data: { stream: "" } }, tyhja), "tyhjä työvirta ei täsmää");
+});

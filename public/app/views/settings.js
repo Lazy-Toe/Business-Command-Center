@@ -1,10 +1,10 @@
 // Asetukset: yhteiset tavoitteet ja mittarimallit. Malli kuuluu työvirtaan, ja saman työvirran vastuualueille tavoite tulee automaattisesti.
 import { html, useState } from "../../vendor/htm-preact.js";
 import { Text, Tools, AddButton, Input, ui, uiChanged, useEscape } from "../core/ui.js";
-import { PersonSelect } from "../people.js";
+import { PersonSelect, StreamChecks } from "../people.js";
 import { state, all, children, add, patch, remove } from "../core/store.js";
 import { compile, DEFAULT_FORMULA, FORMULA_PRESETS, FUNCTION_NAMES } from "../core/formula.js";
-import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber, recipientsOf } from "../core/scorecard.js";
+import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber, recipientsOf, roleStreams, hasStream, streamsPatch } from "../core/scorecard.js";
 import { fmt } from "../core/calc.js";
 import { sortTypes } from "../core/forms.js";
 import { PaySettings } from "./settings-pay.js";
@@ -106,19 +106,25 @@ function RolesSettings() {
     ui.undo = { label: (r.data.title || "Vastuualue") + ": " + what + " muutettu", run: () => patch(r.id, { [field]: before }) };
     uiChanged();
   };
-  const sameStream = (r) => (r.data.stream ? roles.filter((x) => x.id !== r.id && x.data.stream === r.data.stream) : []);
+  const sameStream = (r) => roles.filter((x) => x.id !== r.id && roleStreams(x).some((s) => hasStream(r, s)));
+  const setStreams = (r, list) => {
+    const before = { streams: r.data.streams, stream: r.data.stream || "" };
+    patch(r.id, streamsPatch(list));
+    ui.undo = { label: (r.data.title || "Vastuualue") + ": työvirrat muutettu", run: () => patch(r.id, Array.isArray(before.streams) ? before : streamsPatch(before.stream ? [before.stream] : [])) };
+    uiChanged();
+  };
   return html`<section class="tgroup rolesettings">
     <h2>Vastuualueet <span class="num">${roles.length}</span></h2>
-    <p class="gs">Vastuuhenkilö ja työvirta määräävät, kenelle tehtävät ja mittarit tulevat. Tehtävä, jolla ei ole omaa vastuuhenkilöä, kuuluu saman työvirran vastuualueen omistajalle. Muutos tallentuu heti, ja sen voi kumota.</p>
-    ${roles.length ? html`<div class="gtable-wrap"><table class="gtable sctable roletable"><thead><tr><th>Vastuualue</th><th>Vastuuhenkilö</th><th>Työvirta</th><th>Mittareita</th><th>Huomio</th></tr></thead>
+    <p class="gs">Vastuualueella voi olla useita työvirtoja. Työvirrat määräävät, mitkä mittarit ja tehtävät vastuualueella näkyvät. Tehtävä kuuluu henkilölle vain sille valitun vastuuhenkilön kautta, ja työvirran omistajaa ehdotetaan vastuuksi. Muutos tallentuu heti, ja sen voi kumota.</p>
+    ${roles.length ? html`<div class="gtable-wrap"><table class="gtable sctable roletable"><thead><tr><th>Vastuualue</th><th>Vastuuhenkilö</th><th>Työvirrat</th><th>Mittareita</th><th>Huomio</th></tr></thead>
       <tbody>${roles.map((r) => {
         const n = defs.filter((d) => recipientsOf(d, [r], rows).length).length, dup = sameStream(r);
         return html`<tr key=${r.id}>
           <td><b>${r.data.title || "Nimetön"}</b></td>
           <td><${PersonSelect} canAdd=${true} label=${"Vastuuhenkilö: " + (r.data.title || "")} value=${r.data.owner || ""} onPick=${(v) => change(r, "owner", v, "vastuuhenkilö")} /></td>
-          <td><select class="personsel" aria-label=${"Työvirta: " + (r.data.title || "")} value=${r.data.stream || ""} onChange=${(e) => change(r, "stream", e.target.value, "työvirta")}><option value="">Ei työvirtaa</option>${streamsOf().map((x) => html`<option key=${x.id} value=${x.id}>${x.data.label}</option>`)}</select></td>
+          <td><${StreamChecks} streams=${streamsOf()} value=${roleStreams(r)} label=${"Työvirrat: " + (r.data.title || "")} onChange=${(v) => setStreams(r, v)} /></td>
           <td class="num">${n}</td>
-          <td class="gs ${!r.data.stream || dup.length ? "warn" : ""}">${!r.data.stream ? "Ei työvirtaa: tehtävät eivät peri vastuuta" : dup.length ? "Sama työvirta: " + dup.map((x) => x.data.title || "Vastuualue").join(", ") : ""}</td></tr>`;
+          <td class="gs ${!roleStreams(r).length || dup.length ? "warn" : ""}">${!roleStreams(r).length ? "Ei työvirtaa: ei työvirran mittareita eikä vastuuehdotuksia" : dup.length ? "Yhteinen työvirta: " + dup.map((x) => x.data.title || "Vastuualue").join(", ") : ""}</td></tr>`;
         })}</tbody></table></div>` : html`<p class="gs">Suunnitelmassa ei ole vastuualueita. Lisää ne Kokonaisuus-näkymässä.</p>`}
   </section>`;
 }
@@ -144,7 +150,7 @@ export function SettingsView() {
         <h2><${Text} item=${g} field="name" mode="always" max=${120} ph="Yhteisen tavoitteen nimi" /> <span class="num">${defs.length}</span>
           <button type="button" class="barbtn" onClick=${() => newDef(g.id)}>+ Mittari</button>
           <button type="button" class="barbtn" onClick=${() => { if (!defs.length || confirm("Poistetaanko \"" + (g.data.name || "tavoite") + "\" ja sen " + defs.length + " mittaria?")) remove(g.id); }}>Poista</button></h2>
-        ${defs.length ? html`<div class="gtable-wrap"><table class="gtable sctable"><thead><tr><th>Mittari</th><th>Vastuualueet</th><th>Työvirta</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Paino</th><th>Kaava</th></tr></thead>
+        ${defs.length ? html`<div class="gtable-wrap"><table class="gtable sctable"><thead><tr><th>Mittari</th><th>Vastuualueet</th><th>Työvirrat</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Paino</th><th>Kaava</th></tr></thead>
           <tbody>${defs.map((x) => html`<${DefRow} key=${x.id} def=${x} onEdit=${() => setEdit(x.id)} />`)}</tbody></table></div>` : html`<p class="gs">Ei vielä mittareita.</p>`}
       </section>`;
     }) : html`<p class="tclear">Ei vielä yhteisiä tavoitteita. Luo ensimmäinen painikkeesta ylhäällä ja lisää sille mittareita.</p>`}
