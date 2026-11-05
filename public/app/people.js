@@ -3,8 +3,6 @@ import { html } from "../vendor/htm-preact.js";
 import { state, all, addPerson } from "./core/store.js";
 import { peopleOf } from "./core/calc.js";
 
-const NEW_PERSON = "__new";
-
 // Valittavat henkilöt ovat Kokonaisuudessa nimetyt: kaikkien suunnitelmien vastuualueiden vastuuhenkilöt
 // sekä erikseen lisätyt. Tehtävän nykyinen arvo näkyy aina, vaikka se ei olisi listalla.
 export function peopleNames(...extra) {
@@ -12,27 +10,25 @@ export function peopleNames(...extra) {
   return peopleOf(state.people.list, overviewRoles, all("role").map((r) => r.data.owner), extra);
 }
 
-// canAdd: uuden henkilön voi nimetä vain siellä, missä vastuuhenkilöt nimetään (vastuualueen otsikko).
-export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenkilöä", canAdd = false }) {
+// Henkilön valinta nimilaatikoista. Valittu nimi pysyy korostettuna, ja saman nimen painaminen tyhjentää valinnan.
+// inline: laatikot näkyvät suoraan (esim. taulukon solussa). Muuten näkyy yksi painike, joka avaa laatikot ja sulkeutuu valinnasta.
+// empty on painikkeen teksti, kun valintaa ei ole. canAdd: uuden henkilön voi nimetä vain siellä, missä vastuuhenkilöt nimetään.
+export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenkilöä", canAdd = false, inline = false }) {
   const names = peopleNames(value);
-  // Tyhjä vaihtoehto tarkoittaa vastuualueen mukaista vastuuta, ja sen teksti on silloin vastuualueen omistajan nimi. Kun arvoa ei ole asetettu,
-  // sama nimi piilotetaan listasta kahdesti. Kun arvo on asetettu, kaikki nimet pysyvät valittavina, jotta valittu nimi aina löytyy listasta.
-  const dup = String(empty).toLowerCase(), isName = names.some((n) => n.toLowerCase() === dup);
-  const emptyText = value && isName ? empty + " (vastuualueelta)" : empty;
-  const listed = value ? names : names.filter((n) => n.toLowerCase() !== dup);
-  const change = async (e) => {
-    const v = e.target.value;
-    if (v !== NEW_PERSON) { onPick(v); return; }
-    e.target.value = value || "";
+  const add = async () => {
     const n = (prompt("Henkilön nimi") || "").replace(/\s+/g, " ").trim().slice(0, 60);
     if (!n) return;
     let name = names.find((x) => x.toLowerCase() === n.toLowerCase()) || n;
     try { name = await addPerson(n); } catch (x) { /* henkilölistaa ei saatu: nimi tallentuu silti vastuuseen */ }
     onPick(name);
   };
-  return html`<select class=${cls || "personsel"} aria-label=${label || "Henkilö"} value=${value || ""} onChange=${change}>
-    <option value="">${emptyText}</option>
-    ${listed.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}
-    ${canAdd ? html`<option value=${NEW_PERSON}>+ Lisää henkilö…</option>` : null}
-  </select>`;
+  const close = (e) => { const d = e.currentTarget.closest("details"); if (d) d.removeAttribute("open"); };
+  const chips = (done) => html`<span class="pp-chips" role="group" aria-label=${label || "Henkilö"}>${names.map((n) => html`<button type="button" key=${n} class=${"pp-chip" + (n === value ? " on" : "")} aria-pressed=${n === value ? "true" : "false"} onClick=${(e) => { onPick(n === value ? "" : n); if (done) done(e); }}>${n}</button>`)}${canAdd ? html`<button type="button" class="pp-chip pp-add" onClick=${(e) => { add(); if (done) done(e); }}>+ Lisää henkilö</button>` : null}</span>`;
+  if (inline) return html`<span class=${"pp inline " + (cls || "")}>${chips(null)}</span>`;
+  return html`<details class=${"pp " + (cls || "") + (value ? "" : " none")}><summary aria-label=${(label || "Henkilö") + ": " + (value || empty)}>${value || empty}</summary><div class="pp-box">${chips(close)}</div></details>`;
+}
+
+// Avoin valinta sulkeutuu, kun klikataan muualle.
+if (typeof document !== "undefined") {
+  document.addEventListener("click", (e) => document.querySelectorAll("details.pp[open], details.multi[open]").forEach((d) => { if (!d.contains(e.target)) d.removeAttribute("open"); }));
 }

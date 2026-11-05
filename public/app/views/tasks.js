@@ -12,6 +12,17 @@ const COLS = [["stream", "Työvirta"], ["phase", "Vaihe"], ["owner", "Vastuu"], 
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* ei pakollinen */ } };
 
+const SUGGEST = "__suggest";
+
+// Massamuutoksen päivä otetaan käyttöön vasta painikkeesta, jotta kirjoitus kesken ei muuta valittuja tehtäviä.
+function BulkDate({ disabled, onApply }) {
+  const [v, setV] = useState("");
+  const ok = isSaneDue(v);
+  const go = () => { if (ok) { onApply(v); setV(""); } };
+  return html`<span class="bulkgrp"><input type="date" min="2000-01-01" max="2099-12-31" aria-label="Määräpäivä valituille" disabled=${disabled} value=${v} onInput=${(e) => setV(e.target.value)} onChange=${(e) => setV(e.target.value)} onKeyDown=${(e) => { if (e.key === "Enter") go(); }} />
+    <button type="button" class="barbtn" disabled=${disabled || !ok} onClick=${go}>Aseta päivä</button></span>`;
+}
+
 export function TasksView({ open }) {
   const [f, setF] = useState(() => { const x = ui.taskFilter || {}; ui.taskFilter = null; const m = Object.assign({}, EMPTY, x); ["stream", "phase", "owner", "status"].forEach((k) => { m[k] = Array.isArray(m[k]) ? m[k] : m[k] ? [m[k]] : []; }); return m; });
   const [sel, setSel] = useState(() => new Set());
@@ -113,7 +124,7 @@ export function TasksView({ open }) {
         <td class="ckcol"><input type="checkbox" aria-label=${"Valitse: " + (r.title || "tehtävä")} checked=${sel.has(r.key)} onClick=${(e) => toggle(r, i, e)} onChange=${() => {}} /></td>
         <td class="nmtd"><button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(r.plan_id, { id: r.id, kind: "task", parent_id: r.parent_id })}>${r.title || "Nimetön tehtävä"}</button>${state.plans.length > 1 ? html`<span class="tsub">${r.planTitle}</span>` : null}</td>
         ${col("stream") ? html`<td class="gs">${r.streamLabel || "–"}</td>` : null}${col("phase") ? html`<td class="gs">${r.phaseLabel || "–"}</td>` : null}
-        ${col("owner") ? html`<td><${PersonSelect} cls=${"personsel" + (!r.owner ? " none" : "")} label=${"Vastuu: " + (r.title || "")} value=${r.owner} empty="Ei vastuuhenkilöä" onPick=${(v) => one(r, { owner: v })} /></td>` : null}
+        ${col("owner") ? html`<td><${PersonSelect} label=${"Vastuu: " + (r.title || "")} value=${r.owner} empty="Ei vastuuhenkilöä" onPick=${(v) => one(r, { owner: v })} /></td>` : null}
         ${col("due") ? html`<td><${DueInput} aria-label=${"Määräpäivä: " + (r.title || "")} value=${r.due} onSave=${(v) => one(r, { due: v })} />${PeriodPick({ text: "Jakso…", label: "Aseta jakson loppu: " + (r.title || ""), onPick: (v) => one(r, { due: v }) })}</td>` : null}
         ${col("status") ? html`<td><select aria-label=${"Tila: " + (r.title || "")} value=${r.status} onChange=${(e) => one(r, { status: e.target.value })}>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></td>` : null}
       </tr>`; })}</tbody>`)}</table></div>` : html`<p class="tclear">Ei tehtäviä näillä suodattimilla.</p>`}

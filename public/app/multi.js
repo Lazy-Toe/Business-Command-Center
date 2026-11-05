@@ -9,13 +9,3 @@ export function Multi({ label, value, options, onChange, join, none = "Kaikki" }
     <div class="multibox">${options.map(([k, l]) => html`<label key=${k}><input type="checkbox" checked=${on.has(k)} onChange=${(e) => onChange(e.target.checked ? value.concat(k) : value.filter((x) => x !== k))} /> ${l}</label>`)}
       ${value.length ? html`<button type="button" class="linkbtn" onClick=${() => onChange([])}>Tyhjennä</button>` : null}</div></details>`;
 }
-const SUGGEST = "__suggest";
-
-// Massamuutoksen päivä otetaan käyttöön vasta painikkeesta, jotta kirjoitus kesken ei muuta valittuja tehtäviä.
-function BulkDate({ disabled, onApply }) {
-  const [v, setV] = useState("");
-  const ok = isSaneDue(v);
-  const go = () => { if (ok) { onApply(v); setV(""); } };
-  return html`<span class="bulkgrp"><input type="date" min="2000-01-01" max="2099-12-31" aria-label="Määräpäivä valituille" disabled=${disabled} value=${v} onInput=${(e) => setV(e.target.value)} onChange=${(e) => setV(e.target.value)} onKeyDown=${(e) => { if (e.key === "Enter") go(); }} />
-    <button type="button" class="barbtn" disabled=${disabled || !ok} onClick=${go}>Aseta päivä</button></span>`;
-}
