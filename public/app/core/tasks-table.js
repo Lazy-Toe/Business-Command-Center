@@ -1,6 +1,6 @@
 // Tehtävätaulukon logiikka ilman näkymää: rivien kokoaminen kaikista suunnitelmista, suodatus ja massamuutos.
 // Vastuu on tehtävän oma (owner) tai, jos sitä ei ole, sen vastuualueen omistaja, jonka työvirta on sama (kuten Tänään-näkymässä).
-import { ownerOf, isSaneDue } from "./today.js";
+import { suggestedOwner, isSaneDue } from "./today.js";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 export const STATUS_LABEL = { todo: "Ei aloitettu", doing: "Käynnissä", done: "Valmis" };
@@ -20,7 +20,7 @@ export function taskRows(items, plans) {
         key: planId + "/" + t.id, plan_id: planId, id: t.id, parent_id: t.parent_id || null, title: String(t.data.title || ""), planTitle: title,
         stream: t.data.stream || "", streamLabel: streams.get(t.data.stream) || "", phase: t.data.phase || "", phaseLabel: phases.get(t.data.phase) || "",
         status: STATUSES.includes(t.data.status) ? t.data.status : "todo", due: ISO.test(t.data.due || "") ? t.data.due : "",
-        owner, effective: ownerOf({ data: { owner, stream: t.data.stream } }, roles), inherited: ownerOf({ data: { stream: t.data.stream } }, roles),
+        owner, effective: owner, suggested: suggestedOwner(t.data.stream, roles),
         via: via ? via.data.title || "" : (roles.find((r) => r.data.stream && r.data.stream === t.data.stream) || { data: {} }).data.title || ""
       });
     });
@@ -61,6 +61,12 @@ export function bulkPatches(rows, change) {
     if (Object.keys(data).length) patches.push({ planId: r.plan_id, id: r.id, data });
   });
   return { patches };
+}
+
+// Vastuuhenkilön kirjaus tehtäville, joilla sitä ei ole: ehdotus (saman työvirran vastuualueen omistaja) tallennetaan tehtävälle itselleen.
+// Palauttaa { patches } vain riveille, joille ehdotus on olemassa.
+export function suggestPatches(rows) {
+  return { patches: rows.filter((r) => !r.owner && r.suggested).map((r) => ({ planId: r.plan_id, id: r.id, data: { owner: r.suggested } })) };
 }
 
 // Muutosten peruutus: samat kentät riveiltä, sellaisina kuin ne olivat ennen muutosta.

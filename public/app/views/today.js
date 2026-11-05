@@ -22,7 +22,7 @@ export function Row({ t, open, late }) {
       <span class="tsub">${planName(t.plan_id)}${t.stream ? " · " + t.stream.data.label : ""}${t.data.status === "doing" ? " · käynnissä" : ""}</span>
     </div>
     <div class="tfields">
-      <label class="tfield"><span>Vastuu</span>${state.role === "member" ? html`<span class="tfixed">${t.owner || ""}</span>` : html`<${PersonSelect} label=${"Vastuu: " + (t.data.title || "")} value=${t.data.owner || ""} empty=${t.inherited || "Ei vastuuhenkilöä"} onPick=${(v) => patchIn(t.plan_id, t.id, { owner: v })} />`}</label>
+      <label class="tfield"><span>Vastuu</span>${state.role === "member" ? html`<span class="tfixed">${t.owner || ""}</span>` : html`<${PersonSelect} label=${"Vastuu: " + (t.data.title || "")} value=${t.data.owner || ""} empty="Ei vastuuhenkilöä" onPick=${(v) => patchIn(t.plan_id, t.id, { owner: v })} />`}</label>
       <label class="tfield"><span>Määräpäivä</span><${DueInput} value=${t.data.due} aria-label=${"Määräpäivä: " + (t.data.title || "")} onSave=${(v) => patchIn(t.plan_id, t.id, { due: v })} /></label>
     </div>
   </li>`;

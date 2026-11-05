@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { taskRows, filterRows, bulkPatches, invertPatches, ownersIn, groupRows, periodOptions, lastDay, STATUS_LABEL } from "../public/app/core/tasks-table.js";
+import { taskRows, filterRows, bulkPatches, invertPatches, suggestPatches, ownersIn, groupRows, periodOptions, lastDay, STATUS_LABEL } from "../public/app/core/tasks-table.js";
 
 const plans = [{ id: "a", title: "Eka" }, { id: "b", title: "Toka" }];
 const row = (plan_id, id, kind, data, parent_id = "s") => ({ plan_id, id, kind, parent_id, data });
@@ -16,12 +16,13 @@ const items = [
 const rows = taskRows(items, plans);
 const ids = (l) => l.map((r) => r.id);
 
-test("rivit: vastuu on oma tai ensimmäisen saman työvirran vastuualueen omistaja, ja puuttuvat tiedot normalisoidaan", () => {
+test("rivit: vastuu on vain tehtävälle valittu, ehdotus on saman työvirran vastuualueen omistaja, ja puuttuvat tiedot normalisoidaan", () => {
   assert.deepEqual(ids(rows), ["t1", "t2", "t3", "t4", "t5"], "suunnitelmien järjestyksessä");
   const t1 = rows[0];
-  assert.deepEqual([t1.owner, t1.effective, t1.via, t1.streamLabel, t1.phaseLabel, t1.planTitle, t1.key], ["", "Mika", "CEO", "Myynti", "Selvitä", "Eka", "a/t1"], "peritty: ensimmäinen rooli voittaa");
-  assert.deepEqual([rows[1].owner, rows[1].effective, rows[1].inherited, rows[1].via], ["Iida", "Iida", "Mika", "CEO"], "oma vastuu, ja vastuualueen oma omistaja näkyy erikseen");
-  assert.deepEqual([rows[3].inherited, rows[3].via], ["", ""], "ei työvirtaa, ei vastuualuetta");
+  assert.deepEqual([t1.owner, t1.effective, t1.via, t1.streamLabel, t1.phaseLabel, t1.planTitle, t1.key], ["", "", "CEO", "Myynti", "Selvitä", "Eka", "a/t1"], "ei vastuuta, vaikka työvirralla on vastuualue");
+  assert.equal(t1.suggested, "Mika", "ehdotus: ensimmäinen rooli voittaa");
+  assert.deepEqual([rows[1].owner, rows[1].effective, rows[1].suggested, rows[1].via], ["Iida", "Iida", "Mika", "CEO"], "valittu vastuu, ja vastuualueen omistaja näkyy erikseen ehdotuksena");
+  assert.deepEqual([rows[3].suggested, rows[3].via], ["", ""], "ei työvirtaa, ei vastuualuetta");
   assert.deepEqual([rows[2].status, rows[2].due], ["todo", ""], "tuntematon tila ja virheellinen päivä");
   assert.deepEqual([rows[3].effective, rows[3].streamLabel], ["", ""], "ei työvirtaa eikä vastuuta");
   assert.equal(rows[4].planTitle, "Toka");
@@ -34,15 +35,15 @@ test("suodatus: haku, suunnitelma, työvirta, vastuu, tila ja päivä", () => {
   assert.deepEqual(f({ q: "  MIKALLE " }), ["t1"]);
   assert.deepEqual(f({ plan: "b" }), ["t5"]);
   assert.deepEqual(f({ stream: "w1" }), ["t1", "t2"]);
-  assert.deepEqual(f({ owner: "mika" }), ["t1", "t5"], "kirjainkoolla ei ole väliä, peritty lasketaan mukaan");
-  assert.deepEqual(f({ owner: "__none" }), ["t4"], "ei lainkaan vastuuta (t3 perii Pontuksen)");
-  assert.deepEqual(f({ owner: "Pontus" }), ["t3"]);
+  assert.deepEqual(f({ owner: "mika" }), ["t5"], "kirjainkoolla ei ole väliä, työvirran kautta ei kuulu");
+  assert.deepEqual(f({ owner: "__none" }), ["t1", "t3", "t4"], "ei valittua vastuuhenkilöä");
+  assert.deepEqual(f({ owner: "Iida" }), ["t2"]);
   assert.deepEqual(f({ status: "done" }), ["t2"]);
   assert.deepEqual(f({ due: "none" }), ["t2", "t3", "t4", "t5"]);
   assert.deepEqual(f({ due: "late" }), ["t1"], "päivä ohi eikä valmis");
   assert.deepEqual(f({ phase: "p1", status: "doing", stream: "w1" }), ["t1"], "suodattimet yhdessä");
   assert.deepEqual(ids(filterRows(rows, { due: "late" }, "")), [], "ilman päivää ei myöhässä-suodatusta");
-  assert.deepEqual(ownersIn(rows), ["Iida", "Mika", "Pontus"]);
+  assert.deepEqual(ownersIn(rows), ["Iida", "Mika"], "vain tehtäville valitut vastuuhenkilöt");
 });
 
 test("massamuutos: vain muuttuvat kentät ja vain muuttuville riville", () => {
@@ -111,4 +112,9 @@ test("massamuutos hylkää kirjoituksen välivaiheen päivän", () => {
   assert.ok(bulkPatches(rows, { due: "2100-01-01" }).error);
   assert.equal(bulkPatches(rows, { due: "2026-12-15" }).patches.length, 1);
   assert.equal(bulkPatches(rows, { due: "" }).patches.length, 0);
+});
+
+test("ehdotus kirjataan vain tehtäville ilman vastuuhenkilöä, ja vain jos työvirralla on vastuualueen omistaja", () => {
+  const r = suggestPatches(rows);
+  assert.deepEqual(r.patches, [{ planId: "a", id: "t1", data: { owner: "Mika" } }, { planId: "a", id: "t3", data: { owner: "Pontus" } }]);
 });
