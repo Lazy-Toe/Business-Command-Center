@@ -1,8 +1,8 @@
-// Yksi muutosvalikko (Vastuu, Aloitus, Määräpäivä, Tila) kaikkiin paikkoihin: Tehtävät-taulukko ja Tänään-aikajana. Valinta on yksi klikkaus.
+// Yksi muutosvalikko (Vastuu, Aloitus, Lopetus, Tila) kaikkiin paikkoihin: Tehtävät-taulukko ja Tänään-aikajana. Valinta on yksi klikkaus.
 import { html, useState } from "../vendor/htm-preact.js";
 import { ui, uiChanged } from "./core/ui.js";
 import { patchManyIn } from "./core/store.js";
-import { bulkPatches, invertPatches, suggestPatches, STATUS_LABEL } from "./core/tasks-table.js";
+import { bulkPatches, invertPatches, suggestPatches, labelOptions, catalogPatches, STATUS_LABEL } from "./core/tasks-table.js";
 import { isSaneDue } from "./core/today.js";
 
 // Muutos riveille yhtenä peruttavana eränä. Palauttaa muutettujen määrän tai virheen tekstin.
@@ -21,7 +21,7 @@ const closeMenu = (e) => { const d = e.currentTarget.closest("details"); if (d) 
 
 // Yksi muutosvalikko kaikkiin paikkoihin (sarakeotsikko, ryhmän otsikko, valintapalkki). Valinta toimii yhdellä klikkauksella ja koskee aina
 // valikon kertomia rivejä (scope). up: aukeaa ylös (alapalkki), muuten alas.
-export function FieldMenu({ field, title, rows, scope, names, periods, apply, applyPatches, up, cls, right }) {
+export function FieldMenu({ field, title, rows, scope, names, periods, apply, applyPatches, up, cls, right, catalog = {} }) {
   const run = (fn) => (e) => { fn(); closeMenu(e); };
   const go = (change, what) => run(() => apply(change, what, rows));
   const canSuggest = suggestPatches(rows).patches.length > 0;
@@ -30,6 +30,7 @@ export function FieldMenu({ field, title, rows, scope, names, periods, apply, ap
       ${field === "owner" ? html`<div class="bm-grid">${names.map((n) => html`<button type="button" key=${n} class="bm-btn" onClick=${go({ owner: n }, "vastuu " + n)}>${n}</button>`)}</div>
         ${canSuggest ? html`<button type="button" class="bm-btn wide" onClick=${run(() => applyPatches(suggestPatches(rows).patches, rows, "vastuualueen omistaja"))}>Vastuualueen omistaja (työvirran mukaan)</button>` : null}
         <button type="button" class="bm-btn wide quiet" onClick=${go({ owner: "" }, "vastuuhenkilö poistettu")}>Poista vastuuhenkilö</button>` : null}
+      ${field === "stream" || field === "phase" ? html`<div class="bm-grid">${labelOptions(rows, catalog[field] || new Map()).map((l) => html`<button type="button" key=${l} class="bm-btn" onClick=${run(() => applyPatches(catalogPatches(rows, field, l, catalog[field]).patches, rows, (field === "stream" ? "työvirta " : "vaihe ") + l))}>${l}</button>`)}</div>` : null}
       ${field === "start" ? html`<p class="bm-h">Viikko (alkaa maanantaina)</p>
         <div class="bm-grid months">${periods.weekStarts.map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ start: p.value }, "aloitus " + p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Kuukauden alku</p>
@@ -38,13 +39,13 @@ export function FieldMenu({ field, title, rows, scope, names, periods, apply, ap
         <${BulkDate} onApply=${(v) => apply({ start: v }, "aloituspäivä", rows)} />
         <button type="button" class="bm-btn wide quiet" onClick=${go({ start: "" }, "aloitus tyhjennetty")}>Tyhjennä aloitus</button>` : null}
       ${field === "due" ? html`<p class="bm-h">Viikko (päättyy sunnuntaina)</p>
-        <div class="bm-grid months">${periods.weeks.slice(0, 6).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
+        <div class="bm-grid months">${periods.weeks.slice(0, 6).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "lopetus " + p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Kuukauden loppu</p>
-        <div class="bm-grid months">${periods.months.slice(1, 7).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
+        <div class="bm-grid months">${periods.months.slice(1, 7).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "lopetus " + p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Neljänneksen loppu</p>
-        <div class="bm-grid months">${periods.quarters.slice(0, 3).map((p) => html`<button type="button" key=${"q" + p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
+        <div class="bm-grid months">${periods.quarters.slice(0, 3).map((p) => html`<button type="button" key=${"q" + p.value} class="bm-btn" onClick=${go({ due: p.value }, "lopetus " + p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Muu päivä</p>
-        <${BulkDate} onApply=${(v) => apply({ due: v }, "määräpäivä", rows)} />
+        <${BulkDate} onApply=${(v) => apply({ due: v }, "lopetus", rows)} />
         <button type="button" class="bm-btn wide quiet" onClick=${go({ due: "" }, "päivä tyhjennetty")}>Tyhjennä päivä</button>` : null}
       ${field === "status" ? html`<div class="bm-grid">${Object.entries(STATUS_LABEL).map(([k, l]) => html`<button type="button" key=${k} class="bm-btn" onClick=${go({ status: k }, "tila " + l)}>${l}</button>`)}</div>` : null}
     </div></details>`;
@@ -56,7 +57,7 @@ export function BulkDate({ disabled, onApply }) {
   const [v, setV] = useState("");
   const ok = isSaneDue(v);
   const go = () => { if (ok) { onApply(v); setV(""); } };
-  return html`<span class="bulkgrp"><input type="date" min="2000-01-01" max="2099-12-31" aria-label="Määräpäivä valituille" disabled=${disabled} value=${v} onInput=${(e) => setV(e.target.value)} onChange=${(e) => setV(e.target.value)} onKeyDown=${(e) => { if (e.key === "Enter") go(); }} />
+  return html`<span class="bulkgrp"><input type="date" min="2000-01-01" max="2099-12-31" aria-label="Päivä valituille" disabled=${disabled} value=${v} onInput=${(e) => setV(e.target.value)} onChange=${(e) => setV(e.target.value)} onKeyDown=${(e) => { if (e.key === "Enter") go(); }} />
     <button type="button" class="barbtn" disabled=${disabled || !ok} onClick=${go}>Aseta päivä</button></span>`;
 }
 

@@ -53,7 +53,7 @@ export const CAL_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fil
 function TaskMeta({ task, parts }) {
   return html`<span class="taskmeta" onClick=${(e) => e.stopPropagation()} onKeyDown=${(e) => e.stopPropagation()}>
     ${parts.ownerLocked ? null : html`<label>Aloitus <${DueInput} value=${task.data.start} onSave=${(v) => saveTask(parts, task, { start: v })} /></label>`}
-    <label>Määräpäivä <${DueInput} value=${task.data.due} onSave=${(v) => saveTask(parts, task, { due: v })} /></label>
+    <label>Lopetus <${DueInput} value=${task.data.due} onSave=${(v) => saveTask(parts, task, { due: v })} /></label>
     ${parts.ownerLocked ? null : html`<label>Vastuu <${PersonSelect} label="Vastuu" value=${task.data.owner || ""} empty="Ei vastuuhenkilöä" onPick=${(v) => saveTask(parts, task, { owner: v })} /></label>`}
   </span>`;
 }
@@ -85,7 +85,7 @@ export function Task({ task, list, parts, withTag }) {
     <${Text} item=${task} field="title" tag="p" cls="it" ph="Tehtävä" mode=${mode} />
     <${Text} item=${task} field="detail" tag="p" cls="io" ph="Tarkennus" mode=${mode} />
     ${task.data.due || task.data.owner ? html`<span class="taskinfo">${task.data.due ? html`<span class=${"duechip" + (late ? " late" : "")}>${late ? "Myöhässä · " : ""}${fmtSpan(task.data.start, task.data.due)}</span>` : null}${task.data.owner ? html`<span class="ownerchip">${task.data.owner}</span>` : null}</span>` : null}
-    <button type="button" class=${"dbtn" + (task.data.due ? " has" : "")} title="Määräpäivä ja vastuuhenkilö" aria-label="Määräpäivä ja vastuuhenkilö" aria-expanded=${meta ? "true" : "false"} onClick=${(e) => { e.stopPropagation(); setMeta(!meta); }}>${CAL_ICON}</button>
+    <button type="button" class=${"dbtn" + (task.data.due ? " has" : "")} title="Aloitus, lopetus ja vastuuhenkilö" aria-label="Aloitus, lopetus ja vastuuhenkilö" aria-expanded=${meta ? "true" : "false"} onClick=${(e) => { e.stopPropagation(); setMeta(!meta); }}>${CAL_ICON}</button>
     ${meta ? html`<${TaskMeta} task=${task} parts=${parts} />` : null}
     ${!noting ? html`<button type="button" class=${"nbtn" + (task.data.note ? " has" : "")} title=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} aria-label=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} onClick=${(e) => { e.stopPropagation(); setNoting(true); }}>${NOTE_ICON}</button>` : null}
     ${noting ? html`<${Note} task=${task} parts=${parts} close=${() => setNoting(false)} />` : task.data.note ? html`<p class="inote">${task.data.note}</p>` : null}

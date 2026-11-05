@@ -26,7 +26,7 @@ export function Row({ t, open, late }) {
     </div>
     <div class="tfields">
       <label class="tfield"><span>Vastuu</span>${state.role === "member" ? html`<span class="tfixed">${t.owner || ""}</span>` : html`<${PersonSelect} label=${"Vastuu: " + (t.data.title || "")} value=${t.data.owner || ""} empty="Ei vastuuhenkilöä" onPick=${(v) => patchIn(t.plan_id, t.id, { owner: v })} />`}</label>
-      <label class="tfield"><span>Määräpäivä</span><${DueInput} value=${t.data.due} aria-label=${"Määräpäivä: " + (t.data.title || "")} onSave=${(v) => patchIn(t.plan_id, t.id, { due: v })} /></label>
+      <label class="tfield"><span>Lopetus</span><${DueInput} value=${t.data.due} aria-label=${"Lopetus: " + (t.data.title || "")} onSave=${(v) => patchIn(t.plan_id, t.id, { due: v })} /></label>
     </div>
   </li>`;
 }
@@ -62,7 +62,7 @@ function TRow({ t, open, today }) {
     <td class="ckcol"><button type="button" class="tcheck" title="Merkitse valmiiksi" aria-label=${"Merkitse valmiiksi: " + (t.data.title || "tehtävä")} onClick=${() => markDone(t)}></button></td>
     <td class="nmtd">${open ? html`<button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(t.plan_id, t)}>${t.data.title || "Nimetön tehtävä"}</button>` : html`<span class="ttitle">${t.data.title || "Nimetön tehtävä"}</span>`}${t.data.status === "doing" ? html`<span class="tsub"> · käynnissä</span>` : null}</td>
     <td>${state.role === "member" ? html`<span class="tfixed">${t.owner || ""}</span>` : html`<${PersonSelect} label=${"Vastuu: " + (t.data.title || "")} value=${t.data.owner || ""} empty="Ei vastuuhenkilöä" onPick=${(v) => patchIn(t.plan_id, t.id, { owner: v })} />`}</td>
-    <td><${DueInput} value=${t.data.due} aria-label=${"Määräpäivä: " + (t.data.title || "")} onSave=${(v) => patchIn(t.plan_id, t.id, { due: v })} />${isWeekDue(t.data.due) ? html`<span class="weektag" title="Viikolle sitoutettu: päättyy sunnuntaina">${fmtDue(t.data.due)}</span>` : null}</td>
+    <td><${DueInput} value=${t.data.due} aria-label=${"Lopetus: " + (t.data.title || "")} onSave=${(v) => patchIn(t.plan_id, t.id, { due: v })} />${isWeekDue(t.data.due) ? html`<span class="weektag" title="Viikolle sitoutettu: päättyy sunnuntaina">${fmtDue(t.data.due)}</span>` : null}</td>
     <td class="gs">${t.stream ? t.stream.data.label : "–"}</td>
     <td class="gs">${planName(t.plan_id)}</td>
   </tr>`;
@@ -148,7 +148,7 @@ export function TodayView({ open }) {
         ${mode === "tl" ? html`<${Timeline} tasks=${all} today=${today} by=${by} open=${open} />`
           : mode === "weeks" ? (all.length ? html`<${BoardBody} parts=${parts} />` : html`<p class="tclear">Ei avoimia tehtäviä.</p>`)
           : mode === "cal" ? html`<${Calendar} list=${all} today=${today} open=${open} />`
-          : shown.length ? html`<div class="gtable-wrap"><table class="gtable sctable taskstable actable"><thead><tr><th class="ckcol"></th><th>Tehtävä</th><th>Vastuu</th><th>Määräpäivä ↑</th><th>Työvirta</th><th>Suunnitelma</th></tr></thead>
+          : shown.length ? html`<div class="gtable-wrap"><table class="gtable sctable taskstable actable"><thead><tr><th class="ckcol"></th><th>Tehtävä</th><th>Vastuu</th><th>Lopetus ↑</th><th>Työvirta</th><th>Suunnitelma</th></tr></thead>
             <tbody>${shown.map((t) => html`<${TRow} key=${t.plan_id + t.id} t=${t} open=${open} today=${today} />`)}</tbody></table></div>`
           : html`<p class="tclear">${all.length ? "Ei tehtäviä tällä valinnalla." : "Ei avoimia tehtäviä."}</p>`}
       </div>
