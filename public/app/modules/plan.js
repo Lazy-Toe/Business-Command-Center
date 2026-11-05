@@ -16,6 +16,11 @@ const saveTask = (parts, task, data, extra) => (parts && parts.save ? parts.save
 export function toggleFocusPhase(id, f = focus) { f.p = f.p === id ? "" : id; uiChanged(); }
 function toggleWs(id, f = focus) { f.ws = f.ws === id ? "" : id; uiChanged(); }
 function toggleWide(id, f = focus) { f.wide = f.wide === id ? "" : id; uiChanged(); }
+// Klikkaus sarakkeen vapaaseen kohtaan (ei korttiin, painikkeeseen tai kenttään) valitsee vaiheen. Vain laajennuskuvake laajentaa.
+const pickPhase = (parts, ph) => (e) => {
+  if (editing(parts) || e.target.closest(".item, button, input, select, textarea, a, label")) return;
+  toggleFocusPhase(ph.id, F(parts));
+};
 
 export function planParts() {
   const s = findSection("plan"); if (!s) return null;
@@ -95,9 +100,9 @@ export function Task({ task, list, parts, withTag }) {
 function newTask(parts, phase, stream) { add("task", parts.section.id, { title: "", detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, parts.roles) }); }
 const cellDrop = (parts, phase, stream) => dropProps("task", (id) => moveBefore(id, null, parts.tasks.filter((t) => t.data.phase === phase && t.data.stream === stream), { phase, stream }));
 
-function GateCell({ ph, dim, parts }) {
+function GateCell({ ph, dim, parts, onPick }) {
   const mode = parts && parts.readonly ? "view" : "edit";
-  return html`<div class=${"gc" + (dim ? " dim" : "")}>
+  return html`<div class=${"gc" + (dim ? " dim" : "") + (onPick && !editing(parts) ? " pick" : "")} onClick=${onPick}>
     <${Text} item=${ph} field="gateLabel" cls="d" ph="Päivä" mode=${mode} />
     <${Text} item=${ph} field="gateTitle" tag="b" ph="Päätösportti" mode=${mode} />
     <${Text} item=${ph} field="gateText" ph="Mitä on valmista" multi=${true} mode=${mode} />
@@ -174,14 +179,14 @@ function Desktop({ parts }) {
       ...phases.map((ph) => {
         const list = tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id);
         const dim = (f.p && f.p !== ph.id) || (f.ws && f.ws !== w.id);
-        return html`<div key=${w.id + ph.id} class=${"cell" + (dim ? " dim" : "")} ...${ed ? cellDrop(parts, ph.id, w.id) : {}}>
+        return html`<div key=${w.id + ph.id} class=${"cell" + (dim ? " dim" : "") + (ed ? "" : " pick")} onClick=${pickPhase(parts, ph)} ...${ed ? cellDrop(parts, ph.id, w.id) : {}}>
           ${list.map((t) => html`<${Task} key=${t.id} task=${t} list=${list} parts=${parts} />`)}
           ${ed ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />` : null}
         </div>`;
       })
     ])}
     <div class="gl"><i class="diamond"></i>Päätösportti</div>
-    ${phases.map((ph) => html`<${GateCell} key=${ph.id} ph=${ph} dim=${f.p && f.p !== ph.id} parts=${parts} />`)}
+    ${phases.map((ph) => html`<${GateCell} key=${ph.id} ph=${ph} dim=${f.p && f.p !== ph.id} parts=${parts} onPick=${pickPhase(parts, ph)} />`)}
   </div>`;
 }
 
