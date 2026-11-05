@@ -1,6 +1,7 @@
 // Asetukset: yhteiset tavoitteet ja mittarimallit. Malli kuuluu työvirtaan, ja saman työvirran vastuualueille tavoite tulee automaattisesti.
 import { html, useState } from "../../vendor/htm-preact.js";
-import { Text, Tools, AddButton, Input, ui, useEscape } from "../core/ui.js";
+import { Text, Tools, AddButton, Input, ui, uiChanged, useEscape } from "../core/ui.js";
+import { PersonSelect } from "../people.js";
 import { state, all, children, add, patch, remove } from "../core/store.js";
 import { compile, DEFAULT_FORMULA, FORMULA_PRESETS, FUNCTION_NAMES } from "../core/formula.js";
 import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber, recipientsOf } from "../core/scorecard.js";
@@ -95,6 +96,33 @@ function FormTypes() {
   </section>`;
 }
 
+// Vastuualueet: nimi, vastuuhenkilö ja työvirta yhdessä paikassa. Muutos tallentuu heti ja on peruttavissa (Kumoa-palkki).
+function RolesSettings() {
+  const roles = all("role"), defs = all("metricdef"), rows = all("metric");
+  const change = (r, field, value, what) => {
+    const before = r.data[field] || "";
+    if (before === value) return;
+    patch(r.id, { [field]: value });
+    ui.undo = { label: (r.data.title || "Vastuualue") + ": " + what + " muutettu", run: () => patch(r.id, { [field]: before }) };
+    uiChanged();
+  };
+  const sameStream = (r) => (r.data.stream ? roles.filter((x) => x.id !== r.id && x.data.stream === r.data.stream) : []);
+  return html`<section class="tgroup rolesettings">
+    <h2>Vastuualueet <span class="num">${roles.length}</span></h2>
+    <p class="gs">Vastuuhenkilö ja työvirta määräävät, kenelle tehtävät ja mittarit tulevat. Tehtävä, jolla ei ole omaa vastuuhenkilöä, kuuluu saman työvirran vastuualueen omistajalle. Muutos tallentuu heti, ja sen voi kumota.</p>
+    ${roles.length ? html`<div class="gtable-wrap"><table class="gtable sctable roletable"><thead><tr><th>Vastuualue</th><th>Vastuuhenkilö</th><th>Työvirta</th><th>Mittareita</th><th>Huomio</th></tr></thead>
+      <tbody>${roles.map((r) => {
+        const n = defs.filter((d) => recipientsOf(d, [r], rows).length).length, dup = sameStream(r);
+        return html`<tr key=${r.id}>
+          <td><b>${r.data.title || "Nimetön"}</b></td>
+          <td><${PersonSelect} canAdd=${true} label=${"Vastuuhenkilö: " + (r.data.title || "")} value=${r.data.owner || ""} onPick=${(v) => change(r, "owner", v, "vastuuhenkilö")} /></td>
+          <td><select class="personsel" aria-label=${"Työvirta: " + (r.data.title || "")} value=${r.data.stream || ""} onChange=${(e) => change(r, "stream", e.target.value, "työvirta")}><option value="">Ei työvirtaa</option>${streamsOf().map((x) => html`<option key=${x.id} value=${x.id}>${x.data.label}</option>`)}</select></td>
+          <td class="num">${n}</td>
+          <td class="gs ${!r.data.stream || dup.length ? "warn" : ""}">${!r.data.stream ? "Ei työvirtaa: tehtävät eivät peri vastuuta" : dup.length ? "Sama työvirta: " + dup.map((x) => x.data.title || "Vastuualue").join(", ") : ""}</td></tr>`;
+        })}</tbody></table></div>` : html`<p class="gs">Suunnitelmassa ei ole vastuualueita. Lisää ne Kokonaisuus-näkymässä.</p>`}
+  </section>`;
+}
+
 export function SettingsView() {
   const [edit, setEdit] = useState(null);
   const goals = all("goal");
@@ -105,6 +133,7 @@ export function SettingsView() {
   return html`<div class="wrap today settings">
     <header class="thead"><div><p class="eyebrow">Asetukset</p><h1>Tavoitteet</h1><p class="lede">${plan.title}</p></div>
       <p class="gs">Määrittele tavoitteet kerran. Mittari kuuluu työvirtaan, ja se tulee automaattisesti saman työvirran vastuualueiden scorecardeille. Vastuualueella toteuma kirjataan itse.</p></header>
+    <${RolesSettings} />
     <div class="tfilters">
       <button type="button" class="barbtn" onClick=${() => add("goal", null, { name: "Uusi yhteinen tavoite" })}>+ Uusi yhteinen tavoite</button>
       <button type="button" class="barbtn" disabled=${!goals.length} title=${goals.length ? "" : "Luo ensin yhteinen tavoite"} onClick=${() => newDef(goals[0].id)}>+ Uusi mittari</button>
