@@ -2,8 +2,9 @@
 import { html } from "../vendor/htm-preact.js";
 
 const svg = (body) => html`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+// Merkki on täytetty solmu: vastuut, mittarit ja suunnitelmat kohtaavat keskipisteessä. Täyttö erottaa sen viivapiirretyistä toiminnoista.
+const MARK = html`<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M10.5 13.5 19 5M10.5 13.5 4.5 5.5M10.5 13.5 18.5 19.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="10.5" cy="13.5" r="5"/><circle cx="19" cy="5" r="3"/><circle cx="4.5" cy="5.5" r="2.1"/><circle cx="18.5" cy="19.5" r="2.1"/></svg>`;
 export const ICONS = {
-  mark: svg(html`<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>`),
   tasks: svg(html`<path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17"/>`),
   today: svg(html`<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M9 15l2 2 4-4"/>`),
   mine: svg(html`<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/>`),
@@ -19,7 +20,7 @@ export function Rail({ items }) {
     ${ICONS[it.icon]}${it.badge ? html`<span class="railbadge" aria-label=${it.badge + " myöhässä"}>${it.badge > 99 ? "99+" : it.badge}</span>` : null}
   </button>`;
   return html`<nav class="rail" aria-label="Päävalikko">
-    <span class="rail-mark" aria-hidden="true">${ICONS.mark}</span>
+    <button type="button" class="rail-mark" aria-label="Etusivu" title="Etusivu" onClick=${items.find((i) => i.id === "today")?.onClick}>${MARK}</button>
     <div class="rail-group">${items.filter((i) => i.group !== "bottom").map(btn)}</div>
     <span class="rail-spacer"></span>
     <div class="rail-group">${items.filter((i) => i.group === "bottom").map(btn)}</div>
