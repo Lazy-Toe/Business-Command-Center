@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { taskRows, filterRows, bulkPatches, invertPatches, suggestPatches, ownersIn, groupRows, periodOptions, lastDay, STATUS_LABEL } from "../public/app/core/tasks-table.js";
+import { taskRows, filterRows, bulkPatches, invertPatches, suggestPatches, catalogOf, labelOptions, catalogPatches, ownersIn, groupRows, periodOptions, lastDay, STATUS_LABEL } from "../public/app/core/tasks-table.js";
 
 const plans = [{ id: "a", title: "Eka" }, { id: "b", title: "Toka" }];
 const row = (plan_id, id, kind, data, parent_id = "s") => ({ plan_id, id, kind, parent_id, data });
@@ -117,4 +117,16 @@ test("massamuutos hylkää kirjoituksen välivaiheen päivän", () => {
 test("ehdotus kirjataan vain tehtäville ilman vastuuhenkilöä, ja vain jos työvirralla on vastuualueen omistaja", () => {
   const r = suggestPatches(rows);
   assert.deepEqual(r.patches, [{ planId: "a", id: "t1", data: { owner: "Mika" } }, { planId: "a", id: "t3", data: { owner: "Pontus" } }]);
+});
+
+test("työvirran ja vaiheen asetus nimen mukaan: jokaisen rivin omasta suunnitelmasta samanniminen, puuttuvat ja jo oikeat ohitetaan", () => {
+  const it = (plan_id, id, kind, data, position = 1) => ({ plan_id, id, kind, position, data });
+  const cat = catalogOf([it("a", "w1", "stream", { label: "Myynti" }, 1), it("a", "w2", "stream", { label: "Tekno" }, 2), it("b", "x1", "stream", { label: "Myynti" }), it("b", "x2", "stream", { label: "Muu" }, 2),
+    it("a", "p1", "phase", { title: "Selvitä" })], "stream");
+  const rows = [{ plan_id: "a", id: "t1", stream: "w2" }, { plan_id: "a", id: "t2", stream: "w1" }, { plan_id: "b", id: "t3", stream: "x2" }];
+  assert.deepEqual(labelOptions(rows, cat), ["Myynti", "Tekno", "Muu"]);
+  assert.deepEqual(labelOptions([rows[2]], cat), ["Myynti", "Muu"], "vain rivien suunnitelmien nimet");
+  assert.deepEqual(catalogPatches(rows, "stream", "Myynti", cat).patches, [{ planId: "a", id: "t1", data: { stream: "w1" } }, { planId: "b", id: "t3", data: { stream: "x1" } }], "t2 on jo Myynti");
+  assert.deepEqual(catalogPatches(rows, "stream", "Tekno", cat).patches, [{ planId: "a", id: "t2", data: { stream: "w2" } }], "suunnitelmassa b ei ole Teknoa");
+  assert.equal(catalogOf([it("a", "p1", "phase", { title: "Selvitä" })], "phase").get("a")[0].label, "Selvitä");
 });
