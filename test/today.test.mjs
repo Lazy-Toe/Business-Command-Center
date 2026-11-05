@@ -150,3 +150,20 @@ test("viikkotaso: viikon numero, viikon loppu, viikkoteksti ja valittavat viikot
   assert.deepEqual(o.map((x) => x.value), ["2026-11-08", "2026-11-15", "2026-11-22"]);
   assert.equal(o[0].label, "Vko 45 (2.–8.11.)");
 });
+
+test("kesto: aloitus ja lopetus tekstinä, ja kuukausikalenterissa tehtävä näkyy koko kestonsa ajan", async () => {
+  const { fmtSpan, fmtStart, isWeekStart, monthGrid } = await import("../public/app/core/today.js");
+  assert.equal(isWeekStart("2026-11-02"), true);
+  assert.equal(isWeekStart("2026-11-03"), false);
+  assert.equal(fmtStart("2026-11-02"), "vko 45");
+  assert.equal(fmtStart("2026-11-03"), "3.11.2026");
+  assert.equal(fmtSpan("2026-11-02", "2026-11-22"), "vko 45 – vko 47");
+  assert.equal(fmtSpan("2026-11-03", "2026-11-13"), "3.11.2026 – 13.11.2026");
+  assert.equal(fmtSpan("", "2026-11-13"), "13.11.2026");
+  assert.equal(fmtSpan("2026-11-09", ""), "alk. vko 46");
+  assert.equal(fmtSpan("2026-11-13", "2026-11-13"), "13.11.2026");
+  const t = { data: { start: "2026-11-10", due: "2026-11-12" } }, u = { data: { due: "2026-11-11" } };
+  const g = monthGrid([t, u], 2026, 11).flat();
+  assert.deepEqual(g.filter((d) => d.tasks.includes(t)).map((d) => d.date), ["2026-11-10", "2026-11-11", "2026-11-12"]);
+  assert.equal(g.find((d) => d.date === "2026-11-11").tasks.length, 2);
+});
