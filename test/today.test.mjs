@@ -98,3 +98,37 @@ test("ownerOf: vain tehtävälle valittu vastuuhenkilö, työvirta ei periydy; s
   assert.equal(suggestedOwner("w1", roles), "Mika");
   assert.equal(suggestedOwner("", roles), "");
 });
+
+test("kuukausijako: kuluva kuukausi ja viisi seuraavaa aina mukana, tehtävät kuukausiin ja yli menevät erikseen", async () => {
+  const { monthBuckets, monthLabel } = await import("../public/app/core/today.js");
+  const t = (id, due) => ({ id, data: { due } });
+  const B = monthBuckets([t("a", "2026-11-30"), t("b", "2026-12-01"), t("c", "2027-01-31"), t("d", "2027-04-05"), t("e", "2027-06-01"), t("f", "2026-11-06")], "2026-11-05", 6);
+  assert.deepEqual(B.months.map((m) => m.label), ["Marraskuu 2026", "Joulukuu 2026", "Tammikuu 2027", "Helmikuu 2027", "Maaliskuu 2027", "Huhtikuu 2027"]);
+  assert.deepEqual(B.months.map((m) => m.list.map((x) => x.id)), [["f", "a"], ["b"], ["c"], [], [], ["d"]], "tyhjätkin kuukaudet näkyvät, ja kuukauden sisällä päivän mukaan");
+  assert.deepEqual(B.beyond.map((x) => x.id), ["e"]);
+  assert.equal(B.months[0].current, true);
+  assert.equal(monthLabel("2027-02"), "Helmikuu 2027");
+  assert.equal(monthBuckets([], "2026-12-15", 3).months.map((m) => m.key).join(), "2026-12,2027-01,2027-02", "vuodenvaihde");
+});
+
+test("jaksovalinnat: myöhässä, tänään, huomenna, viikot, kuukausi ja ei päivää", async () => {
+  const { inPeriod, weekRange, monthGrid, byDueFirst } = await import("../public/app/core/today.js");
+  const T = "2026-11-05"; // torstai
+  const t = (due) => ({ data: due ? { due } : {} });
+  assert.deepEqual(weekRange(T, 0), ["2026-11-02", "2026-11-08"]);
+  assert.deepEqual(weekRange(T, 1), ["2026-11-09", "2026-11-15"]);
+  const hit = (key) => ["2026-11-01", "2026-11-05", "2026-11-06", "2026-11-08", "2026-11-09", "2026-12-24", ""].filter((d) => inPeriod(t(d), key, T));
+  assert.deepEqual(hit("late"), ["2026-11-01"]);
+  assert.deepEqual(hit("today"), ["2026-11-05"]);
+  assert.deepEqual(hit("tomorrow"), ["2026-11-06"]);
+  assert.deepEqual(hit("week"), ["2026-11-05", "2026-11-06", "2026-11-08"]);
+  assert.deepEqual(hit("nextweek"), ["2026-11-09"]);
+  assert.deepEqual(hit("m:2026-12"), ["2026-12-24"]);
+  assert.deepEqual(hit("none"), [""]);
+  assert.equal(hit("todo").length, 6, "kaikki päivälliset");
+  assert.deepEqual([t(""), t("2026-12-01"), t("2026-11-01")].sort(byDueFirst).map((x) => x.data.due || ""), ["2026-11-01", "2026-12-01", ""]);
+  const g = monthGrid([t("2026-11-05"), t("2026-11-05"), t("2026-12-01")], 2026, 11);
+  assert.equal(g[0][0].date, "2026-10-26", "viikko alkaa maanantaista");
+  assert.equal(g.flat().find((d) => d.date === "2026-11-05").tasks.length, 2);
+  assert.ok(g.every((w) => w.length === 7) && g.length >= 5);
+});
