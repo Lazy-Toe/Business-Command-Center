@@ -74,7 +74,7 @@ function WhoAmI({ error }) {
     <div class="whoami">
       <p>Liitä kirjautumisesi${state.email ? " (" + state.email + ")" : ""} henkilöön. Sen jälkeen tämä näkymä näyttää vain sinun tehtäväsi ja scorecardisi kaikista suunnitelmista.</p>
       ${guess ? html`<p><button type="button" class="barbtn primary" onClick=${() => pick(guess)}>Olen ${guess}</button></p><p class="gs">Tai valitse toinen henkilö:</p>` : null}
-      <${PersonSelect} cls="whosel" canAdd=${true} label="Valitse henkilö" value="" empty="Valitse henkilö" onPick=${pick} />
+      <${PersonSelect} cls="whosel" inline=${true} cards=${true} canAdd=${true} label="Valitse henkilö" value="" onPick=${pick} />
       ${msg ? html`<p class="gs bad">${msg}</p>` : null}
       ${error ? html`<p class="gs bad">${error}</p>` : null}
     </div>
