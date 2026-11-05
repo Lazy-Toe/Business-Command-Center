@@ -4,7 +4,7 @@ import { Text, Tools, AddButton, Input, ui, uiChanged, useEscape } from "../core
 import { PersonSelect } from "../people.js";
 import { state, all, children, add, patch, remove } from "../core/store.js";
 import { compile, DEFAULT_FORMULA, FORMULA_PRESETS, FUNCTION_NAMES } from "../core/formula.js";
-import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber, recipientsOf, roleSelection, initialPicked } from "../core/scorecard.js";
+import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber, recipientsOf } from "../core/scorecard.js";
 import { fmt } from "../core/calc.js";
 import { sortTypes } from "../core/forms.js";
 import { PaySettings } from "./settings-pay.js";
@@ -18,8 +18,8 @@ function DefEditor({ def, onClose }) {
   const d = def.data;
   const [v, setV] = useState({ name: d.name || "", stream: d.stream || "", start: d.start || "", end: d.end || "", target: d.target || "", min: d.min || "", max: d.max || "", weight: d.weight || "", formula: d.formula || DEFAULT_FORMULA, lock: Object.assign({}, d.lock) });
   const [goal, setGoal] = useState(def.parent_id || "");
+  const [picked, setPicked] = useState(Array.isArray(d.roles) ? d.roles : []);
   const allRoles = all("role");
-  const [picked, setPicked] = useState(() => initialPicked(def, allRoles, all("metric")));
   const [year, setYear] = useState(String((d.start || "").slice(0, 4) || new Date().getFullYear()));
   const [sample, setSample] = useState("");
   useEscape(onClose);
@@ -31,9 +31,7 @@ function DefEditor({ def, onClose }) {
     if (!c.ok || !v.name.trim()) return;
     const data = Object.assign({}, v, { name: v.name.trim().slice(0, 120) });
     const lock = {}; LOCKABLE.forEach((k) => { if (v.lock[k]) lock[k] = true; });
-    const sel = roleSelection({ id: def.id, data: { stream: v.stream } }, allRoles, picked);
-    sel.hide.forEach((h) => patch(h.id, { hide: h.hide }));
-    patch(def.id, Object.assign(data, { lock, roles: sel.roles }), goal !== def.parent_id ? { parent_id: goal } : undefined);
+    patch(def.id, Object.assign(data, { lock, roles: picked.filter((id) => allRoles.some((r) => r.id === id)) }), goal !== def.parent_id ? { parent_id: goal } : undefined);
     onClose();
   };
   const field = (k) => html`<div class="mfrow"><label for=${"f-" + k}>${FIELD_LABEL[k]}</label>
@@ -45,12 +43,12 @@ function DefEditor({ def, onClose }) {
       <div class="mfrow"><label for="f-goal">Yhteinen tavoite</label><select id="f-goal" value=${goal} onChange=${(e) => setGoal(e.target.value)}>${goals.map((g) => html`<option key=${g.id} value=${g.id}>${g.data.name || "Nimetön"}</option>`)}</select></div>
       <div class="mfrow"><label for="f-name">Nimi</label><${Input} id="f-name" maxlength="120" value=${v.name} onChange=${(e) => set("name", e.target.value)} /></div>
       <div class="mfrow"><label for="f-stream">Työvirta</label>
-        <select id="f-stream" value=${v.stream} onChange=${(e) => { const ns = e.target.value; setPicked((o) => allRoles.filter((r) => (ns && r.data.stream === ns) || (!(v.stream && r.data.stream === v.stream) && o.includes(r.id))).map((r) => r.id)); set("stream", ns); }}><option value="">Ei työvirtaa (lisätään käsin)</option>${streamsOf().map((s) => html`<option key=${s.id} value=${s.id}>${s.data.label}</option>`)}</select>
+        <select id="f-stream" value=${v.stream} onChange=${(e) => set("stream", e.target.value)}><option value="">Ei työvirtaa (lisätään käsin)</option>${streamsOf().map((s) => html`<option key=${s.id} value=${s.id}>${s.data.label}</option>`)}</select>
         <span class="gs">Tavoite tulee automaattisesti tämän työvirran vastuualueille.</span></div>
       <div class="mfrow"><label>Vastuualueet</label>
-        <span class="gs">Valmiiksi valittuina ovat työvirran vastuualueet. Poista rasti, jos mittari ei kuulu jollekin niistä, tai lisää rasti muulle vastuualueelle.</span>
+        <span class="gs">Tulee kaikille vastuualueille, joilla on yllä oleva työvirta, sekä alla valituille.</span>
         <div class="rolepick">${allRoles.length ? allRoles.map((r) => html`<label key=${r.id} class="rolechk"><input type="checkbox" checked=${picked.includes(r.id)} onChange=${(e) => setPicked((o) => (e.target.checked ? o.concat(r.id) : o.filter((x) => x !== r.id)))} /> ${r.data.title || "Vastuualue"}${r.data.owner ? html`<span class="gs"> · ${r.data.owner}</span>` : null}${v.stream && r.data.stream === v.stream ? html`<span class="gs"> (työvirran kautta)</span>` : null}</label>`) : html`<span class="gs">Suunnitelmassa ei ole vastuualueita.</span>`}</div>
-        <span class="gs">Tulee nyt: <b>${(() => { const to = allRoles.filter((r) => picked.includes(r.id)); return to.length ? to.map((r) => r.data.title || "Vastuualue").join(", ") : "ei kenellekään"; })()}</b></span></div>
+        <span class="gs">Tulee nyt: <b>${(() => { const to = recipientsOf({ id: def.id, data: { stream: v.stream, roles: picked } }, allRoles, all("metric")); return to.length ? to.map((x) => x.role.data.title || "Vastuualue").join(", ") : "ei kenellekään"; })()}</b></span></div>
       <div class="mfrow"><label for="f-period">Jakso</label>
         <span class="mfinline"><select id="f-period" aria-label="Valmis jakso" value="" onChange=${(e) => { const p = periodPreset(e.target.value, year); if (p) setV((o) => Object.assign({}, o, p)); e.target.value = ""; }}><option value="">Valitse jakso…</option>${PERIODS.map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>
         <${Input} aria-label="Vuosi" maxlength="4" value=${year} onChange=${(e) => setYear(e.target.value.trim())} /></span></div>

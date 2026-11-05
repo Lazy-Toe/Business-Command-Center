@@ -2,7 +2,7 @@
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
 import { ui, uiChanged, DueInput } from "../core/ui.js";
 import { state, loadOverview, patchManyIn } from "../core/store.js";
-import { taskRows, filterRows, bulkPatches, invertPatches, ownersIn, groupRows, periodOptions, GROUPS, STATUS_LABEL } from "../core/tasks-table.js";
+import { taskRows, filterRows, bulkPatches, invertPatches, suggestPatches, ownersIn, groupRows, periodOptions, GROUPS, STATUS_LABEL } from "../core/tasks-table.js";
 import { todayISO, isSaneDue } from "../core/today.js";
 import { peopleNames, PersonSelect } from "../people.js";
 
@@ -18,7 +18,7 @@ function Multi({ label, value, options, onChange }) {
     <div class="multibox">${options.map(([k, l]) => html`<label key=${k}><input type="checkbox" checked=${on.has(k)} onChange=${(e) => onChange(e.target.checked ? value.concat(k) : value.filter((x) => x !== k))} /> ${l}</label>`)}
       ${value.length ? html`<button type="button" class="linkbtn" onClick=${() => onChange([])}>Tyhjennä</button>` : null}</div></details>`;
 }
-const INHERIT = "__inherit";
+const SUGGEST = "__suggest";
 
 // Massamuutoksen päivä otetaan käyttöön vasta painikkeesta, jotta kirjoitus kesken ei muuta valittuja tehtäviä.
 function BulkDate({ disabled, onApply }) {
@@ -76,6 +76,16 @@ export function TasksView({ open }) {
     uiChanged();
     setMsg(r.patches.length + " tehtävää muutettu (" + what + ").");
   };
+  // Valmiit muutokset (riville ominaiset arvot) kirjataan yhtenä peruttavana eränä.
+  const applyPatches = (patches, rows, what) => {
+    if (!patches.length) { setMsg("Ei kirjattavia muutoksia."); return; }
+    const back = invertPatches(rows, patches);
+    patchManyIn(patches);
+    ui.undo = { label: "Muutettu " + patches.length + " tehtävää (" + what + ")", run: () => patchManyIn(back) };
+    uiChanged();
+    setMsg(patches.length + " tehtävää muutettu (" + what + ").");
+  };
+  const unowned = shown.filter((r) => !r.owner), fillable = suggestPatches(unowned).patches.length;
   // Jaksovalinta: arvo on jakson viimeinen päivä. Yksi valinta asettaa määräpäivän riville, ryhmälle tai valituille.
   const periodOf = (v) => [...periods.months, ...periods.quarters].find((p) => p.value === v);
   const PeriodOpts = () => html`<optgroup label="Kuukausi">${periods.months.map((p) => html`<option key=${p.value} value=${p.value}>${p.label}</option>`)}</optgroup>
@@ -86,7 +96,7 @@ export function TasksView({ open }) {
 
   return html`<div class="wrap today taskspage">
     <header class="thead"><div><p class="eyebrow">Tehtävät</p><h1>Kaikki tehtävät</h1><p class="lede">${shown.length} / ${all.length} tehtävää</p></div>
-      <p class="gs">Muokkaa tehtäviä suoraan riviltä tai valitse useita ja muuta vastuu, määräpäivä tai tila kerralla. Kursivoitu vastuu tulee vastuualueelta (saman työvirran omistaja), ja tavallinen on tehtävälle asetettu.</p></header>
+      <p class="gs">Muokkaa tehtäviä suoraan riviltä tai valitse useita ja muuta vastuu, määräpäivä tai tila kerralla. Tehtävä kuuluu henkilölle vain valitun vastuuhenkilön kautta: työvirta ei siirrä sitä kenellekään.</p></header>
 
     <div class="tfilters taskfilters">
       <input type="search" class="tsearch" placeholder="Hae tehtävää…" aria-label="Hae tehtävää" value=${f.q} onInput=${(e) => set("q", e.target.value)} />
@@ -103,13 +113,14 @@ export function TasksView({ open }) {
 
     <div class="bulkbar" role="region" aria-label="Massamuutos">
       <b>${chosen.length ? chosen.length + " valittu" : "Valitse rivit vasemmalta"}</b>
-      <select aria-label="Vaihda vastuu" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) apply({ owner: v === INHERIT ? "" : v }, v === INHERIT ? "vastuu vastuualueen mukaan" : "vastuu " + v); }}><option value="">Vastuu…</option>${names.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}<option value=${INHERIT}>Palauta vastuualueen mukaan</option></select>
+      <select aria-label="Vaihda vastuu" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v === SUGGEST) applyPatches(suggestPatches(chosen).patches, chosen, "vastuualueen omistaja"); else if (v === "__clear") apply({ owner: "" }, "vastuuhenkilö poistettu"); else if (v) apply({ owner: v }, "vastuu " + v); }}><option value="">Vastuu…</option>${names.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}<option value=${SUGGEST}>Vastuualueen omistaja (työvirran mukaan)</option><option value="__clear">Poista vastuuhenkilö</option></select>
       <select aria-label="Vaihda määräpäivä" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v === "__clear") apply({ due: "" }, "päivä tyhjennetty"); else if (v) apply({ due: v }, "määräpäivä " + (periodOf(v) || { label: v }).label); }}><option value="">Määräpäivä…</option><option value="__clear">Tyhjennä päivä</option>${PeriodOpts()}</select>
       <${BulkDate} disabled=${!chosen.length} onApply=${(v) => apply({ due: v }, "määräpäivä")} />
       <select aria-label="Vaihda tila" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) apply({ status: v }, "tila " + STATUS_LABEL[v]); }}><option value="">Tila…</option>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>
       <span class="grow"></span>
       ${chosen.length ? html`<button type="button" class="linkbtn" onClick=${() => { setSel(new Set()); setMsg(""); }}>Tyhjennä valinta</button>` : null}
     </div>
+    ${unowned.length ? html`<p class="gs unownedbar" role="status">${unowned.length} näkyvällä tehtävällä ei ole vastuuhenkilöä, eikä niitä näytetä kenenkään työpöydällä.${fillable ? html` <button type="button" class="barbtn" onClick=${() => applyPatches(suggestPatches(unowned).patches, unowned, "vastuualueen omistaja")}>Kirjaa vastuualueen omistaja (${fillable})</button>` : null}</p>` : null}
     ${msg ? html`<p class=${"gs" + (/virhe|Ei muutosta/i.test(msg) ? " bad" : "")} role="status">${msg}</p>` : null}
 
     ${shown.length ? html`<div class="gtable-wrap"><table class="gtable sctable taskstable">
@@ -119,7 +130,7 @@ export function TasksView({ open }) {
         <td class="ckcol"><input type="checkbox" aria-label=${"Valitse: " + (r.title || "tehtävä")} checked=${sel.has(r.key)} onClick=${(e) => toggle(r, i, e)} onChange=${() => {}} /></td>
         <td class="nmtd"><button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(r.plan_id, { id: r.id, kind: "task", parent_id: r.parent_id })}>${r.title || "Nimetön tehtävä"}</button>${state.plans.length > 1 ? html`<span class="tsub">${r.planTitle}</span>` : null}</td>
         ${col("stream") ? html`<td class="gs">${r.streamLabel || "–"}</td>` : null}${col("phase") ? html`<td class="gs">${r.phaseLabel || "–"}</td>` : null}
-        ${col("owner") ? html`<td><span title=${r.owner ? "Asetettu tehtävälle" : r.effective ? "Vastuualueelta: " + (r.via || "") : ""}><${PersonSelect} cls=${"personsel" + (!r.owner && r.effective ? " inh" : "")} label=${"Vastuu: " + (r.title || "")} value=${r.owner} empty=${r.inherited || "Ei vastuuhenkilöä"} onPick=${(v) => one(r, { owner: v })} /></span></td>` : null}
+        ${col("owner") ? html`<td><${PersonSelect} cls=${"personsel" + (!r.owner ? " none" : "")} label=${"Vastuu: " + (r.title || "")} value=${r.owner} empty="Ei vastuuhenkilöä" onPick=${(v) => one(r, { owner: v })} /></td>` : null}
         ${col("due") ? html`<td><${DueInput} aria-label=${"Määräpäivä: " + (r.title || "")} value=${r.due} onSave=${(v) => one(r, { due: v })} />${PeriodPick({ text: "Jakso…", label: "Aseta jakson loppu: " + (r.title || ""), onPick: (v) => one(r, { due: v }) })}</td>` : null}
         ${col("status") ? html`<td><select aria-label=${"Tila: " + (r.title || "")} value=${r.status} onChange=${(e) => one(r, { status: e.target.value })}>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></td>` : null}
       </tr>`; })}</tbody>`)}</table></div>` : html`<p class="tclear">Ei tehtäviä näillä suodattimilla.</p>`}

@@ -7,7 +7,7 @@ const task = (id, data, plan = "a") => ({ plan_id: plan, id, kind: "task", paren
 const items = [
   { plan_id: "a", id: "w1", kind: "stream", data: { label: "Myynti", color: "kate" } },
   { plan_id: "a", id: "r1", kind: "role", data: { title: "Sales", owner: "Mika", stream: "w1" } },
-  task("late", { due: "2026-11-03", stream: "w1" }),
+  task("late", { due: "2026-11-03", stream: "w1", owner: "Mika" }),
   task("now", { due: T, owner: "Iida" }),
   task("wk", { due: "2026-11-11", stream: "w1" }),
   task("far", { due: "2026-11-12" }),
@@ -29,8 +29,8 @@ const ids = (l) => l.map((x) => x.id);
 
 test("tehtävä kertoo myös vastuualueen oman omistajan, vaikka vastuu olisi asetettu käsin", () => {
   const r = buildToday(items, T), by = (id) => [...r.late, ...r.today, ...r.week, ...r.later, ...r.doing, ...r.noDate].find((x) => x.id === id);
-  assert.deepEqual([by("now").owner, by("now").inherited], ["Iida", ""], "t: oma vastuu, tehtävällä ei ole työvirtaa");
-  assert.deepEqual([by("late").owner, by("late").inherited], ["Mika", "Mika"], "peritty on myös vastuualueen omistaja");
+  assert.deepEqual([by("now").owner, by("now").suggested], ["Iida", ""], "t: oma vastuu, tehtävällä ei ole työvirtaa");
+  assert.deepEqual([by("late").owner, by("late").suggested], ["Mika", "Mika"], "ehdotus on vastuualueen omistaja");
 });
 
 test("avoin ehdotus nousee huomioon, päätetty ei, ja vain ehdotustyypin lomake", () => {
@@ -88,4 +88,13 @@ test("rajapäivät ja päivälaskenta", () => {
 test("tyhjä tietojoukko ei kaadu", () => {
   const r = buildToday([], T);
   assert.equal(r.late.length + r.noDate.length + r.attention.length, 0);
+});
+
+test("ownerOf: vain tehtävälle valittu vastuuhenkilö, työvirta ei periydy; suggestedOwner on pelkkä ehdotus", async () => {
+  const { suggestedOwner } = await import("../public/app/core/today.js");
+  const roles = [{ data: { stream: "w1", owner: "Mika" } }];
+  assert.equal(ownerOf({ data: { stream: "w1" } }, roles), "");
+  assert.equal(ownerOf({ data: { stream: "w1", owner: " Iida " } }, roles), "Iida");
+  assert.equal(suggestedOwner("w1", roles), "Mika");
+  assert.equal(suggestedOwner("", roles), "");
 });

@@ -57,24 +57,6 @@ export function recipientsOf(def, roles, metricRows) {
   }).filter(Boolean);
 }
 
-// Muokkauksen valinta (picked = valittujen roolien tunnisteet) tallennusmuotoon. Työvirran kautta tuleva rooli on oletuksena valittu: poisto
-// piilottaa mallin roolilta (role.hide), ja valinnan palautus poistaa piilotuksen. Muut valitut roolit tallentuvat mallin roles-kenttään.
-// Palauttaa { roles: [tunnisteet], hide: [{ id, hide: [...] }] } vain roolille, jonka piilotuslista muuttuu.
-export function roleSelection(def, roles, picked) {
-  const want = new Set(picked), out = { roles: [], hide: [] };
-  roles.forEach((role) => {
-    const cur = role.data.hide || [], hidden = cur.includes(def.id);
-    if (byStream(def, role)) {
-      if (!want.has(role.id) && !hidden) out.hide.push({ id: role.id, hide: cur.concat(def.id) });
-      else if (want.has(role.id) && hidden) out.hide.push({ id: role.id, hide: cur.filter((x) => x !== def.id) });
-    } else if (want.has(role.id)) out.roles.push(role.id);
-  });
-  return out;
-}
-
-// Valittu alkutilassa: työvirran kautta tulevat (ellei piilotettu), suoraan annetut ja käsin lisätyt.
-export const initialPicked = (def, roles, metricRows) => recipientsOf(def, roles, metricRows).map((x) => x.role.id);
-
 // Roolin tavoiterivit: kaikki mallit, jotka tulevat roolille automaattisesti, sekä erikseen lisätyt (rivi viittaa malliin).
 // Piilotettu malli (role.data.hide) ei näy kummassakaan tapauksessa. Tallentamaton rivi on virtuaalinen, ja sen tunniste on kiinteä.
 export function rowsFor(role, defs, rows) {
