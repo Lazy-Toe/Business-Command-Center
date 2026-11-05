@@ -95,9 +95,9 @@ function GateCell({ ph, dim }) {
 }
 
 function PhaseHead({ ph, i, n, parts }) {
-  const dim = focus.p && focus.p !== ph.id;
-  const props = ui.edit ? {} : Object.assign(pressable(() => toggleFocusPhase(ph.id)), { title: "Valitse tai poista vaihe" });
-  return html`<div class=${"mh " + (ui.edit ? "" : "clickable ") + phaseClass(i, n) + (dim ? " dim" : "")} ...${props}>
+  const dim = focus.p && focus.p !== ph.id, open = focus.p === ph.id;
+  const props = ui.edit ? {} : Object.assign(pressable(() => toggleFocusPhase(ph.id)), { title: open ? "Palaa kaikkiin vaiheisiin" : "Avaa koko leveydelle" });
+  return html`<div class=${"mh " + (ui.edit ? "" : "clickable ") + phaseClass(i, n) + (dim ? " dim" : "") + (open ? " open" : "")} ...${props}>
     <${Text} item=${ph} field="label" cls="d" ph="Ajanjakso" /><${Text} item=${ph} field="title" cls="t" ph="Vaihe" />
     <${Tools} item=${ph} list=${parts.phases} label=${ph.data.title} />
   </div>`;
@@ -119,8 +119,37 @@ function StreamHead({ w, parts }) {
   </${Tag}>`;
 }
 
+// Valittu vaihe (focus.p) avautuu koko taulun leveydelle: kortit rinnakkain, vaihevälilehdet ja paluu kaikkiin vaiheisiin.
+function Wide({ parts, idx }) {
+  const { phases, streams, tasks } = parts, ph = phases[idx];
+  const left = (id) => tasks.filter((t) => t.data.phase === id && t.data.status !== "done").length;
+  return html`<div>
+    <div class="phasetabs" role="group" aria-label="Vaihe">
+      ${phases.map((p) => html`<button key=${p.id} type="button" class="chip" aria-pressed=${p.id === ph.id ? "true" : "false"} onClick=${() => { focus.p = p.id; uiChanged(); }}>${p.data.title} <span class="num">${left(p.id)}</span></button>`)}
+      <button type="button" class="clear" onClick=${() => { focus.p = ""; uiChanged(); }}>Näytä kaikki vaiheet</button>
+    </div>
+    <div class="matrix wide" style=${{ gridTemplateColumns: "210px minmax(0, 1fr)" }}>
+      <div class="corner"></div>
+      <${PhaseHead} ph=${ph} i=${idx} n=${phases.length} parts=${parts} />
+      ${streams.map((w) => {
+        const list = tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id), dim = focus.ws && focus.ws !== w.id;
+        return [
+          html`<${StreamHead} key=${w.id} w=${w} parts=${parts} />`,
+          html`<div key=${w.id + "w"} class=${"cell wide" + (dim ? " dim" : "")} ...${cellDrop(parts, ph.id, w.id)}>
+            ${list.map((t) => html`<${Task} key=${t.id} task=${t} list=${list} parts=${parts} />`)}
+            <${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />
+          </div>`
+        ];
+      })}
+      <div class="gl"><i class="diamond"></i>Päätösportti</div>
+      <${GateCell} ph=${ph} dim=${false} />
+    </div></div>`;
+}
+
 function Desktop({ parts }) {
   const { phases, streams, tasks } = parts;
+  const wideIdx = focus.p ? phases.findIndex((p) => p.id === focus.p) : -1;
+  if (wideIdx >= 0) return html`<${Wide} parts=${parts} idx=${wideIdx} />`;
   return html`<div class="matrix" style=${{ gridTemplateColumns: "210px repeat(" + Math.max(phases.length, 1) + ", minmax(0, 1fr))" }}>
     <div class="corner"></div>
     ${phases.map((ph, i) => html`<${PhaseHead} key=${ph.id} ph=${ph} i=${i} n=${phases.length} parts=${parts} />`)}
