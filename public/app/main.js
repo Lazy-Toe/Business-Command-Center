@@ -144,10 +144,10 @@ function AppBar() {
   const lateAll = ov ? buildToday(ov, day, {}).late.length : 0, lateMine = ov && state.people.me ? buildMine(ov, state.people.me, day).late.length : 0;
   const railItems = [
     { id: "today", label: "Tänään", icon: "today", active: ui.view === "today", badge: lateAll, onClick: () => { setView("today"); store.loadOverview(); } },
-    { id: "tasks", label: "Tehtävät", icon: "tasks", active: ui.view === "tasks", onClick: () => { ui.taskFilter = null; setView("tasks"); store.loadOverview(); } },
     { id: "mine", label: "Oma työpöytä", icon: "mine", active: ui.view === "mine", badge: lateMine, onClick: () => { setView("mine"); store.loadOverview(); } },
-    ...(plan ? [{ id: "overview", label: "Kokonaisuus", icon: "overview", active: ui.view === "plan", onClick: () => { const was = ui.view === "plan"; showTab("kokonaisuus"); setView("plan"); scrollTo(0, 0); setSubOpen(was ? !subOpen : true); } },
-      { id: "settings", label: "Asetukset", icon: "settings", active: ui.view === "settings", onClick: () => { setView("settings"); scrollTo(0, 0); } }] : []),
+    ...(plan ? [{ id: "overview", label: "Kokonaisuus", icon: "overview", active: ui.view === "plan", onClick: () => { const was = ui.view === "plan"; showTab("kokonaisuus"); setView("plan"); scrollTo(0, 0); setSubOpen(was ? !subOpen : true); } }] : []),
+    { id: "tasks", label: "Tehtävät", icon: "tasks", active: ui.view === "tasks", onClick: () => { ui.taskFilter = null; setView("tasks"); store.loadOverview(); } },
+    ...(plan ? [{ id: "settings", label: "Asetukset", icon: "settings", active: ui.view === "settings", onClick: () => { setView("settings"); scrollTo(0, 0); } }] : []),
     ...(plan ? [{ id: "history", label: "Muutoshistoria", icon: "history", group: "bottom", onClick: () => setHist(true) }] : []),
     { id: "people", label: "Henkilöt", icon: "people", group: "bottom", onClick: () => setPpl(true) }
   ];
