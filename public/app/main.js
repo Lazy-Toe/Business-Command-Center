@@ -2,6 +2,7 @@ import { html, render, useEffect, useState } from "../vendor/htm-preact.js";
 import * as store from "./core/store.js";
 import { ui, onUi, setEdit, uiChanged, removeWithUndo, Tools, expandSection, navigate, useEscape, hooks } from "./core/ui.js";
 import { TodayView } from "./views/today.js";
+import { BUILD } from "./version.js";
 import { MineView } from "./views/mine.js";
 import { SettingsView } from "./views/settings.js";
 import { TasksView } from "./views/tasks.js";
@@ -138,7 +139,7 @@ function AppBar() {
   }, [showSub, ui.tab, entriesKey]);
   // Jäsenellä on vain Oma työpöytä -näkymä, joten hänellä ei ole kuvakepalkkia.
   document.body.classList.toggle("has-rail", state.role !== "member");
-  if (state.role === "member") return html`<div class="appbar"><div class="appbar-in"><b>Oma työpöytä</b><${SaveState} /></div></div>`;
+  if (state.role === "member") return html`<div class="appbar"><div class="appbar-in"><b>Oma työpöytä</b><${SaveState} /><span class="buildid" title="Julkaisun aika">${BUILD}</span></div></div>`;
   // Punainen merkki näyttää myöhässä olevien tehtävien määrän, kun koonti on ladattu.
   const ov = state.overview ? state.overview.items : null, day = todayISO();
   const lateAll = ov ? buildToday(ov, day, {}).late.length : 0, lateMine = ov && state.people.me ? buildMine(ov, state.people.me, day).late.length : 0;
@@ -200,7 +201,7 @@ function AppBar() {
           ${plan && state.plans.length > 1 ? html`<button type="button" role="menuitem" class="danger" onClick=${del}>Poista suunnitelma</button>` : null}
         </div>` : null}
       </div>
-      <${SaveState} />
+      <${SaveState} /><span class="buildid" title="Julkaisun aika: jos tämä ei ole uusin, päivitä sivu kovalla päivityksellä (Ctrl+Shift+R)">${BUILD}</span>
       <span class="barspace"></span>
       ${ui.view === "plan" ? html`<button type="button" class="barbtn" disabled=${pdf !== "PDF"} onClick=${doPdf}>${pdf}</button>
       <button type="button" class=${"barbtn primary" + (ui.edit ? " on" : "")} aria-pressed=${ui.edit ? "true" : "false"} onClick=${() => setEdit(!ui.edit)}>${ui.edit ? "Valmis" : "Muokkaa"}</button>` : null}
