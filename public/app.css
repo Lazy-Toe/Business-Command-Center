@@ -769,3 +769,28 @@ body.has-rail { padding-left: 62px; }
 .pp-chip.card:hover:not(.on) { border-color: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
 .pp-chip.card.pp-add { justify-content: center; color: var(--muted); }
 .pp.whosel .pp-chip { font-size: 1rem; padding: 12px 18px; min-width: 0; }
+
+/* Massamuutos: toimintopalkki alareunassa, näkyy vain kun rivejä on valittu */
+.bulkhint { margin: 8px 0; }
+.bulkbar { position: sticky; top: auto; bottom: 14px; z-index: 25; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; margin: 10px 0 0; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 4px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2); }
+.bb-count { font: 700 0.95rem/1 var(--f-body); margin-right: 6px; }
+.bulkmenu { position: relative; }
+.bulkmenu > summary { list-style: none; cursor: pointer; padding: 9px 18px; border-radius: 3px; background: var(--ink); color: var(--paper); font: 600 0.9rem/1 var(--f-body); }
+.bulkmenu > summary::-webkit-details-marker { display: none; }
+.bulkmenu > summary::after { content: "▴"; margin-left: 8px; font-size: 0.8em; opacity: 0.8; }
+.bulkmenu[open] > summary { background: var(--accent); }
+.bm-box { position: absolute; bottom: calc(100% + 10px); left: 0; min-width: 300px; max-width: min(560px, 90vw); max-height: 60vh; overflow: auto; padding: 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22); }
+.bm-h { margin: 10px 0 6px; font: 700 0.72rem/1 var(--f-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.bm-h:first-child { margin-top: 0; }
+.bm-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.bm-btn { font: 500 0.86rem/1.2 var(--f-body); padding: 8px 13px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.bm-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.bm-btn.wide { display: block; width: 100%; margin-top: 8px; text-align: left; }
+.bm-btn.quiet { color: var(--muted); }
+.bb-clear { margin-left: auto; background: none; border: none; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
+.bm-box .bulkgrp { display: flex; gap: 6px; }
+.bm-box { min-width: 400px; }
+.bm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 6px; }
+.bm-grid .bm-btn { text-align: left; }
+.bm-box { max-height: 70vh; }
+.undo { bottom: 84px; }

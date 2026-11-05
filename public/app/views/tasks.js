@@ -12,7 +12,41 @@ const COLS = [["stream", "Työvirta"], ["phase", "Vaihe"], ["owner", "Vastuu"], 
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* ei pakollinen */ } };
 
-const SUGGEST = "__suggest";
+const closeMenu = (e) => { const d = e.currentTarget.closest("details"); if (d) d.removeAttribute("open"); };
+
+// Valikko, jonka valinnat toimivat yhdellä klikkauksella ja sulkevat valikon. Aukeaa ylös, koska palkki on sivun alareunassa.
+function BulkMenu({ title, children }) {
+  return html`<details class="bulkmenu"><summary>${title}</summary><div class="bm-box">${children}</div></details>`;
+}
+
+// Valittujen rivien toimintopalkki: näkyy vain kun rivejä on valittu. Jokainen muutos on yksi klikkaus ja peruttavissa.
+function BulkBar({ count, names, periods, canSuggest, apply, suggest, clear }) {
+  const run = (fn) => (e) => { fn(); closeMenu(e); };
+  return html`<div class="bulkbar" role="region" aria-label="Massamuutos">
+    <b class="bb-count">${count} valittu</b>
+    <${BulkMenu} title="Vastuu">
+      <p class="bm-h">Valitse henkilö</p>
+      <div class="bm-grid">${names.map((n) => html`<button type="button" key=${n} class="bm-btn" onClick=${run(() => apply({ owner: n }, "vastuu " + n))}>${n}</button>`)}</div>
+      ${canSuggest ? html`<button type="button" class="bm-btn wide" onClick=${run(suggest)}>Vastuualueen omistaja (työvirran mukaan)</button>` : null}
+      <button type="button" class="bm-btn wide quiet" onClick=${run(() => apply({ owner: "" }, "vastuuhenkilö poistettu"))}>Poista vastuuhenkilö</button>
+    <//>
+    <${BulkMenu} title="Määräpäivä">
+      <p class="bm-h">Kuukauden viimeinen päivä</p>
+      <div class="bm-grid">${periods.months.map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${run(() => apply({ due: p.value }, "määräpäivä " + p.label))}>${p.label}</button>`)}</div>
+      <p class="bm-h">Neljänneksen viimeinen päivä</p>
+      <div class="bm-grid">${periods.quarters.map((p) => html`<button type="button" key=${"q" + p.value} class="bm-btn" onClick=${run(() => apply({ due: p.value }, "määräpäivä " + p.label))}>${p.label}</button>`)}</div>
+      <p class="bm-h">Tai tarkka päivä</p>
+      <${BulkDate} onApply=${(v) => apply({ due: v }, "määräpäivä")} />
+      <button type="button" class="bm-btn wide quiet" onClick=${run(() => apply({ due: "" }, "päivä tyhjennetty"))}>Tyhjennä päivä</button>
+    <//>
+    <${BulkMenu} title="Tila">
+      <div class="bm-grid">${Object.entries(STATUS_LABEL).map(([k, l]) => html`<button type="button" key=${k} class="bm-btn" onClick=${run(() => apply({ status: k }, "tila " + l))}>${l}</button>`)}</div>
+    <//>
+    <span class="grow"></span>
+    <button type="button" class="bb-clear" onClick=${clear}>Poista valinta</button>
+  </div>`;
+}
+
 
 // Massamuutoksen päivä otetaan käyttöön vasta painikkeesta, jotta kirjoitus kesken ei muuta valittuja tehtäviä.
 function BulkDate({ disabled, onApply }) {
@@ -105,15 +139,7 @@ export function TasksView({ open }) {
       ${dirty ? html`<button type="button" class="linkbtn" onClick=${() => { setF(Object.assign({}, EMPTY)); setMsg(""); }}>Tyhjennä suodattimet</button>` : null}
     </div>
 
-    <div class="bulkbar" role="region" aria-label="Massamuutos">
-      <b>${chosen.length ? chosen.length + " valittu" : "Valitse rivit vasemmalta"}</b>
-      <select aria-label="Vaihda vastuu" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v === SUGGEST) applyPatches(suggestPatches(chosen).patches, chosen, "vastuualueen omistaja"); else if (v === "__clear") apply({ owner: "" }, "vastuuhenkilö poistettu"); else if (v) apply({ owner: v }, "vastuu " + v); }}><option value="">Vastuu…</option>${names.map((n) => html`<option key=${n} value=${n}>${n}</option>`)}<option value=${SUGGEST}>Vastuualueen omistaja (työvirran mukaan)</option><option value="__clear">Poista vastuuhenkilö</option></select>
-      <select aria-label="Vaihda määräpäivä" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v === "__clear") apply({ due: "" }, "päivä tyhjennetty"); else if (v) apply({ due: v }, "määräpäivä " + (periodOf(v) || { label: v }).label); }}><option value="">Määräpäivä…</option><option value="__clear">Tyhjennä päivä</option>${PeriodOpts()}</select>
-      <${BulkDate} disabled=${!chosen.length} onApply=${(v) => apply({ due: v }, "määräpäivä")} />
-      <select aria-label="Vaihda tila" disabled=${!chosen.length} value="" onChange=${(e) => { const v = e.target.value; e.target.value = ""; if (v) apply({ status: v }, "tila " + STATUS_LABEL[v]); }}><option value="">Tila…</option>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>
-      <span class="grow"></span>
-      ${chosen.length ? html`<button type="button" class="linkbtn" onClick=${() => { setSel(new Set()); setMsg(""); }}>Tyhjennä valinta</button>` : null}
-    </div>
+    ${chosen.length ? null : html`<p class="gs bulkhint">Valitse rivejä vasemmalta (tai ryhmän otsikosta), niin voit muuttaa vastuun, määräpäivän tai tilan kaikille kerralla.</p>`}
     ${unowned.length ? html`<p class="gs unownedbar" role="status">${unowned.length} näkyvällä tehtävällä ei ole vastuuhenkilöä, eikä niitä näytetä kenenkään työpöydällä.${fillable ? html` <button type="button" class="barbtn" onClick=${() => applyPatches(suggestPatches(unowned).patches, unowned, "vastuualueen omistaja")}>Kirjaa vastuualueen omistaja (${fillable})</button>` : null}</p>` : null}
     ${msg ? html`<p class=${"gs" + (/virhe|Ei muutosta/i.test(msg) ? " bad" : "")} role="status">${msg}</p>` : null}
 
@@ -128,5 +154,6 @@ export function TasksView({ open }) {
         ${col("due") ? html`<td><${DueInput} aria-label=${"Määräpäivä: " + (r.title || "")} value=${r.due} onSave=${(v) => one(r, { due: v })} />${PeriodPick({ text: "Jakso…", label: "Aseta jakson loppu: " + (r.title || ""), onPick: (v) => one(r, { due: v }) })}</td>` : null}
         ${col("status") ? html`<td><select aria-label=${"Tila: " + (r.title || "")} value=${r.status} onChange=${(e) => one(r, { status: e.target.value })}>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></td>` : null}
       </tr>`; })}</tbody>`)}</table></div>` : html`<p class="tclear">Ei tehtäviä näillä suodattimilla.</p>`}
+    ${chosen.length ? html`<${BulkBar} count=${chosen.length} names=${names} periods=${periods} canSuggest=${suggestPatches(chosen).patches.length > 0} apply=${apply} suggest=${() => applyPatches(suggestPatches(chosen).patches, chosen, "vastuualueen omistaja")} clear=${() => { setSel(new Set()); setMsg(""); }} />` : null}
   </div>`;
 }
