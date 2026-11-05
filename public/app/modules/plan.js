@@ -4,10 +4,18 @@ import { children, findSection, patch, add, moveBefore, nextPosition, shift } fr
 import { useState } from "../../vendor/htm-preact.js";
 import { fmtDate, isLate, todayISO, suggestedOwner } from "../core/today.js";
 import { PersonSelect } from "../people.js";
+import { visibleTasks, visibleStreams } from "../core/myboard.js";
 
-export const focus = { p: "", ws: "" };
-export function toggleFocusPhase(id) { focus.p = focus.p === id ? "" : id; uiChanged(); }
-function toggleWs(id) { focus.ws = focus.ws === id ? "" : id; uiChanged(); }
+// Taulun tila: p = valittu vaihe (muut himmennetään), ws = valittu työvirta, wide = koko leveydelle avattu vaihe, hideDone = valmiit piilossa.
+// Suunnitelman taululla on yksi yhteinen tila (focus), ja Oma työpöytä antaa jokaiselle taululle oman (parts.focus).
+export const focus = { p: "", ws: "", wide: "", hideDone: false };
+const F = (parts) => (parts && parts.focus) || focus;
+// Muokkaus (nimet, lisäys, siirto) kuuluu vain suunnitelman omalle taululle. Oma työpöytä (parts.readonly) vain vaihtaa tilan, päivän ja vastuun.
+const editing = (parts) => ui.edit && !(parts && parts.readonly);
+const saveTask = (parts, task, data, extra) => (parts && parts.save ? parts.save(task, data) : patch(task.id, data, extra));
+export function toggleFocusPhase(id, f = focus) { f.p = f.p === id ? "" : id; uiChanged(); }
+function toggleWs(id, f = focus) { f.ws = f.ws === id ? "" : id; uiChanged(); }
+function toggleWide(id, f = focus) { f.wide = f.wide === id ? "" : id; uiChanged(); }
 
 export function planParts() {
   const s = findSection("plan"); if (!s) return null;
@@ -37,17 +45,17 @@ const NOTE_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="non
 export const CAL_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`;
 
 // Määräpäivä ja vastuuhenkilö. Tehtävä kuuluu henkilölle vain valitun vastuuhenkilön kautta.
-function TaskMeta({ task }) {
+function TaskMeta({ task, parts }) {
   return html`<span class="taskmeta" onClick=${(e) => e.stopPropagation()} onKeyDown=${(e) => e.stopPropagation()}>
-    <label>Määräpäivä <${DueInput} value=${task.data.due} onSave=${(v) => patch(task.id, { due: v })} /></label>
-    <label>Vastuu <${PersonSelect} label="Vastuu" value=${task.data.owner || ""} empty="Ei vastuuhenkilöä" onPick=${(v) => patch(task.id, { owner: v })} /></label>
+    <label>Määräpäivä <${DueInput} value=${task.data.due} onSave=${(v) => saveTask(parts, task, { due: v })} /></label>
+    ${parts.ownerLocked ? null : html`<label>Vastuu <${PersonSelect} label="Vastuu" value=${task.data.owner || ""} empty="Ei vastuuhenkilöä" onPick=${(v) => saveTask(parts, task, { owner: v })} /></label>`}
   </span>`;
 }
 
-function Note({ task, close }) {
+function Note({ task, close, parts }) {
   return html`<textarea class="nta" rows="2" maxlength="2000" aria-label="Muistiinpano" defaultValue=${task.data.note || ""} ref=${(n) => { if (n && document.activeElement !== n && !n.dataset.f) { n.dataset.f = "1"; n.focus(); } }}
     onClick=${(e) => e.stopPropagation()}
-    onBlur=${(e) => { const v = e.target.value.trim(); if (v !== (task.data.note || "")) patch(task.id, { note: v }); close(); }}
+    onBlur=${(e) => { const v = e.target.value.trim(); if (v !== (task.data.note || "")) saveTask(parts, task, { note: v }); close(); }}
     onKeyDown=${(e) => {
       e.stopPropagation();
       if (e.key === "Escape") { e.target.value = task.data.note || ""; e.target.blur(); }
@@ -61,24 +69,25 @@ export function Task({ task, list, parts, withTag }) {
   const late = isLate(task, todayISO());
   const st = LABEL[task.data.status] ? task.data.status : "todo";
   const stream = parts.streams.find((s) => s.id === task.data.stream);
-  const cycle = () => patch(task.id, { status: NEXT[st] });
-  const dim = (focus.p && task.data.phase !== focus.p) || (focus.ws && task.data.stream !== focus.ws);
-  const work = ui.edit ? {} : Object.assign(pressable(cycle), { title: LABEL[st] + " · klikkaa vaihtaaksesi", "aria-label": task.data.title + ": " + LABEL[st] });
-  return html`<div data-item=${task.id} class=${"item s-" + st + (ui.edit ? " edit" : " clickable")} style=${{ "--c": wsColor(stream) }} ...${work} ...${dragProps(task, "task")}
-    ...${dropProps("task", (id) => { if (id !== task.id) moveBefore(id, task.id, parts.tasks.filter((t) => t.data.phase === task.data.phase && t.data.stream === task.data.stream), { phase: task.data.phase, stream: task.data.stream }); })}>
+  const f = F(parts), ed = editing(parts), mode = parts.readonly ? "view" : "edit";
+  const cycle = () => saveTask(parts, task, { status: NEXT[st] });
+  const dim = (f.p && task.data.phase !== f.p) || (f.ws && task.data.stream !== f.ws);
+  const work = ed ? {} : Object.assign(pressable(cycle), { title: LABEL[st] + " · klikkaa vaihtaaksesi", "aria-label": task.data.title + ": " + LABEL[st] });
+  return html`<div data-item=${task.id} class=${"item s-" + st + (ed ? " edit" : " clickable")} style=${{ "--c": wsColor(stream) }} ...${work} ...${ed ? dragProps(task, "task") : {}}
+    ...${ed ? dropProps("task", (id) => { if (id !== task.id) moveBefore(id, task.id, parts.tasks.filter((t) => t.data.phase === task.data.phase && t.data.stream === task.data.stream), { phase: task.data.phase, stream: task.data.stream }); }) : {}}>
     ${withTag ? html`<span class="mtag">${stream ? stream.data.label : ""}</span>` : null}
-    <${Text} item=${task} field="title" tag="p" cls="it" ph="Tehtävä" />
-    <${Text} item=${task} field="detail" tag="p" cls="io" ph="Tarkennus" />
+    <${Text} item=${task} field="title" tag="p" cls="it" ph="Tehtävä" mode=${mode} />
+    <${Text} item=${task} field="detail" tag="p" cls="io" ph="Tarkennus" mode=${mode} />
     ${task.data.due || task.data.owner ? html`<span class="taskinfo">${task.data.due ? html`<span class=${"duechip" + (late ? " late" : "")}>${late ? "Myöhässä · " : ""}${fmtDate(task.data.due)}</span>` : null}${task.data.owner ? html`<span class="ownerchip">${task.data.owner}</span>` : null}</span>` : null}
     <button type="button" class=${"dbtn" + (task.data.due ? " has" : "")} title="Määräpäivä ja vastuuhenkilö" aria-label="Määräpäivä ja vastuuhenkilö" aria-expanded=${meta ? "true" : "false"} onClick=${(e) => { e.stopPropagation(); setMeta(!meta); }}>${CAL_ICON}</button>
-    ${meta ? html`<${TaskMeta} task=${task} />` : null}
+    ${meta ? html`<${TaskMeta} task=${task} parts=${parts} />` : null}
     ${!noting ? html`<button type="button" class=${"nbtn" + (task.data.note ? " has" : "")} title=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} aria-label=${task.data.note ? "Muokkaa muistiinpanoa" : "Lisää muistiinpano"} onClick=${(e) => { e.stopPropagation(); setNoting(true); }}>${NOTE_ICON}</button>` : null}
-    ${noting ? html`<${Note} task=${task} close=${() => setNoting(false)} />` : task.data.note ? html`<p class="inote">${task.data.note}</p>` : null}
-    ${ui.edit ? html`<span class="tasksel" onClick=${(e) => e.stopPropagation()}>
+    ${noting ? html`<${Note} task=${task} parts=${parts} close=${() => setNoting(false)} />` : task.data.note ? html`<p class="inote">${task.data.note}</p>` : null}
+    ${ed ? html`<span class="tasksel" onClick=${(e) => e.stopPropagation()}>
       <select aria-label="Vaihe" value=${task.data.phase} onChange=${(e) => patch(task.id, { phase: e.target.value }, { position: nextPosition(task.parent_id, "task") })}>${parts.phases.map((p) => html`<option key=${p.id} value=${p.id}>${p.data.title}</option>`)}</select>
       <select aria-label="Työvirta" value=${task.data.stream} onChange=${(e) => patch(task.id, { stream: e.target.value }, { position: nextPosition(task.parent_id, "task") })}>${parts.streams.map((p) => html`<option key=${p.id} value=${p.id}>${p.data.label}</option>`)}</select>
     </span>` : null}
-    <${Tools} item=${task} list=${list} label=${task.data.title} />
+    ${ed ? html`<${Tools} item=${task} list=${list} label=${task.data.title} />` : null}
   </div>`;
 }
 
@@ -86,120 +95,138 @@ export function Task({ task, list, parts, withTag }) {
 function newTask(parts, phase, stream) { add("task", parts.section.id, { title: "", detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, parts.roles) }); }
 const cellDrop = (parts, phase, stream) => dropProps("task", (id) => moveBefore(id, null, parts.tasks.filter((t) => t.data.phase === phase && t.data.stream === stream), { phase, stream }));
 
-function GateCell({ ph, dim }) {
+function GateCell({ ph, dim, parts }) {
+  const mode = parts && parts.readonly ? "view" : "edit";
   return html`<div class=${"gc" + (dim ? " dim" : "")}>
-    <${Text} item=${ph} field="gateLabel" cls="d" ph="Päivä" />
-    <${Text} item=${ph} field="gateTitle" tag="b" ph="Päätösportti" />
-    <${Text} item=${ph} field="gateText" ph="Mitä on valmista" multi=${true} />
+    <${Text} item=${ph} field="gateLabel" cls="d" ph="Päivä" mode=${mode} />
+    <${Text} item=${ph} field="gateTitle" tag="b" ph="Päätösportti" mode=${mode} />
+    <${Text} item=${ph} field="gateText" ph="Mitä on valmista" multi=${true} mode=${mode} />
   </div>`;
 }
 
+// Vaiheen otsikko: klikkaus valitsee vaiheen (muut himmennetään), pieni kuvake avaa vaiheen koko taulun leveydelle.
 function PhaseHead({ ph, i, n, parts }) {
-  const dim = focus.p && focus.p !== ph.id, open = focus.p === ph.id;
-  const props = ui.edit ? {} : Object.assign(pressable(() => toggleFocusPhase(ph.id)), { title: open ? "Palaa kaikkiin vaiheisiin" : "Avaa koko leveydelle" });
-  return html`<div class=${"mh " + (ui.edit ? "" : "clickable ") + phaseClass(i, n) + (dim ? " dim" : "") + (open ? " open" : "")} ...${props}>
-    <${Text} item=${ph} field="label" cls="d" ph="Ajanjakso" /><${Text} item=${ph} field="title" cls="t" ph="Vaihe" />
-    <${Tools} item=${ph} list=${parts.phases} label=${ph.data.title} />
+  const f = F(parts), ed = editing(parts), mode = parts.readonly ? "view" : "edit";
+  const dim = !f.wide && f.p && f.p !== ph.id, sel = f.p === ph.id, wide = f.wide === ph.id;
+  const props = ed ? {} : Object.assign(pressable(() => toggleFocusPhase(ph.id, f)), { title: sel ? "Poista vaiheen valinta" : "Valitse vaihe" });
+  return html`<div class=${"mh " + (ed ? "" : "clickable ") + phaseClass(i, n) + (dim ? " dim" : "") + (sel || wide ? " open" : "")} ...${props}>
+    <${Text} item=${ph} field="label" cls="d" ph="Ajanjakso" mode=${mode} /><${Text} item=${ph} field="title" cls="t" ph="Vaihe" mode=${mode} />
+    ${ed ? null : html`<button type="button" class="mhx" title=${wide ? "Palaa kaikkiin vaiheisiin" : "Avaa koko leveydelle"} aria-label=${(wide ? "Palaa kaikkiin vaiheisiin: " : "Avaa koko leveydelle: ") + (ph.data.title || "")} aria-pressed=${wide ? "true" : "false"} onClick=${(e) => { e.stopPropagation(); toggleWide(ph.id, f); }}>${wide ? "⤡" : "⤢"}</button>`}
+    ${ed ? html`<${Tools} item=${ph} list=${parts.phases} label=${ph.data.title} />` : null}
   </div>`;
 }
 
 function StreamHead({ w, parts }) {
-  const dim = focus.ws && focus.ws !== w.id;
-  const Tag = ui.edit ? "div" : "button";
-  return html`<${Tag} class=${"rl" + (dim ? " dim" : "")} type=${ui.edit ? undefined : "button"} style=${{ "--c": wsColor(w) }} onClick=${() => { if (!ui.edit) toggleWs(w.id); }}>
+  const f = F(parts), ed = editing(parts), mode = parts.readonly ? "view" : "edit";
+  const dim = f.ws && f.ws !== w.id;
+  const Tag = ed ? "div" : "button";
+  return html`<${Tag} class=${"rl" + (dim ? " dim" : "")} type=${ed ? undefined : "button"} style=${{ "--c": wsColor(w) }} onClick=${() => { if (!ed) toggleWs(w.id, f); }}>
     <span class="dot"></span>
-    <span class="rlt"><${Text} item=${w} field="label" cls="rln" ph="Työvirta" />
+    <span class="rlt"><${Text} item=${w} field="label" cls="rln" ph="Työvirta" mode=${mode} />
     <span class="rprog">${parts.phases.map((ph) => {
       const lst = parts.tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id);
       if (!lst.length) return null;
       const dn = lst.reduce((a, t) => a + (t.data.status === "done" ? 1 : t.data.status === "doing" ? 0.5 : 0), 0), pc = Math.round(100 * dn / lst.length);
       return html`<span key=${ph.id} class=${"rpl" + (pc === 100 ? " full" : "")}><span class="rpd">${(ph.data.label || "").replace(/^[^\d]*/, "")}</span><span class="rpb"><i style=${{ width: pc + "%" }}></i></span><span class="rpp">${pc} %</span></span>`;
     })}</span></span>
-    <${Tools} item=${w} list=${parts.streams} label=${w.data.label} />
+    ${ed ? html`<${Tools} item=${w} list=${parts.streams} label=${w.data.label} />` : null}
   </${Tag}>`;
 }
 
-// Valittu vaihe (focus.p) avautuu koko taulun leveydelle: kortit rinnakkain, vaihevälilehdet ja paluu kaikkiin vaiheisiin.
+// Koko leveydelle avattu vaihe (f.wide): kortit rinnakkain, vaihevälilehdet ja paluu kaikkiin vaiheisiin.
 function Wide({ parts, idx }) {
-  const { phases, streams, tasks } = parts, ph = phases[idx];
-  const left = (id) => tasks.filter((t) => t.data.phase === id && t.data.status !== "done").length;
+  const { phases, streams } = parts, ph = phases[idx], f = F(parts), ed = editing(parts);
+  const tasks = visibleTasks(parts.tasks, f.hideDone), lanes = visibleStreams(streams, tasks, parts.hideEmptyLanes);
+  const left = (id) => parts.tasks.filter((t) => t.data.phase === id && t.data.status !== "done").length;
   return html`<div>
     <div class="phasetabs" role="group" aria-label="Vaihe">
-      ${phases.map((p) => html`<button key=${p.id} type="button" class="chip" aria-pressed=${p.id === ph.id ? "true" : "false"} onClick=${() => { focus.p = p.id; uiChanged(); }}>${p.data.title} <span class="num">${left(p.id)}</span></button>`)}
-      <button type="button" class="clear" onClick=${() => { focus.p = ""; uiChanged(); }}>Näytä kaikki vaiheet</button>
+      ${phases.map((p) => html`<button key=${p.id} type="button" class="chip" aria-pressed=${p.id === ph.id ? "true" : "false"} onClick=${() => { f.wide = p.id; uiChanged(); }}>${p.data.title} <span class="num">${left(p.id)}</span></button>`)}
+      <button type="button" class="clear" onClick=${() => { f.wide = ""; uiChanged(); }}>Näytä kaikki vaiheet</button>
     </div>
     <div class="matrix wide" style=${{ gridTemplateColumns: "210px minmax(0, 1fr)" }}>
       <div class="corner"></div>
       <${PhaseHead} ph=${ph} i=${idx} n=${phases.length} parts=${parts} />
-      ${streams.map((w) => {
-        const list = tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id), dim = focus.ws && focus.ws !== w.id;
+      ${lanes.map((w) => {
+        const list = tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id), dim = f.ws && f.ws !== w.id;
         return [
           html`<${StreamHead} key=${w.id} w=${w} parts=${parts} />`,
-          html`<div key=${w.id + "w"} class=${"cell wide" + (dim ? " dim" : "")} ...${cellDrop(parts, ph.id, w.id)}>
+          html`<div key=${w.id + "w"} class=${"cell wide" + (dim ? " dim" : "")} ...${ed ? cellDrop(parts, ph.id, w.id) : {}}>
             ${list.map((t) => html`<${Task} key=${t.id} task=${t} list=${list} parts=${parts} />`)}
-            <${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />
+            ${ed ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />` : null}
           </div>`
         ];
       })}
       <div class="gl"><i class="diamond"></i>Päätösportti</div>
-      <${GateCell} ph=${ph} dim=${false} />
+      <${GateCell} ph=${ph} dim=${false} parts=${parts} />
     </div></div>`;
 }
 
 function Desktop({ parts }) {
-  const { phases, streams, tasks } = parts;
-  const wideIdx = focus.p ? phases.findIndex((p) => p.id === focus.p) : -1;
+  const { phases, streams } = parts, f = F(parts), ed = editing(parts);
+  const wideIdx = f.wide ? phases.findIndex((p) => p.id === f.wide) : -1;
   if (wideIdx >= 0) return html`<${Wide} parts=${parts} idx=${wideIdx} />`;
+  const tasks = visibleTasks(parts.tasks, f.hideDone), lanes = visibleStreams(streams, tasks, parts.hideEmptyLanes);
   return html`<div class="matrix" style=${{ gridTemplateColumns: "210px repeat(" + Math.max(phases.length, 1) + ", minmax(0, 1fr))" }}>
     <div class="corner"></div>
     ${phases.map((ph, i) => html`<${PhaseHead} key=${ph.id} ph=${ph} i=${i} n=${phases.length} parts=${parts} />`)}
-    ${streams.map((w) => [
+    ${lanes.map((w) => [
       html`<${StreamHead} key=${w.id} w=${w} parts=${parts} />`,
       ...phases.map((ph) => {
         const list = tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id);
-        const dim = (focus.p && focus.p !== ph.id) || (focus.ws && focus.ws !== w.id);
-        return html`<div key=${w.id + ph.id} class=${"cell" + (dim ? " dim" : "")} ...${cellDrop(parts, ph.id, w.id)}>
+        const dim = (f.p && f.p !== ph.id) || (f.ws && f.ws !== w.id);
+        return html`<div key=${w.id + ph.id} class=${"cell" + (dim ? " dim" : "")} ...${ed ? cellDrop(parts, ph.id, w.id) : {}}>
           ${list.map((t) => html`<${Task} key=${t.id} task=${t} list=${list} parts=${parts} />`)}
-          <${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />
+          ${ed ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />` : null}
         </div>`;
       })
     ])}
     <div class="gl"><i class="diamond"></i>Päätösportti</div>
-    ${phases.map((ph) => html`<${GateCell} key=${ph.id} ph=${ph} dim=${focus.p && focus.p !== ph.id} />`)}
+    ${phases.map((ph) => html`<${GateCell} key=${ph.id} ph=${ph} dim=${f.p && f.p !== ph.id} parts=${parts} />`)}
   </div>`;
 }
 
 function Mobile({ parts }) {
+  const f = F(parts), ed = editing(parts), tasks = visibleTasks(parts.tasks, f.hideDone);
   return html`<div>${parts.phases.map((ph, i) => {
-    const list = parts.tasks.filter((t) => t.data.phase === ph.id);
-    return html`<div key=${ph.id} class=${"mphase" + (focus.p && focus.p !== ph.id ? " dim" : "")}>
+    const list = tasks.filter((t) => t.data.phase === ph.id);
+    return html`<div key=${ph.id} class=${"mphase" + (f.p && f.p !== ph.id ? " dim" : "")}>
       <${PhaseHead} ph=${ph} i=${i} n=${parts.phases.length} parts=${parts} />
       <div class="mlist">${list.map((t) => html`<${Task} key=${t.id} task=${t} list=${list} parts=${parts} withTag=${true} />`)}
-        ${parts.streams[0] ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, parts.streams[0].id)} cls="small" />` : null}</div>
-      <${GateCell} ph=${ph} />
+        ${ed && parts.streams[0] ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, parts.streams[0].id)} cls="small" />` : null}</div>
+      <${GateCell} ph=${ph} parts=${parts} />
     </div>`;
   })}</div>`;
 }
 
-function View({ section }) {
-  const parts = planParts();
+// Taulun runko, jota käyttävät sekä suunnitelman taulu (Kokonaisuus) että Oma työpöytä: suodatinrivi, tilarivi ja matriisi.
+// section: vain suunnitelman taululla (lisäys ja ohjeteksti muokattavissa).
+export function BoardBody({ parts, section }) {
   const small = mq("(max-width: 900px)");
-  const { c, toggle } = useCollapse(section);
-  useEscape(() => { if (focus.p || focus.ws) { focus.p = ""; focus.ws = ""; uiChanged(); } });
-  const active = focus.p ? parts.phases.find((p) => p.id === focus.p) : null;
+  const f = F(parts), ed = editing(parts);
+  useEscape(() => { if (f.p || f.ws || f.wide) { f.p = ""; f.ws = ""; f.wide = ""; uiChanged(); } });
+  const active = f.p ? parts.phases.find((p) => p.id === f.p) : null;
   const done = parts.tasks.filter((t) => t.data.status === "done").length, doing = parts.tasks.filter((t) => t.data.status === "doing").length;
-  return html`<div class=${"modbody" + (c ? " is-collapsed" : "")} id="plan-anchor">
-    <${Head} section=${section} c=${c} toggle=${toggle} />
+  const hint = "Klikkaa tehtävää vaihtaaksesi tilaa: ei aloitettu → käynnissä → valmis. Muutokset tallentuvat heti.";
+  return html`
     <div class="filters" role="group" aria-label="Työvirta">
-      ${active ? html`<button type="button" class="chip pchip" aria-label="Poista vaihevalinta" onClick=${() => toggleFocusPhase(active.id)}>Vaihe: ${active.data.title} <span aria-hidden="true">×</span></button>` : null}
-      ${parts.streams.map((w) => html`<button key=${w.id} type="button" class="chip" style=${{ "--c": wsColor(w) }} aria-pressed=${focus.ws === w.id ? "true" : "false"} onClick=${() => toggleWs(w.id)}><span class="dot"></span>${w.data.label}</button>`)}
-      ${focus.p || focus.ws ? html`<button type="button" class="clear" onClick=${() => { focus.p = ""; focus.ws = ""; uiChanged(); }}>Näytä kaikki</button>` : null}
-      <${AddButton} label="Työvirta" cls="small" onAdd=${() => add("stream", section.id, { label: "Uusi työvirta", color: COLORS[parts.streams.length % COLORS.length] })} />
-      <${AddButton} label="Vaihe" cls="small" onAdd=${() => add("phase", section.id, { label: "AJANJAKSO", title: "Uusi vaihe", note: "", weight: 30, gateTitle: "", gateText: "" })} />
+      ${active ? html`<button type="button" class="chip pchip" aria-label="Poista vaihevalinta" onClick=${() => toggleFocusPhase(active.id, f)}>Vaihe: ${active.data.title} <span aria-hidden="true">×</span></button>` : null}
+      ${parts.streams.map((w) => html`<button key=${w.id} type="button" class="chip" style=${{ "--c": wsColor(w) }} aria-pressed=${f.ws === w.id ? "true" : "false"} onClick=${() => toggleWs(w.id, f)}><span class="dot"></span>${w.data.label}</button>`)}
+      ${f.p || f.ws || f.wide ? html`<button type="button" class="clear" onClick=${() => { f.p = ""; f.ws = ""; f.wide = ""; uiChanged(); }}>Näytä kaikki</button>` : null}
+      ${done ? html`<button type="button" class="chip" aria-pressed=${f.hideDone ? "true" : "false"} onClick=${() => { f.hideDone = !f.hideDone; uiChanged(); }}>${f.hideDone ? "Näytä valmiit (" + done + ")" : "Piilota valmiit"}</button>` : null}
+      ${ed && section ? html`<${AddButton} label="Työvirta" cls="small" onAdd=${() => add("stream", section.id, { label: "Uusi työvirta", color: COLORS[parts.streams.length % COLORS.length] })} />
+      <${AddButton} label="Vaihe" cls="small" onAdd=${() => add("phase", section.id, { label: "AJANJAKSO", title: "Uusi vaihe", note: "", weight: 30, gateTitle: "", gateText: "" })} />` : null}
     </div>
     <div class="statusbar"><span class="tot num">${done} / ${parts.tasks.length} valmis · ${doing} käynnissä</span>
-      <${Text} item=${section} field="hint" cls="save" ph="Ohje" /></div>
-    <div class="matrix-wrap">${small ? html`<${Mobile} parts=${parts} />` : html`<${Desktop} parts=${parts} />`}</div>
+      ${section ? html`<${Text} item=${section} field="hint" cls="save" ph="Ohje" />` : html`<span class="save">${hint}</span>`}</div>
+    <div class="matrix-wrap">${small ? html`<${Mobile} parts=${parts} />` : html`<${Desktop} parts=${parts} />`}</div>`;
+}
+
+function View({ section }) {
+  const parts = planParts();
+  const { c, toggle } = useCollapse(section);
+  return html`<div class=${"modbody" + (c ? " is-collapsed" : "")} id="plan-anchor">
+    <${Head} section=${section} c=${c} toggle=${toggle} />
+    <${BoardBody} parts=${parts} section=${section} />
   </div>`;
 }
 
