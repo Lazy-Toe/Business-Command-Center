@@ -23,7 +23,7 @@ export function setEdit(v) { ui.edit = v; document.body.classList.toggle("editin
 // Muokattava teksti. mode "edit" = vain muokkaustilassa, "always" = aina.
 export function Text({ item, field, tag = "span", cls, ph, multi, mode = "edit", max = 10000, value, onSave, fallback = "", attrs }) {
   const ref = useRef(null);
-  const editable = mode === "always" || ui.edit;
+  const editable = mode === "always" || (mode !== "view" && ui.edit);
   const current = value !== undefined ? value : (item.data[field] == null ? "" : String(item.data[field]));
   const shown = current || (editable ? "" : fallback);
   const El = tag;
