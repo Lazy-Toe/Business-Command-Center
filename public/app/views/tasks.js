@@ -114,6 +114,9 @@ export function TasksView({ open }) {
   // Jaksovalinta: arvo on jakson viimeinen päivä. Yksi valinta asettaa määräpäivän riville, ryhmälle tai valituille.
   // Valikon tiedot: koskee annettuja rivejä (scope kertoo ne tekstinä).
   const menuFor = (rows, scope) => (field, title) => ({ field, title, rows, scope, names, periods, apply, applyPatches });
+  // Otsikon valikko koskee valittuja rivejä tai, jos mitään ei ole valittu, kaikkia näkyviä (suodatettuja) rivejä.
+  const scopeRows = chosen.length ? chosen : shown;
+  const scopeText = chosen.length ? chosen.length + " valittua tehtävää" : "kaikkia " + shown.length + " näkyvää tehtävää";
   // Rivin oma valikko koskee aina vain sitä riviä. Useiden rivien muutos tehdään valintapalkista.
   const cellMenu = (r, field, text) => menuFor([r], "vain tätä tehtävää")(field, text + " ▾");
   const fmtD = (iso) => iso.slice(8, 10).replace(/^0/, "") + "." + iso.slice(5, 7).replace(/^0/, "") + "." + iso.slice(0, 4);
@@ -137,14 +140,14 @@ export function TasksView({ open }) {
       ${dirty ? html`<button type="button" class="linkbtn" onClick=${() => { setF(Object.assign({}, EMPTY)); setMsg(""); }}>Tyhjennä suodattimet</button>` : null}
     </div>
 
-    ${chosen.length ? null : html`<p class="gs bulkhint">Klikkaa vastuuta, määräpäivää tai tilaa muuttaaksesi sen. Valitse useita rivejä vasemmalta (myös ryhmän otsikosta), niin voit muuttaa ne kaikki kerralla.</p>`}
+    ${chosen.length ? null : html`<p class="gs bulkhint">Klikkaa arvoa muuttaaksesi yhden tehtävän. Sarakkeen "Kaikille" muuttaa kaikki näkyvät tehtävät (rajaa ensin suodattimilla) tai valitut rivit.</p>`}
     ${unowned.length ? html`<p class="gs unownedbar" role="status">${unowned.length} näkyvällä tehtävällä ei ole vastuuhenkilöä, eikä niitä näytetä kenenkään työpöydällä.${fillable ? html` <button type="button" class="barbtn" onClick=${() => applyPatches(suggestPatches(unowned).patches, unowned, "vastuualueen omistaja")}>Kirjaa vastuualueen omistaja (${fillable})</button>` : null}</p>` : null}
     ${msg ? html`<p class=${"gs" + (/virhe|Ei muutosta/i.test(msg) ? " bad" : "")} role="status">${msg}</p>` : null}
 
     ${shown.length ? html`<div class="gtable-wrap"><table class="gtable sctable taskstable">
       <thead><tr><th class="ckcol"><input type="checkbox" aria-label="Valitse kaikki näkyvät" checked=${allOn} onChange=${() => setSel(allOn ? new Set() : new Set(shown.map((r) => r.key)))} /></th>
-        <th>Tehtävä</th>${COLS.map(([k, l]) => (col(k) ? html`<th key=${k}>${l}</th>` : null))}</tr></thead>
-      ${groups.map((g) => html`<tbody key=${"g" + g.key}>${by ? html`<tr class="grouprow"><td class="ckcol"><input type="checkbox" aria-label=${"Valitse ryhmä: " + g.label} checked=${g.rows.every((r) => sel.has(r.key))} onChange=${() => pick(g)} /></td><th colspan=${1 + COLS.filter(([k]) => col(k)).length} scope="colgroup"><span class="grouphead">${g.label} <span class="gs">${g.rows.length} tehtävää${g.rows.filter((r) => r.status === "done").length ? ", " + g.rows.filter((r) => r.status === "done").length + " valmista" : ""}</span></span></th></tr>` : null}${g.rows.map((r) => { const i = shown.indexOf(r); return html`<tr key=${r.key} class=${sel.has(r.key) ? "picked" : ""}>
+        <th>Tehtävä</th>${COLS.map(([k, l]) => (col(k) ? html`<th key=${k}>${l}${["owner", "due", "status"].includes(k) ? html` <${FieldMenu} ...${menuFor(scopeRows, scopeText)(k, "Kaikille ▾")} cls="hd" right=${k !== "owner"} />` : null}</th>` : null))}</tr></thead>
+      ${groups.map((g) => html`<tbody key=${"g" + g.key}>${by ? html`<tr class="grouprow"><td class="ckcol"><input type="checkbox" aria-label=${"Valitse ryhmä: " + g.label} checked=${g.rows.every((r) => sel.has(r.key))} onChange=${() => pick(g)} /></td><th colspan=${1 + COLS.filter(([k]) => col(k)).length} scope="colgroup"><span class="grouphead">${g.label} <span class="gs">${g.rows.length} tehtävää${g.rows.filter((r) => r.status === "done").length ? ", " + g.rows.filter((r) => r.status === "done").length + " valmista" : ""}</span><span class="gmenus">Muuta ryhmälle: <${FieldMenu} ...${menuFor(g.rows, "ryhmän " + g.rows.length + " tehtävää")("owner", "Vastuu ▾")} cls="gr" /><${FieldMenu} ...${menuFor(g.rows, "ryhmän " + g.rows.length + " tehtävää")("due", "Määräpäivä ▾")} cls="gr" /><${FieldMenu} ...${menuFor(g.rows, "ryhmän " + g.rows.length + " tehtävää")("status", "Tila ▾")} cls="gr" /></span></span></th></tr>` : null}${g.rows.map((r) => { const i = shown.indexOf(r); return html`<tr key=${r.key} class=${sel.has(r.key) ? "picked" : ""}>
         <td class="ckcol"><input type="checkbox" aria-label=${"Valitse: " + (r.title || "tehtävä")} checked=${sel.has(r.key)} onClick=${(e) => toggle(r, i, e)} onChange=${() => {}} /></td>
         <td class="nmtd"><button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(r.plan_id, { id: r.id, kind: "task", parent_id: r.parent_id })}>${r.title || "Nimetön tehtävä"}</button>${state.plans.length > 1 ? html`<span class="tsub">${r.planTitle}</span>` : null}</td>
         ${col("stream") ? html`<td class="gs">${r.streamLabel || "–"}</td>` : null}${col("phase") ? html`<td class="gs">${r.phaseLabel || "–"}</td>` : null}
