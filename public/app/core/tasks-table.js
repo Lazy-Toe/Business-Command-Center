@@ -48,7 +48,7 @@ export function filterRows(rows, f = {}, today = "") {
 export function bulkPatches(rows, change) {
   const c = change || {};
   if (c.owner !== undefined && (typeof c.owner !== "string" || c.owner.trim().length > 60)) return { error: "Virheellinen vastuuhenkilö." };
-  if (c.due !== undefined && (typeof c.due !== "string" || (c.due !== "" && !isSaneDue(c.due)))) return { error: "Virheellinen määräpäivä." };
+  if (c.due !== undefined && (typeof c.due !== "string" || (c.due !== "" && !isSaneDue(c.due)))) return { error: "Virheellinen lopetuspäivä." };
   if (c.start !== undefined && (typeof c.start !== "string" || (c.start !== "" && !isSaneDue(c.start)))) return { error: "Virheellinen aloituspäivä." };
   if (c.status !== undefined && !STATUSES.includes(c.status)) return { error: "Virheellinen tila." };
   const want = {};
@@ -99,8 +99,8 @@ export const GROUPS = {
   phase: { label: "Vaihe", of: (r) => ({ key: r.phase, label: r.phaseLabel || r.phase, none: "Ei vaihetta" }) },
   owner: { label: "Vastuu", of: (r) => ({ key: r.effective, label: r.effective, none: "Ei vastuuhenkilöä" }) },
   status: { label: "Tila", of: (r) => ({ key: r.status, label: STATUS_LABEL[r.status], none: "" }) },
-  month: { label: "Määräpäivän kuukausi", of: (r) => ({ key: r.due.slice(0, 7), label: r.due ? cap(MONTHS[Number(r.due.slice(5, 7)) - 1]) + " " + r.due.slice(0, 4) : "", none: "Ei määräpäivää" }) },
-  quarter: { label: "Määräpäivän neljännes", of: (r) => { const q = r.due ? Math.ceil(Number(r.due.slice(5, 7)) / 3) : 0; return { key: r.due ? r.due.slice(0, 4) + "-" + q : "", label: r.due ? "Q" + q + " " + r.due.slice(0, 4) : "", none: "Ei määräpäivää" }; } },
+  month: { label: "Lopetuksen kuukausi", of: (r) => ({ key: r.due.slice(0, 7), label: r.due ? cap(MONTHS[Number(r.due.slice(5, 7)) - 1]) + " " + r.due.slice(0, 4) : "", none: "Ei määräpäivää" }) },
+  quarter: { label: "Lopetuksen neljännes", of: (r) => { const q = r.due ? Math.ceil(Number(r.due.slice(5, 7)) / 3) : 0; return { key: r.due ? r.due.slice(0, 4) + "-" + q : "", label: r.due ? "Q" + q + " " + r.due.slice(0, 4) : "", none: "Ei määräpäivää" }; } },
   plan: { label: "Suunnitelma", of: (r) => ({ key: r.plan_id, label: r.planTitle, none: "" }) }
 };
 
@@ -139,4 +139,32 @@ export function periodOptions(today) {
   const weekStarts = weekOptions(today, 6).map((w) => ({ value: addDays(w.value, -6), label: w.label }));
   const monthStarts = months.map((x) => ({ value: x.value.slice(0, 8) + "01", label: x.label.replace(/\(.*\)/, "(1." + Number(x.value.slice(5, 7)) + ".)") }));
   return { weeks: weekOptions(today, 6), months, quarters, weekStarts, monthStarts };
+}
+
+// Työvirrat tai vaiheet suunnitelmittain: Map(suunnitelma -> [{ id, label }]) järjestyksessä. Työvirran nimi on `label` ja vaiheen `title`.
+export function catalogOf(items, kind) {
+  const field = kind === "phase" ? "title" : "label", map = new Map();
+  items.filter((i) => i.kind === kind).sort((a, b) => (a.position || 0) - (b.position || 0)).forEach((i) => {
+    if (!map.has(i.plan_id)) map.set(i.plan_id, []);
+    map.get(i.plan_id).push({ id: i.id, label: String(i.data[field] || "") });
+  });
+  return map;
+}
+
+// Valittavat nimet riveille: rivien suunnitelmien nimet ilman toistoa, ensimmäisen suunnitelman järjestyksessä.
+export function labelOptions(rows, map) {
+  const out = [];
+  [...new Set(rows.map((r) => r.plan_id))].forEach((pid) => (map.get(pid) || []).forEach((x) => { if (x.label && !out.includes(x.label)) out.push(x.label); }));
+  return out;
+}
+
+// Asettaa riveille työvirran tai vaiheen (field "stream" | "phase") nimen mukaan: jokaisen rivin omasta suunnitelmasta valitaan samanniminen.
+// Rivi, jonka suunnitelmassa nimeä ei ole tai jolla se on jo, ohitetaan.
+export function catalogPatches(rows, field, label, map) {
+  const patches = [];
+  rows.forEach((r) => {
+    const hit = (map.get(r.plan_id) || []).find((x) => x.label === label);
+    if (hit && r[field] !== hit.id) patches.push({ planId: r.plan_id, id: r.id, data: { [field]: hit.id } });
+  });
+  return { patches };
 }

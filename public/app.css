@@ -897,3 +897,4 @@ body.has-rail { padding-left: 62px; }
 .tl .fm-box { z-index: 40; }
 .tl-menus .fmenu.cell { padding: 0; border: 0; display: inline-block; }
 .tl-menus .fmenu .fm-box { top: calc(100% + 4px); }
+.taskstable .fmenu.cell > summary { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
