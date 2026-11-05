@@ -10,6 +10,19 @@ export function peopleNames(...extra) {
   return peopleOf(state.people.list, overviewRoles, all("role").map((r) => r.data.owner), extra);
 }
 
+// Henkilön titteli on johdettu: niiden vastuualueiden nimet, joiden vastuuhenkilö hän on (kaikista suunnitelmista, jos koostenäkymä on ladattu).
+export function personTitles() {
+  const roles = state.overview ? state.overview.items.filter((i) => i.kind === "role") : all("role"), out = new Map();
+  roles.forEach((r) => {
+    const n = String(r.data.owner || "").trim(), t = String(r.data.title || "").trim();
+    if (!n || !t) return;
+    const list = out.get(n.toLowerCase()) || [];
+    if (!list.includes(t)) list.push(t);
+    out.set(n.toLowerCase(), list);
+  });
+  return (name) => (out.get(String(name || "").toLowerCase()) || []).join(" · ");
+}
+
 // Vastuualueen työvirrat valintaruuduilla. Ruudut näkyvät suoraan, joten taulukon vieritys ei leikkaa niitä.
 export function StreamChecks({ streams, value, onChange, label }) {
   const on = new Set(value);
@@ -21,8 +34,8 @@ export function StreamChecks({ streams, value, onChange, label }) {
 // Henkilön valinta nimilaatikoista. Valittu nimi pysyy korostettuna, ja saman nimen painaminen tyhjentää valinnan.
 // inline: laatikot näkyvät suoraan (esim. taulukon solussa). Muuten näkyy yksi painike, joka avaa laatikot ja sulkeutuu valinnasta.
 // empty on painikkeen teksti, kun valintaa ei ole. canAdd: uuden henkilön voi nimetä vain siellä, missä vastuuhenkilöt nimetään.
-export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenkilöä", canAdd = false, inline = false }) {
-  const names = peopleNames(value);
+export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenkilöä", canAdd = false, inline = false, cards = false }) {
+  const names = peopleNames(value), titleOf = cards ? personTitles() : () => "";
   const add = async () => {
     const n = (prompt("Henkilön nimi") || "").replace(/\s+/g, " ").trim().slice(0, 60);
     if (!n) return;
@@ -31,7 +44,7 @@ export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenk
     onPick(name);
   };
   const close = (e) => { const d = e.currentTarget.closest("details"); if (d) d.removeAttribute("open"); };
-  const chips = (done) => html`<span class="pp-chips" role="group" aria-label=${label || "Henkilö"}>${names.map((n) => html`<button type="button" key=${n} class=${"pp-chip" + (n === value ? " on" : "")} aria-pressed=${n === value ? "true" : "false"} onClick=${(e) => { onPick(n === value ? "" : n); if (done) done(e); }}>${n}</button>`)}${canAdd ? html`<button type="button" class="pp-chip pp-add" onClick=${(e) => { add(); if (done) done(e); }}>+ Lisää henkilö</button>` : null}</span>`;
+  const chips = (done) => html`<span class="pp-chips" role="group" aria-label=${label || "Henkilö"}>${names.map((n) => html`<button type="button" key=${n} class=${"pp-chip" + (cards ? " card" : "") + (n === value ? " on" : "")} aria-pressed=${n === value ? "true" : "false"} onClick=${(e) => { onPick(n === value ? "" : n); if (done) done(e); }}>${cards ? html`<b>${n}</b><small>${titleOf(n) || "Ei vastuualuetta"}</small>` : n}</button>`)}${canAdd ? html`<button type="button" class=${"pp-chip pp-add" + (cards ? " card" : "")} onClick=${(e) => { add(); if (done) done(e); }}>+ Lisää henkilö</button>` : null}</span>`;
   if (inline) return html`<span class=${"pp inline " + (cls || "")}>${chips(null)}</span>`;
   return html`<details class=${"pp " + (cls || "") + (value ? "" : " none")}><summary aria-label=${(label || "Henkilö") + ": " + (value || empty)}>${value || empty}</summary><div class="pp-box">${chips(close)}</div></details>`;
 }
