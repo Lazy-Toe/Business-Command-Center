@@ -3,7 +3,7 @@ import { html } from "../vendor/htm-preact.js";
 
 const svg = (body) => html`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 // Merkki on täytetty solmu: vastuut, mittarit ja suunnitelmat kohtaavat keskipisteessä. Täyttö erottaa sen viivapiirretyistä toiminnoista.
-const MARK = html`<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M10.5 13.5 19 5M10.5 13.5 4.5 5.5M10.5 13.5 18.5 19.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="10.5" cy="13.5" r="5"/><circle cx="19" cy="5" r="3"/><circle cx="4.5" cy="5.5" r="2.1"/><circle cx="18.5" cy="19.5" r="2.1"/></svg>`;
+const MARK = html`<svg viewBox="0 0 32 32" width="32" height="32" fill="currentColor" aria-hidden="true"><path d="M13 18 26 6M13 18 6 7M13 18 25 26" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="13" cy="18" r="5"/><circle cx="26" cy="6" r="3"/><circle cx="6" cy="7" r="2"/><circle cx="25" cy="26" r="2"/></svg>`;
 export const ICONS = {
   tasks: svg(html`<path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17"/>`),
   today: svg(html`<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M9 15l2 2 4-4"/>`),
