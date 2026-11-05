@@ -794,3 +794,22 @@ body.has-rail { padding-left: 62px; }
 .bm-grid .bm-btn { text-align: left; }
 .bm-box { max-height: 70vh; }
 .undo { bottom: 84px; }
+
+/* Muutosvalikko (sarakeotsikko, ryhmän otsikko, valintapalkki) */
+.fmenu { position: relative; display: inline-block; font: 400 0.86rem/1.2 var(--f-body); text-transform: none; letter-spacing: 0; }
+.fmenu > summary { list-style: none; cursor: pointer; border-radius: 3px; white-space: nowrap; }
+.fmenu > summary::-webkit-details-marker { display: none; }
+.fmenu.hd > summary { padding: 2px 7px; margin-left: 6px; font-size: 0.72rem; color: var(--accent); border: 1px solid var(--line); background: var(--surface); font-weight: 600; }
+.fmenu.hd > summary:hover, .fmenu[open] > summary { border-color: var(--accent); }
+.fmenu.gr > summary { padding: 4px 10px; margin-left: 6px; color: var(--ink); border: 1px solid var(--line); background: var(--surface); font-weight: 600; }
+.fmenu.gr > summary:hover, .fmenu.gr[open] > summary { border-color: var(--accent); }
+.fmenu.bb > summary { padding: 9px 18px; background: var(--ink); color: var(--paper); font-weight: 600; font-size: 0.9rem; }
+.fmenu.bb > summary::after { content: "▴"; margin-left: 8px; font-size: 0.8em; opacity: 0.8; }
+.fmenu.bb[open] > summary { background: var(--accent); }
+.fm-box { position: absolute; top: calc(100% + 6px); left: 0; z-index: 35; min-width: 400px; max-width: min(560px, 90vw); max-height: 70vh; overflow: auto; padding: 12px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22); text-align: left; font-weight: 400; }
+.fmenu.up .fm-box { top: auto; bottom: calc(100% + 10px); }
+.fm-scope { margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: 0.84rem; color: var(--muted); }
+.fm-scope b { color: var(--ink); }
+.gmenus { margin-left: 18px; font-weight: 400; font-size: 0.82rem; color: var(--muted); }
+.taskstable th .fmenu .fm-box { text-transform: none; }
+.fm-box .bm-h:first-child { margin-top: 0; }

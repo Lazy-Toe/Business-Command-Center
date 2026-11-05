@@ -51,5 +51,5 @@ export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenk
 
 // Avoin valinta sulkeutuu, kun klikataan muualle.
 if (typeof document !== "undefined") {
-  document.addEventListener("click", (e) => document.querySelectorAll("details.pp[open], details.multi[open], details.bulkmenu[open]").forEach((d) => { if (!d.contains(e.target)) d.removeAttribute("open"); }));
+  document.addEventListener("click", (e) => document.querySelectorAll("details.pp[open], details.multi[open], details.bulkmenu[open], details.fmenu[open]").forEach((d) => { if (!d.contains(e.target)) d.removeAttribute("open"); }));
 }
