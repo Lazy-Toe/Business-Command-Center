@@ -5,7 +5,7 @@ import { state, loadOverview, patchIn, setRowIn, linkMe } from "../core/store.js
 import { fmt } from "../core/calc.js";
 import { periodText, totals } from "../core/scorecard.js";
 import { buildMine, guessPerson } from "../core/mine.js";
-import { buildBoards } from "../core/myboard.js";
+import { mineParts } from "../core/myboard.js";
 import { MyBoards } from "./myboard.js";
 import { todayISO, fmtLong } from "../core/today.js";
 import { Group } from "./today.js";
@@ -92,7 +92,7 @@ export function MineView({ open: openIn }) {
   if (!state.people.loaded && !state.people.error) return html`<div class="wrap today"><p class="gs">Ladataan…</p></div>`;
   if (!me) return html`<${WhoAmI} error=${state.people.error} />`;
   if (!ov) return html`<div class="wrap today"><p class="gs">${state.overviewError || "Ladataan…"}</p></div>`;
-  const today = todayISO(), R = buildMine(ov.items, me, today), boards = buildBoards(ov.items, me, state.plans.map((p) => p.id));
+  const today = todayISO(), R = buildMine(ov.items, me, today), boards = mineParts(ov.items, me, state.plans.map((p) => p.id));
   const bad = R.below;
   return html`<div class="wrap today">
     <header class="thead">
