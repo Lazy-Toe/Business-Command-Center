@@ -825,3 +825,8 @@ body.has-rail { padding-left: 62px; }
 .fmenu.hd > summary { color: var(--paper); background: var(--ink); border-color: var(--ink); padding: 3px 9px; }
 .fmenu.hd[open] > summary { background: var(--accent); border-color: var(--accent); }
 .fm-box .bm-grid.months { grid-template-columns: repeat(3, 1fr); }
+
+/* Oma työpöytä: omat taulut */
+.myboard .matrix-wrap { margin-top: 8px; }
+.myboard h2 .barbtn { margin-left: 12px; font-size: 0.8rem; }
+.myboard .rl .rlt { display: flex; flex-direction: column; gap: 2px; }
