@@ -48,3 +48,14 @@ test("ilman henkilöä ei näytetä mitään", () => {
   assert.equal(r.open, 0);
   assert.deepEqual(r.scorecards, []);
 });
+
+test("henkilö arvataan sähköpostista vain yksiselitteisesti", async () => {
+  const { guessPerson } = await import("../public/app/core/mine.js");
+  const names = ["Harri", "Iida", "Mika", "Pontus"];
+  assert.equal(guessPerson("makela.mika@gmail.com", names), "Mika");
+  assert.equal(guessPerson("harri@yritys.fi", names), "Harri");
+  assert.equal(guessPerson("mika.harri@yritys.fi", names), "", "kaksi osumaa");
+  assert.equal(guessPerson("mikael@yritys.fi", names), "", "osa sanasta ei riitä");
+  assert.equal(guessPerson("makela.mika@x.fi", ["Mika Mäkelä"]), "Mika Mäkelä");
+  assert.equal(guessPerson("", names), "");
+});

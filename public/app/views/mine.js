@@ -1,13 +1,13 @@
 // Oma työpöytä: kirjautuneen henkilön tehtävät ja scorecardit kaikista suunnitelmista.
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
 import { Input } from "../core/ui.js";
-import { state, loadOverview, patchIn, setRowIn, linkMe, unlinkMe } from "../core/store.js";
+import { state, loadOverview, patchIn, setRowIn, linkMe } from "../core/store.js";
 import { fmt } from "../core/calc.js";
 import { periodText, totals } from "../core/scorecard.js";
-import { buildMine } from "../core/mine.js";
+import { buildMine, guessPerson } from "../core/mine.js";
 import { todayISO, fmtLong } from "../core/today.js";
 import { Group } from "./today.js";
-import { PersonSelect } from "../people.js";
+import { PersonSelect, peopleNames } from "../people.js";
 import { FormPanel } from "../forms-ui.js";
 
 const planName = (id) => { const p = state.plans.find((x) => x.id === id); return p ? p.title : ""; };
@@ -60,6 +60,7 @@ function Scorecard({ sc, open, forms, types }) {
 // Kirjautuminen liitetään henkilöön kerran. Sen jälkeen näkymä kohdistuu automaattisesti.
 function WhoAmI({ error }) {
   const [msg, setMsg] = useState("");
+  const guess = guessPerson(state.email, peopleNames());
   if (state.role === "member") {
     return html`<div class="wrap today"><header class="thead"><div><p class="eyebrow">Oma työpöytä</p><h1>Ei vielä käytössä</h1></div></header>
       <div class="whoami"><p>Kirjautumistasi${state.email ? " (" + state.email + ")" : ""} ei ole vielä liitetty henkilöön. Pyydä ylläpitäjää liittämään se, niin tehtäväsi ja scorecardisi näkyvät tässä.</p></div></div>`;
@@ -72,6 +73,7 @@ function WhoAmI({ error }) {
     <header class="thead"><div><p class="eyebrow">Oma työpöytä</p><h1>Kuka olet?</h1></div></header>
     <div class="whoami">
       <p>Liitä kirjautumisesi${state.email ? " (" + state.email + ")" : ""} henkilöön. Sen jälkeen tämä näkymä näyttää vain sinun tehtäväsi ja scorecardisi kaikista suunnitelmista.</p>
+      ${guess ? html`<p><button type="button" class="barbtn primary" onClick=${() => pick(guess)}>Olen ${guess}</button></p><p class="gs">Tai valitse toinen henkilö:</p>` : null}
       <${PersonSelect} cls="whosel" canAdd=${true} label="Valitse henkilö" value="" empty="Valitse henkilö" onPick=${pick} />
       ${msg ? html`<p class="gs bad">${msg}</p>` : null}
       ${error ? html`<p class="gs bad">${error}</p>` : null}
@@ -83,7 +85,9 @@ export function MineView({ open: openIn }) {
   const open = state.role === "member" ? null : openIn;
   useEffect(() => { state.overviewActive = true; loadOverview(); return () => { state.overviewActive = false; }; }, []);
   const [showAll, setShowAll] = useState(false);
-  const me = state.people.me, ov = state.overview;
+  // Oletus on kirjautumiseen liitetty henkilö. Ylläpitäjä voi katsoa toisen työpöytää, ja valinta ei muuta liitosta eikä säily latauksen yli.
+  const [viewAs, setViewAs] = useState("");
+  const me = viewAs || state.people.me, ov = state.overview;
   if (!state.people.loaded && !state.people.error) return html`<div class="wrap today"><p class="gs">Ladataan…</p></div>`;
   if (!me) return html`<${WhoAmI} error=${state.people.error} />`;
   if (!ov) return html`<div class="wrap today"><p class="gs">${state.overviewError || "Ladataan…"}</p></div>`;
@@ -91,7 +95,7 @@ export function MineView({ open: openIn }) {
   const bad = R.below;
   return html`<div class="wrap today">
     <header class="thead">
-      <div><p class="eyebrow">Oma työpöytä</p><h1>${me}</h1><p class="lede">${fmtLong(today)}${state.role === "member" ? "" : html` · <button type="button" class="linkbtn" onClick=${() => unlinkMe().catch(() => {})}>Vaihda henkilö</button>`}</p></div>
+      <div><p class="eyebrow">Oma työpöytä</p><h1>${me}</h1><p class="lede">${fmtLong(today)}${state.role === "member" ? "" : html` · <label class="viewas">Näytä <select aria-label="Näytä henkilön työpöytä" value=${me} onChange=${(e) => setViewAs(e.target.value === state.people.me ? "" : e.target.value)}>${peopleNames(me).map((n) => html`<option key=${n} value=${n}>${n}${n === state.people.me ? " (minä)" : ""}</option>`)}</select></label>`}</p></div>
       <div class="ledger tcount" aria-label="Yhteenveto">
         <div class="stat-cell"><b class=${"num" + (R.late.length ? " neg" : "")}>${R.late.length}</b><span>myöhässä</span></div>
         <div class="stat-cell"><b class="num">${R.today.length}</b><span>tänään</span></div>
