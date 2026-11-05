@@ -1,5 +1,6 @@
 // Tänään-näkymän logiikka ilman näkymää. Päivät ovat muodossa VVVV-KK-PP.
-import { scoreRow, hasStream } from "./scorecard.js";
+import { scoreRow } from "./scorecard.js";
+import { hasStream } from "./streams.js";
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 export function todayISO(d = new Date()) {

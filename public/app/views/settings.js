@@ -2,9 +2,10 @@
 import { html, useState } from "../../vendor/htm-preact.js";
 import { Text, Tools, AddButton, Input, ui, uiChanged, useEscape } from "../core/ui.js";
 import { PersonSelect, StreamChecks } from "../people.js";
+import { roleStreams, hasStream, streamsPatch } from "../core/streams.js";
 import { state, all, children, add, patch, remove } from "../core/store.js";
 import { compile, DEFAULT_FORMULA, FORMULA_PRESETS, FUNCTION_NAMES } from "../core/formula.js";
-import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber, recipientsOf, roleStreams, hasStream, streamsPatch } from "../core/scorecard.js";
+import { LOCKABLE, PERIODS, periodPreset, periodText, scoreRow, toNumber, recipientsOf, roleSelection, initialPicked } from "../core/scorecard.js";
 import { fmt } from "../core/calc.js";
 import { sortTypes } from "../core/forms.js";
 import { PaySettings } from "./settings-pay.js";
@@ -18,8 +19,8 @@ function DefEditor({ def, onClose }) {
   const d = def.data;
   const [v, setV] = useState({ name: d.name || "", stream: d.stream || "", start: d.start || "", end: d.end || "", target: d.target || "", min: d.min || "", max: d.max || "", weight: d.weight || "", formula: d.formula || DEFAULT_FORMULA, lock: Object.assign({}, d.lock) });
   const [goal, setGoal] = useState(def.parent_id || "");
-  const [picked, setPicked] = useState(Array.isArray(d.roles) ? d.roles : []);
   const allRoles = all("role");
+  const [picked, setPicked] = useState(() => initialPicked(def, allRoles, all("metric")));
   const [year, setYear] = useState(String((d.start || "").slice(0, 4) || new Date().getFullYear()));
   const [sample, setSample] = useState("");
   useEscape(onClose);
@@ -31,7 +32,9 @@ function DefEditor({ def, onClose }) {
     if (!c.ok || !v.name.trim()) return;
     const data = Object.assign({}, v, { name: v.name.trim().slice(0, 120) });
     const lock = {}; LOCKABLE.forEach((k) => { if (v.lock[k]) lock[k] = true; });
-    patch(def.id, Object.assign(data, { lock, roles: picked.filter((id) => allRoles.some((r) => r.id === id)) }), goal !== def.parent_id ? { parent_id: goal } : undefined);
+    const sel = roleSelection({ id: def.id, data: { stream: v.stream } }, allRoles, picked);
+    sel.hide.forEach((h) => patch(h.id, { hide: h.hide }));
+    patch(def.id, Object.assign(data, { lock, roles: sel.roles }), goal !== def.parent_id ? { parent_id: goal } : undefined);
     onClose();
   };
   const field = (k) => html`<div class="mfrow"><label for=${"f-" + k}>${FIELD_LABEL[k]}</label>
@@ -43,12 +46,12 @@ function DefEditor({ def, onClose }) {
       <div class="mfrow"><label for="f-goal">Yhteinen tavoite</label><select id="f-goal" value=${goal} onChange=${(e) => setGoal(e.target.value)}>${goals.map((g) => html`<option key=${g.id} value=${g.id}>${g.data.name || "Nimetön"}</option>`)}</select></div>
       <div class="mfrow"><label for="f-name">Nimi</label><${Input} id="f-name" maxlength="120" value=${v.name} onChange=${(e) => set("name", e.target.value)} /></div>
       <div class="mfrow"><label for="f-stream">Työvirta</label>
-        <select id="f-stream" value=${v.stream} onChange=${(e) => set("stream", e.target.value)}><option value="">Ei työvirtaa (lisätään käsin)</option>${streamsOf().map((s) => html`<option key=${s.id} value=${s.id}>${s.data.label}</option>`)}</select>
+        <select id="f-stream" value=${v.stream} onChange=${(e) => { const ns = e.target.value; setPicked((o) => allRoles.filter((r) => hasStream(r, ns) || (!hasStream(r, v.stream) && o.includes(r.id))).map((r) => r.id)); set("stream", ns); }}><option value="">Ei työvirtaa (lisätään käsin)</option>${streamsOf().map((s) => html`<option key=${s.id} value=${s.id}>${s.data.label}</option>`)}</select>
         <span class="gs">Tavoite tulee automaattisesti tämän työvirran vastuualueille.</span></div>
       <div class="mfrow"><label>Vastuualueet</label>
-        <span class="gs">Tulee kaikille vastuualueille, joilla on yllä oleva työvirta, sekä alla valituille.</span>
-        <div class="rolepick">${allRoles.length ? allRoles.map((r) => html`<label key=${r.id} class="rolechk"><input type="checkbox" checked=${picked.includes(r.id)} onChange=${(e) => setPicked((o) => (e.target.checked ? o.concat(r.id) : o.filter((x) => x !== r.id)))} /> ${r.data.title || "Vastuualue"}${r.data.owner ? html`<span class="gs"> · ${r.data.owner}</span>` : null}${v.stream && r.data.stream === v.stream ? html`<span class="gs"> (työvirran kautta)</span>` : null}</label>`) : html`<span class="gs">Suunnitelmassa ei ole vastuualueita.</span>`}</div>
-        <span class="gs">Tulee nyt: <b>${(() => { const to = recipientsOf({ id: def.id, data: { stream: v.stream, roles: picked } }, allRoles, all("metric")); return to.length ? to.map((x) => x.role.data.title || "Vastuualue").join(", ") : "ei kenellekään"; })()}</b></span></div>
+        <span class="gs">Valmiiksi valittuina ovat työvirran vastuualueet. Poista rasti, jos mittari ei kuulu jollekin niistä, tai lisää rasti muulle vastuualueelle.</span>
+        <div class="rolepick">${allRoles.length ? allRoles.map((r) => html`<label key=${r.id} class="rolechk"><input type="checkbox" checked=${picked.includes(r.id)} onChange=${(e) => setPicked((o) => (e.target.checked ? o.concat(r.id) : o.filter((x) => x !== r.id)))} /> ${r.data.title || "Vastuualue"}${r.data.owner ? html`<span class="gs"> · ${r.data.owner}</span>` : null}${hasStream(r, v.stream) ? html`<span class="gs"> (työvirran kautta)</span>` : null}</label>`) : html`<span class="gs">Suunnitelmassa ei ole vastuualueita.</span>`}</div>
+        <span class="gs">Tulee nyt: <b>${(() => { const to = allRoles.filter((r) => picked.includes(r.id)); return to.length ? to.map((r) => r.data.title || "Vastuualue").join(", ") : "ei kenellekään"; })()}</b></span></div>
       <div class="mfrow"><label for="f-period">Jakso</label>
         <span class="mfinline"><select id="f-period" aria-label="Valmis jakso" value="" onChange=${(e) => { const p = periodPreset(e.target.value, year); if (p) setV((o) => Object.assign({}, o, p)); e.target.value = ""; }}><option value="">Valitse jakso…</option>${PERIODS.map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select>
         <${Input} aria-label="Vuosi" maxlength="4" value=${year} onChange=${(e) => setYear(e.target.value.trim())} /></span></div>
@@ -106,25 +109,26 @@ function RolesSettings() {
     ui.undo = { label: (r.data.title || "Vastuualue") + ": " + what + " muutettu", run: () => patch(r.id, { [field]: before }) };
     uiChanged();
   };
-  const sameStream = (r) => roles.filter((x) => x.id !== r.id && roleStreams(x).some((s) => hasStream(r, s)));
-  const setStreams = (r, list) => {
-    const before = { streams: r.data.streams, stream: r.data.stream || "" };
+  const changeStreams = (r, list) => {
+    const before = roleStreams(r);
+    if (JSON.stringify(before) === JSON.stringify(list)) return;
     patch(r.id, streamsPatch(list));
-    ui.undo = { label: (r.data.title || "Vastuualue") + ": työvirrat muutettu", run: () => patch(r.id, Array.isArray(before.streams) ? before : streamsPatch(before.stream ? [before.stream] : [])) };
+    ui.undo = { label: (r.data.title || "Vastuualue") + ": työvirrat muutettu", run: () => patch(r.id, streamsPatch(before)) };
     uiChanged();
   };
+  const shared = (r) => roles.filter((x) => x.id !== r.id && roleStreams(x).some((s) => hasStream(r, s)));
   return html`<section class="tgroup rolesettings">
     <h2>Vastuualueet <span class="num">${roles.length}</span></h2>
-    <p class="gs">Vastuualueella voi olla useita työvirtoja. Työvirrat määräävät, mitkä mittarit ja tehtävät vastuualueella näkyvät. Tehtävä kuuluu henkilölle vain sille valitun vastuuhenkilön kautta, ja työvirran omistajaa ehdotetaan vastuuksi. Muutos tallentuu heti, ja sen voi kumota.</p>
-    ${roles.length ? html`<div class="gtable-wrap"><table class="gtable sctable roletable"><thead><tr><th>Vastuualue</th><th>Vastuuhenkilö</th><th>Työvirrat</th><th>Mittareita</th><th>Huomio</th></tr></thead>
+    <p class="gs">Vastuualueella voi olla useita työvirtoja: kunkin työvirran mittarit tulevat vastuualueelle automaattisesti. Tehtävä kuuluu henkilölle vain tehtävälle valitun vastuuhenkilön kautta, ja vastuualueen omistaja on vain ehdotus. Muutos tallentuu heti, ja sen voi kumota.</p>
+    ${roles.length ? html`<div class="gtable-wrap"><table class="gtable sctable roletable"><thead><tr><th>Vastuualue</th><th>Vastuuhenkilö</th><th>Työvirta</th><th>Mittareita</th><th>Huomio</th></tr></thead>
       <tbody>${roles.map((r) => {
-        const n = defs.filter((d) => recipientsOf(d, [r], rows).length).length, dup = sameStream(r);
+        const n = defs.filter((d) => recipientsOf(d, [r], rows).length).length, dup = shared(r), own = roleStreams(r);
         return html`<tr key=${r.id}>
           <td><b>${r.data.title || "Nimetön"}</b></td>
-          <td><${PersonSelect} canAdd=${true} label=${"Vastuuhenkilö: " + (r.data.title || "")} value=${r.data.owner || ""} onPick=${(v) => change(r, "owner", v, "vastuuhenkilö")} /></td>
-          <td><${StreamChecks} streams=${streamsOf()} value=${roleStreams(r)} label=${"Työvirrat: " + (r.data.title || "")} onChange=${(v) => setStreams(r, v)} /></td>
+          <td><${PersonSelect} inline=${true} canAdd=${true} label=${"Vastuuhenkilö: " + (r.data.title || "")} value=${r.data.owner || ""} onPick=${(v) => change(r, "owner", v, "vastuuhenkilö")} /></td>
+          <td><${StreamChecks} label=${"Työvirrat: " + (r.data.title || "")} streams=${streamsOf()} value=${own} onChange=${(list) => changeStreams(r, list)} /></td>
           <td class="num">${n}</td>
-          <td class="gs ${!roleStreams(r).length || dup.length ? "warn" : ""}">${!roleStreams(r).length ? "Ei työvirtaa: ei työvirran mittareita eikä vastuuehdotuksia" : dup.length ? "Yhteinen työvirta: " + dup.map((x) => x.data.title || "Vastuualue").join(", ") : ""}</td></tr>`;
+          <td class="gs ${!own.length || dup.length ? "warn" : ""}">${!own.length ? "Ei työvirtaa: mittarit eivät tule automaattisesti" : dup.length ? "Jaettu työvirta: " + dup.map((x) => x.data.title || "Vastuualue").join(", ") : ""}</td></tr>`;
         })}</tbody></table></div>` : html`<p class="gs">Suunnitelmassa ei ole vastuualueita. Lisää ne Kokonaisuus-näkymässä.</p>`}
   </section>`;
 }
@@ -150,7 +154,7 @@ export function SettingsView() {
         <h2><${Text} item=${g} field="name" mode="always" max=${120} ph="Yhteisen tavoitteen nimi" /> <span class="num">${defs.length}</span>
           <button type="button" class="barbtn" onClick=${() => newDef(g.id)}>+ Mittari</button>
           <button type="button" class="barbtn" onClick=${() => { if (!defs.length || confirm("Poistetaanko \"" + (g.data.name || "tavoite") + "\" ja sen " + defs.length + " mittaria?")) remove(g.id); }}>Poista</button></h2>
-        ${defs.length ? html`<div class="gtable-wrap"><table class="gtable sctable"><thead><tr><th>Mittari</th><th>Vastuualueet</th><th>Työvirrat</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Paino</th><th>Kaava</th></tr></thead>
+        ${defs.length ? html`<div class="gtable-wrap"><table class="gtable sctable"><thead><tr><th>Mittari</th><th>Vastuualueet</th><th>Työvirta</th><th>Jakso</th><th>Tavoite</th><th>Alaraja</th><th>Yläraja</th><th>Paino</th><th>Kaava</th></tr></thead>
           <tbody>${defs.map((x) => html`<${DefRow} key=${x.id} def=${x} onEdit=${() => setEdit(x.id)} />`)}</tbody></table></div>` : html`<p class="gs">Ei vielä mittareita.</p>`}
       </section>`;
     }) : html`<p class="tclear">Ei vielä yhteisiä tavoitteita. Luo ensimmäinen painikkeesta ylhäällä ja lisää sille mittareita.</p>`}

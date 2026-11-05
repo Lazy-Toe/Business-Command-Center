@@ -1,7 +1,8 @@
 // Jäsenen näkyvyys ja muutosoikeus, ilman näkymää. Worker käyttää tätä jokaisessa jäsenen pyynnössä,
 // joten sääntö on yksi ja sama sekä lukemiselle että kirjoittamiselle.
 import { ownerOf } from "./today.js";
-import { rowsFor, roleStreams } from "./scorecard.js";
+import { roleStreams } from "./streams.js";
+import { rowsFor } from "./scorecard.js";
 import { visibleForms } from "./forms.js";
 
 const same = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();

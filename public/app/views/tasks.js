@@ -5,19 +5,13 @@ import { state, loadOverview, patchManyIn } from "../core/store.js";
 import { taskRows, filterRows, bulkPatches, invertPatches, suggestPatches, ownersIn, groupRows, periodOptions, GROUPS, STATUS_LABEL } from "../core/tasks-table.js";
 import { todayISO, isSaneDue } from "../core/today.js";
 import { peopleNames, PersonSelect } from "../people.js";
+import { Multi } from "../multi.js";
 
 const EMPTY = { q: "", plan: "", stream: [], phase: [], owner: [], status: [], due: "" };
 const COLS = [["stream", "Työvirta"], ["phase", "Vaihe"], ["owner", "Vastuu"], ["due", "Määräpäivä"], ["status", "Tila"]];
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* ei pakollinen */ } };
 
-// Monivalinta: avautuva lista valintaruuduilla. Tyhjä valinta tarkoittaa kaikki.
-function Multi({ label, value, options, onChange }) {
-  const on = new Set(value), txt = !value.length ? "Kaikki" : value.length === 1 ? (options.find(([k]) => k === value[0]) || [0, value[0]])[1] : value.length + " valittu";
-  return html`<details class="multi"><summary><span class="gs">${label}</span> ${txt}</summary>
-    <div class="multibox">${options.map(([k, l]) => html`<label key=${k}><input type="checkbox" checked=${on.has(k)} onChange=${(e) => onChange(e.target.checked ? value.concat(k) : value.filter((x) => x !== k))} /> ${l}</label>`)}
-      ${value.length ? html`<button type="button" class="linkbtn" onClick=${() => onChange([])}>Tyhjennä</button>` : null}</div></details>`;
-}
 const SUGGEST = "__suggest";
 
 // Massamuutoksen päivä otetaan käyttöön vasta painikkeesta, jotta kirjoitus kesken ei muuta valittuja tehtäviä.
@@ -130,7 +124,7 @@ export function TasksView({ open }) {
         <td class="ckcol"><input type="checkbox" aria-label=${"Valitse: " + (r.title || "tehtävä")} checked=${sel.has(r.key)} onClick=${(e) => toggle(r, i, e)} onChange=${() => {}} /></td>
         <td class="nmtd"><button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(r.plan_id, { id: r.id, kind: "task", parent_id: r.parent_id })}>${r.title || "Nimetön tehtävä"}</button>${state.plans.length > 1 ? html`<span class="tsub">${r.planTitle}</span>` : null}</td>
         ${col("stream") ? html`<td class="gs">${r.streamLabel || "–"}</td>` : null}${col("phase") ? html`<td class="gs">${r.phaseLabel || "–"}</td>` : null}
-        ${col("owner") ? html`<td><${PersonSelect} cls=${"personsel" + (!r.owner ? " none" : "")} label=${"Vastuu: " + (r.title || "")} value=${r.owner} empty="Ei vastuuhenkilöä" onPick=${(v) => one(r, { owner: v })} /></td>` : null}
+        ${col("owner") ? html`<td><${PersonSelect} label=${"Vastuu: " + (r.title || "")} value=${r.owner} empty="Ei vastuuhenkilöä" onPick=${(v) => one(r, { owner: v })} /></td>` : null}
         ${col("due") ? html`<td><${DueInput} aria-label=${"Määräpäivä: " + (r.title || "")} value=${r.due} onSave=${(v) => one(r, { due: v })} />${PeriodPick({ text: "Jakso…", label: "Aseta jakson loppu: " + (r.title || ""), onPick: (v) => one(r, { due: v }) })}</td>` : null}
         ${col("status") ? html`<td><select aria-label=${"Tila: " + (r.title || "")} value=${r.status} onChange=${(e) => one(r, { status: e.target.value })}>${Object.entries(STATUS_LABEL).map(([k, l]) => html`<option key=${k} value=${k}>${l}</option>`)}</select></td>` : null}
       </tr>`; })}</tbody>`)}</table></div>` : html`<p class="tclear">Ei tehtäviä näillä suodattimilla.</p>`}

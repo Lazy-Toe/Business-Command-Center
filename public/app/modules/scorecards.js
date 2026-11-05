@@ -2,9 +2,10 @@ import { html, Text, Tools, AddButton, Input, ui, useCollapse, Head, pressable, 
 import { register } from "../core/registry.js";
 import { children, findSection, patch, add, all, state } from "../core/store.js";
 import { FormPanel } from "../forms-ui.js";
-import { rowsFor, orderDefs, freeRows, totals, periodText, roleStreams, hasStream, streamsPatch } from "../core/scorecard.js";
+import { rowsFor, orderDefs, freeRows, totals, periodText } from "../core/scorecard.js";
 import { fmt } from "../core/calc.js";
 import { PersonSelect, StreamChecks } from "../people.js";
+import { roleStreams, streamsPatch } from "../core/streams.js";
 import { planParts, Task, phaseClass } from "./plan.js";
 import { goalValues } from "./goals.js";
 
@@ -105,7 +106,7 @@ export function RolePanel({ id }) {
   const parts = planParts(), metrics = freeRows(children(r.id, "metric")), R = goalValues();
   let tot = 0, sc = 0;
   const cols = parts ? parts.phases.map((ph, i) => {
-    const lst = parts.tasks.filter((t) => t.data.phase === ph.id && hasStream(r, t.data.stream));
+    const lst = parts.tasks.filter((t) => t.data.phase === ph.id && t.data.stream === r.data.stream);
     lst.forEach((t) => { tot++; sc += t.data.status === "done" ? 1 : t.data.status === "doing" ? 0.5 : 0; });
     return html`<div key=${ph.id} class="rp-col"><div class=${"rp-ph " + phaseClass(i, parts.phases.length)}><span class="d">${ph.data.label}</span><span class="t">${ph.data.title}</span></div>
       ${lst.length ? lst.map((t) => html`<${Task} key=${t.id} task=${t} list=${lst} parts=${parts} />`) : html`<p class="empty">Ei tehtäviä tässä vaiheessa.</p>`}</div>`;
@@ -117,7 +118,7 @@ export function RolePanel({ id }) {
       <${Text} item=${r} field="title" tag="h2" cls="rp-title" mode="always" max=${60} ph="Vastuualue" />
       <${Text} item=${r} field="mission" tag="p" cls="rp-mission" mode="always" max=${240} ph="Tehtävä" />
       <${Final} t=${roleTotals(r)} big=${true} />
-      ${ui.edit && parts ? html`<div class="gyear">Työvirrat <${StreamChecks} streams=${parts.streams} value=${roleStreams(r)} label=${"Työvirrat: " + (r.data.title || "")} onChange=${(v) => patch(r.id, streamsPatch(v))} /></div>` : null}
+      ${ui.edit && parts ? html`<label class="gyear">Työvirrat <${StreamChecks} label="Työvirrat" streams=${parts.streams} value=${roleStreams(r)} onChange=${(list) => patch(r.id, streamsPatch(list))} /></label>` : null}
     </div>
     <${GoalTable} r=${r} />
     <${FormPanel} planId=${state.planId} role=${r} effective=${rowsFor(r, orderDefs(all("goal"), all("metricdef")), children(r.id, "metric"))} forms=${all("form")} types=${all("formtype")} viewer=${{ admin: true, person: state.people.me }} canApply=${true} />
