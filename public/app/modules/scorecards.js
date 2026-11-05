@@ -4,8 +4,7 @@ import { children, findSection, patch, add, all, state } from "../core/store.js"
 import { FormPanel } from "../forms-ui.js";
 import { rowsFor, orderDefs, freeRows, totals, periodText } from "../core/scorecard.js";
 import { fmt } from "../core/calc.js";
-import { PersonSelect } from "../people.js";
-import { Multi } from "../multi.js";
+import { PersonSelect, StreamChecks } from "../people.js";
 import { roleStreams, streamsPatch } from "../core/streams.js";
 import { planParts, Task, phaseClass } from "./plan.js";
 import { goalValues } from "./goals.js";
@@ -119,7 +118,7 @@ export function RolePanel({ id }) {
       <${Text} item=${r} field="title" tag="h2" cls="rp-title" mode="always" max=${60} ph="Vastuualue" />
       <${Text} item=${r} field="mission" tag="p" cls="rp-mission" mode="always" max=${240} ph="Tehtävä" />
       <${Final} t=${roleTotals(r)} big=${true} />
-      ${ui.edit && parts ? html`<${Multi} join=${true} none="Ei työvirtaa" label="Työvirrat" value=${roleStreams(r)} options=${parts.streams.map((w) => [w.id, w.data.label])} onChange=${(list) => patch(r.id, streamsPatch(list))} />` : null}
+      ${ui.edit && parts ? html`<label class="gyear">Työvirrat <${StreamChecks} label="Työvirrat" streams=${parts.streams} value=${roleStreams(r)} onChange=${(list) => patch(r.id, streamsPatch(list))} /></label>` : null}
     </div>
     <${GoalTable} r=${r} />
     <${FormPanel} planId=${state.planId} role=${r} effective=${rowsFor(r, orderDefs(all("goal"), all("metricdef")), children(r.id, "metric"))} forms=${all("form")} types=${all("formtype")} viewer=${{ admin: true, person: state.people.me }} canApply=${true} />

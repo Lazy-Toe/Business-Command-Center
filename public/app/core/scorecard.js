@@ -3,6 +3,7 @@
 // Malli kuuluu työvirtaan, ja saman työvirran vastuualueille tavoite tulee automaattisesti, vaikka riviä ei ole vielä tallennettu.
 import { compile, DEFAULT_FORMULA } from "./formula.js";
 import { hasStream } from "./streams.js";
+export { roleStreams, hasStream, streamsPatch } from "./streams.js";
 
 export const LOCKABLE = ["target", "min", "max", "weight", "start", "end"];
 

@@ -108,3 +108,15 @@ test("tallentamattoman rivin ensimmäinen kirjaus sallitaan vain sovitulla tunni
   assert.equal(memberMayApply([put(), { op: "patch", id: "t-muu", data: { status: "done" } }], "a", mine), false, "yksi huono hylkää koko erän");
   assert.equal(memberMayApply([put()], "b", mine), false, "toisen suunnitelman tunniste ei kelpaa");
 });
+
+test("jäsen näkee vastuualueensa kaikkien työvirtojen mallit ja nimet, ei muita", async () => {
+  const mod = await import("../public/app/core/scope.js");
+  const fn = Object.values(mod).find((f) => typeof f === "function" && /person/.test(String(f).slice(0, 80)) && /mine/.test(String(f)));
+  const row = (id, kind, data, parent_id = null) => ({ plan_id: "p", id, kind, parent_id, position: 1, data });
+  const items = [row("a", "stream", { label: "A" }), row("b", "stream", { label: "B" }), row("c", "stream", { label: "C" }),
+    row("r", "role", { owner: "Harri", streams: ["a", "b"], stream: "a" }), row("g", "goal", { name: "G" }),
+    row("da", "metricdef", { name: "A", stream: "a" }, "g"), row("db", "metricdef", { name: "B", stream: "b" }, "g"), row("dc", "metricdef", { name: "C", stream: "c" }, "g")];
+  const R = fn(items, "Harri"), ids = R.items.map((x) => x.id);
+  assert.ok(ids.includes("a") && ids.includes("b") && !ids.includes("c"));
+  assert.ok(ids.includes("da") && ids.includes("db") && !ids.includes("dc"));
+});

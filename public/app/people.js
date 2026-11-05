@@ -10,6 +10,14 @@ export function peopleNames(...extra) {
   return peopleOf(state.people.list, overviewRoles, all("role").map((r) => r.data.owner), extra);
 }
 
+// Vastuualueen työvirrat valintaruuduilla. Ruudut näkyvät suoraan, joten taulukon vieritys ei leikkaa niitä.
+export function StreamChecks({ streams, value, onChange, label }) {
+  const on = new Set(value);
+  return html`<div class="streamchecks" role="group" aria-label=${label || "Työvirrat"}>
+    ${streams.map((s) => html`<label key=${s.id} class="rolechk"><input type="checkbox" checked=${on.has(s.id)} onChange=${(e) => onChange(streams.map((x) => x.id).filter((id) => (id === s.id ? e.target.checked : on.has(id))))} /> ${s.data.label}</label>`)}
+  </div>`;
+}
+
 // Henkilön valinta nimilaatikoista. Valittu nimi pysyy korostettuna, ja saman nimen painaminen tyhjentää valinnan.
 // inline: laatikot näkyvät suoraan (esim. taulukon solussa). Muuten näkyy yksi painike, joka avaa laatikot ja sulkeutuu valinnasta.
 // empty on painikkeen teksti, kun valintaa ei ole. canAdd: uuden henkilön voi nimetä vain siellä, missä vastuuhenkilöt nimetään.

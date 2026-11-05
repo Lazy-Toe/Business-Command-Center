@@ -115,3 +115,18 @@ test("roolivalinta: työvirran roolit valittu oletuksena, poisto piilottaa, lis�
   assert.deepEqual(roleSelection(d, roles, ["r1"]).hide, [{ id: "r2", hide: ["d9"] }].slice(0, 0), "r1 valittuna ja r2 piilotettuna ei muuta mitään");
   assert.deepEqual(roleSelection(d, [roles[0]], ["r1"]), { roles: [], hide: [] });
 });
+
+test("vastuualueella voi olla useita työvirtoja, vanha yksi työvirta toimii", async () => {
+  const { roleStreams, hasStream, streamsPatch, assignedTo } = await import("../public/app/core/scorecard.js");
+  const uusi = { id: "r", data: { streams: ["a", "b"], stream: "a" } }, vanha = { id: "v", data: { stream: "a" } }, tyhja = { id: "t", data: { streams: [], stream: "" } };
+  assert.deepEqual(roleStreams(uusi), ["a", "b"]);
+  assert.deepEqual(roleStreams(vanha), ["a"]);
+  assert.deepEqual(roleStreams(tyhja), []);
+  assert.deepEqual(roleStreams({ data: {} }), []);
+  assert.ok(hasStream(uusi, "b") && !hasStream(uusi, "c") && !hasStream(uusi, ""));
+  assert.deepEqual(streamsPatch(["b", "a"]), { streams: ["b", "a"], stream: "b" });
+  assert.deepEqual(streamsPatch([]), { streams: [], stream: "" });
+  assert.ok(assignedTo({ data: { stream: "b" } }, uusi));
+  assert.ok(!assignedTo({ data: { stream: "b" } }, vanha));
+  assert.ok(!assignedTo({ data: { stream: "" } }, tyhja), "tyhjä työvirta ei täsmää");
+});

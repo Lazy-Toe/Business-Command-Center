@@ -29,6 +29,8 @@ Yksityinen johtamisen keskipiste: yhdessä paikassa suunnitelmat, vastuut, mitta
 
 Tehtävän `data`: `title`, `detail`, `phase`, `stream`, `status`, `note`, `due` (VVVV-KK-PP), `owner`. Ilman `owner`-kenttää tehtävä ei kuulu kenellekään (ei Oma työpöytä -näkymään, ei jäsenelle).
 
+Vastuualueen (`role`) `data.streams` on lista työvirroista, ja `data.stream` pitää ensimmäisen niistä. Lue työvirrat aina funktioilla `roleStreams` ja `hasStream` (`core/scorecard.js`) ja tallenna funktiolla `streamsPatch`.
+
 ## Käyttöoikeudet
 - Kaksi tasoa. Ylläpitäjä (`ALLOWED_EMAILS`) näkee ja muuttaa kaiken. Jäsen (`MEMBER_EMAILS`) näkee ja muuttaa vain omat tehtävänsä, vastuualueensa ja mittarinsa. Osoite molemmissa listoissa on ylläpitäjä.
 - Rajaus tehdään Workerissa (`memberApi`, `public/app/core/scope.js`), ei käyttöliittymässä. Jäsenen reittijoukko on oletuksena kieltävä: uusi reitti on vain ylläpitäjän, ellei sitä erikseen lisätä `memberApi`:in. Jäsen saa muuttaa vain tehtävän `status`, `due` ja `note` sekä mittarin `actual` (`MEMBER_FIELDS`) ja luoda tallentamattoman tavoiterivin ensimmäisellä kirjauksella (`put` vain kentillä `def` ja `actual`, sovitulla tunnisteella). Jäsen näkee oman roolinsa mallit vain luettavina. Yksikin sääntöjen ulkopuolinen muutos hylkää koko pyynnön (422).
