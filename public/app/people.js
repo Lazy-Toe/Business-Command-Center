@@ -50,6 +50,16 @@ export function PersonSelect({ value, onPick, label, cls, empty = "Ei vastuuhenk
 }
 
 // Avoin valinta sulkeutuu, kun klikataan muualle.
+// Valikko aukeaa ylös, jos alaosassa ei ole tilaa.
+if (typeof document !== "undefined") {
+  document.addEventListener("toggle", (e) => {
+    const d = e.target;
+    if (!(d instanceof HTMLElement) || !d.matches("details.fmenu") || !d.open || d.classList.contains("up")) return;
+    d.removeAttribute("data-flip");
+    const box = d.querySelector(".fm-box");
+    if (box && box.getBoundingClientRect().bottom > window.innerHeight && d.getBoundingClientRect().top > box.offsetHeight + 16) d.setAttribute("data-flip", "");
+  }, true);
+}
 if (typeof document !== "undefined") {
   document.addEventListener("click", (e) => document.querySelectorAll("details.pp[open], details.multi[open], details.bulkmenu[open], details.fmenu[open]").forEach((d) => { if (!d.contains(e.target)) d.removeAttribute("open"); }));
 }
