@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toNumber, valuesOf, scoreRow, orderDefs, rowsFor, recipientsOf, freeRows, totals, periodPreset, periodText, virtualId } from "../public/app/core/scorecard.js";
+import { toNumber, valuesOf, scoreRow, orderDefs, rowsFor, recipientsOf, roleSelection, initialPicked, freeRows, totals, periodPreset, periodText, virtualId } from "../public/app/core/scorecard.js";
 
 const def = (id, data, parent_id = "g1", position = 1) => ({ id, kind: "metricdef", parent_id, position, data });
 const D1 = def("d1", { name: "Liikevaihto", stream: "w1", target: "1500", min: "1400", max: "1800", weight: "20" });
@@ -102,4 +102,16 @@ test("recipientsOf kertoo kenelle malli tulee ja miksi", () => {
   const roles = [{ id: "r1", data: { stream: "w1" } }, { id: "r2", data: {} }, { id: "r3", data: {} }, { id: "r4", data: { stream: "w1", hide: ["d8"] } }];
   const to = recipientsOf(d, roles, [{ parent_id: "r3", data: { def: "d8" } }]);
   assert.deepEqual(to.map((x) => [x.role.id, x.via]), [["r1", "stream"], ["r2", "role"], ["r3", "manual"]]);
+});
+
+test("roolivalinta: työvirran roolit valittu oletuksena, poisto piilottaa, lisäys tallentuu roles-kenttään", () => {
+  const d = def("d9", { name: "X", stream: "w1" });
+  const roles = [{ id: "r1", data: { stream: "w1" } }, { id: "r2", data: { stream: "w1", hide: ["d9"] } }, { id: "r3", data: {} }];
+  assert.deepEqual(initialPicked(d, roles, []), ["r1"], "piilotettu ei ole valittu");
+  // r1 poistetaan, r2 palautetaan, r3 lisätään
+  const sel = roleSelection(d, roles, ["r2", "r3"]);
+  assert.deepEqual(sel.roles, ["r3"]);
+  assert.deepEqual(sel.hide, [{ id: "r1", hide: ["d9"] }, { id: "r2", hide: [] }]);
+  assert.deepEqual(roleSelection(d, roles, ["r1"]).hide, [{ id: "r2", hide: ["d9"] }].slice(0, 0), "r1 valittuna ja r2 piilotettuna ei muuta mitään");
+  assert.deepEqual(roleSelection(d, [roles[0]], ["r1"]), { roles: [], hide: [] });
 });
