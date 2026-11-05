@@ -739,3 +739,20 @@ body.has-rail { padding-left: 62px; }
 .roletable .personsel { min-width: 170px; }
 .personsel.none { color: var(--muted); }
 .unownedbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 6px 0; }
+
+/* Henkilön valinta nimilaatikoista */
+.pp { position: relative; display: inline-block; font: 400 0.86rem/1.2 var(--f-body); }
+.pp > summary { cursor: pointer; list-style: none; padding: 5px 10px; min-height: 30px; box-sizing: border-box; display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--ink); white-space: nowrap; }
+.pp > summary::-webkit-details-marker { display: none; }
+.pp > summary::after { content: "▾"; margin-left: 8px; color: var(--muted); font-size: 0.8em; }
+.pp.none > summary { color: var(--muted); }
+.pp[open] > summary, .pp > summary:hover { border-color: var(--accent); }
+.pp-box { position: absolute; z-index: 30; margin-top: 2px; min-width: 220px; max-width: 320px; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); }
+.pp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-chip { font: 500 0.84rem/1.2 var(--f-body); padding: 5px 11px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.pp-chip:hover { border-color: var(--accent); }
+.pp-chip.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.pp-chip.pp-add { color: var(--muted); border-style: dashed; }
+.pp.inline { display: block; }
+.pp.ownersel, .pp.whosel { border: none; padding: 0; background: none; }
+.eyebrow .pp > summary { text-transform: none; letter-spacing: 0; }

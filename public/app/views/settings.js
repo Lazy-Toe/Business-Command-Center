@@ -126,7 +126,7 @@ function RolesSettings() {
         const n = defs.filter((d) => recipientsOf(d, [r], rows).length).length, dup = shared(r), own = roleStreams(r);
         return html`<tr key=${r.id}>
           <td><b>${r.data.title || "Nimetön"}</b></td>
-          <td><${PersonSelect} canAdd=${true} label=${"Vastuuhenkilö: " + (r.data.title || "")} value=${r.data.owner || ""} onPick=${(v) => change(r, "owner", v, "vastuuhenkilö")} /></td>
+          <td><${PersonSelect} inline=${true} canAdd=${true} label=${"Vastuuhenkilö: " + (r.data.title || "")} value=${r.data.owner || ""} onPick=${(v) => change(r, "owner", v, "vastuuhenkilö")} /></td>
           <td><${Multi} join=${true} none="Ei työvirtaa" label="" value=${own} options=${streamsOf().map((x) => [x.id, x.data.label])} onChange=${(list) => changeStreams(r, list)} /></td>
           <td class="num">${n}</td>
           <td class="gs ${!own.length || dup.length ? "warn" : ""}">${!own.length ? "Ei työvirtaa: mittarit eivät tule automaattisesti" : dup.length ? "Jaettu työvirta: " + dup.map((x) => x.data.title || "Vastuualue").join(", ") : ""}</td></tr>`;
