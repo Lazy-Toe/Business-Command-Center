@@ -62,4 +62,4 @@ Sisältöä, nimiä tai lukuja ei kirjoiteta moduulin koodiin. Ainoa poikkeus on
 - Kaikki skriptit tulevat omalta palvelimelta (`public/vendor/`). `public/_headers` määrittää tiukan sisältöpolitiikan: älä lisää ulkoisia skriptejä.
 - Tallentamattomat muutokset säilyvät selaimessa (`bcc-queue`), kunnes palvelin on vahvistanut ne.
 - Commitit noreply-osoitteella: `Lazy-Toe@users.noreply.github.com`.
-- Aja `npm test` ja `node --check worker.js` ennen pushia.
+- Aja `npm run stamp`, `npm test` ja `node --check worker.js` ennen pushia. Stamp päivittää julkaisuajan (`public/app/version.js`), joka näkyy yläpalkin oikeassa reunassa, ja siitä nähdään heti, onko selaimessa uusin versio.
