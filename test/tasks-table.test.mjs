@@ -99,7 +99,7 @@ test("jaksot: kuukauden ja neljänneksen viimeinen päivä", () => {
   assert.equal(lastDay(2026, 11), 30);
   assert.equal(lastDay(2028, 2), 29);
   const p = periodOptions("2026-11-04");
-  assert.ok(p.months.some((m) => m.value === "2026-11-30" && m.label === "Marraskuu 2026 (30.11.)"));
+  assert.ok(p.months.some((m) => m.value === "2026-11-30" && m.label === "11/26 (30.11.)"));
   assert.ok(p.months.some((m) => m.value === "2027-02-28"));
   assert.equal(p.quarters[0].value, "2026-12-31");
   assert.equal(p.quarters[0].label, "Q4 2026 (31.12.)");

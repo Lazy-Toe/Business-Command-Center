@@ -126,7 +126,7 @@ export function periodOptions(today) {
   const y0 = Number(m[1]), m0 = Number(m[2]), months = [], quarters = [];
   for (let i = -1; i < 14; i++) {
     const t = y0 * 12 + (m0 - 1) + i, y = Math.floor(t / 12), mo = (t % 12) + 1, iso = endISO(y, mo);
-    months.push({ value: iso, label: cap(MONTHS[mo - 1]) + " " + y + " (" + fi(iso) + ")" });
+    months.push({ value: iso, label: mo + "/" + String(y).slice(2) + " (" + fi(iso) + ")" });
   }
   const q0 = Math.floor((m0 - 1) / 3);
   for (let i = 0; i < 6; i++) {
