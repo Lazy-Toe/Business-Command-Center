@@ -20,16 +20,16 @@ function FieldMenu({ field, title, rows, scope, names, periods, apply, applyPatc
   const run = (fn) => (e) => { fn(); closeMenu(e); };
   const go = (change, what) => run(() => apply(change, what, rows));
   const canSuggest = suggestPatches(rows).patches.length > 0;
-  return html`<details class=${"fmenu " + (up ? "up " : "") + (right ? "right " : "") + (cls || "")}><summary title=${"Muuta: " + title}>${title}</summary>
+  return html`<details class=${"fmenu " + (up ? "up " : "") + (right ? "right " : "") + (cls || "")}><summary>${title}</summary>
     <div class="fm-box"><p class="fm-scope">Koskee: <b>${scope}</b></p>
       ${field === "owner" ? html`<div class="bm-grid">${names.map((n) => html`<button type="button" key=${n} class="bm-btn" onClick=${go({ owner: n }, "vastuu " + n)}>${n}</button>`)}</div>
         ${canSuggest ? html`<button type="button" class="bm-btn wide" onClick=${run(() => applyPatches(suggestPatches(rows).patches, rows, "vastuualueen omistaja"))}>Vastuualueen omistaja (työvirran mukaan)</button>` : null}
         <button type="button" class="bm-btn wide quiet" onClick=${go({ owner: "" }, "vastuuhenkilö poistettu")}>Poista vastuuhenkilö</button>` : null}
-      ${field === "due" ? html`<p class="bm-h">Kuukauden viimeinen päivä</p>
-        <div class="bm-grid">${periods.months.map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
-        <p class="bm-h">Neljänneksen viimeinen päivä</p>
-        <div class="bm-grid">${periods.quarters.map((p) => html`<button type="button" key=${"q" + p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
-        <p class="bm-h">Tai tarkka päivä</p>
+      ${field === "due" ? html`<p class="bm-h">Kuukauden loppu</p>
+        <div class="bm-grid">${periods.months.slice(1, 7).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
+        <p class="bm-h">Neljänneksen loppu</p>
+        <div class="bm-grid">${periods.quarters.slice(0, 3).map((p) => html`<button type="button" key=${"q" + p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
+        <p class="bm-h">Muu päivä</p>
         <${BulkDate} onApply=${(v) => apply({ due: v }, "määräpäivä", rows)} />
         <button type="button" class="bm-btn wide quiet" onClick=${go({ due: "" }, "päivä tyhjennetty")}>Tyhjennä päivä</button>` : null}
       ${field === "status" ? html`<div class="bm-grid">${Object.entries(STATUS_LABEL).map(([k, l]) => html`<button type="button" key=${k} class="bm-btn" onClick=${go({ status: k }, "tila " + l)}>${l}</button>`)}</div>` : null}
