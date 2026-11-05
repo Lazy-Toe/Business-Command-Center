@@ -762,3 +762,5 @@ body.has-rail { padding-left: 62px; }
 .streamchecks .rolechk { justify-content: flex-start; white-space: nowrap; }
 .taskspage .gtable-wrap { overflow: visible; }
 .viewas { font-size: 0.9rem; } .viewas select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; padding: 2px 5px; }
+.pp.whosel .pp-chips { gap: 10px; margin-top: 6px; }
+.pp.whosel .pp-chip { font-size: 1rem; padding: 12px 26px; min-width: 110px; }
