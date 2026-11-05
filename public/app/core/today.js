@@ -71,6 +71,19 @@ export function fmtDue(iso) {
   if (!ISO.test(iso || "")) return "";
   return isWeekDue(iso) ? "vko " + weekNumber(iso) : fmtDate(iso);
 }
+// Aloituspäivä: maanantai luetaan viikon alkuna ("vko 45"), muu päivä näytetään päivänä.
+export const isWeekStart = (iso) => ISO.test(iso || "") && addDays(weekEnd(iso), -6) === iso;
+export function fmtStart(iso) {
+  if (!ISO.test(iso || "")) return "";
+  return isWeekStart(iso) ? "vko " + weekNumber(iso) : fmtDate(iso);
+}
+// Tehtävän kesto tekstinä: "vko 45 – vko 47", "2.11. – 13.11.2026" tai pelkkä loppu, jos aloitusta ei ole.
+export function fmtSpan(start, due) {
+  if (!ISO.test(due || "")) return ISO.test(start || "") ? "alk. " + fmtStart(start) : "";
+  if (!ISO.test(start || "") || start === due) return fmtDue(due);
+  return fmtStart(start) + " – " + fmtDue(due);
+}
+
 // Viikon aikaväli tekstinä: "9.–15.11." tai "30.11.–6.12.".
 export function weekSpan(iso) {
   const end = weekEnd(iso), start = addDays(end, -6), [, m1, d1] = start.split("-").map(Number), [, m2, d2] = end.split("-").map(Number);
@@ -112,7 +125,7 @@ export function monthGrid(tasks, year, month) {
   const weeks = [];
   do {
     const days = [];
-    for (let i = 0; i < 7; i++, cur = addDays(cur, 1)) days.push({ date: cur, inMonth: cur.slice(0, 7) === first.slice(0, 7), tasks: tasks.filter((t) => hasDue(t) && t.data.due === cur) });
+    for (let i = 0; i < 7; i++, cur = addDays(cur, 1)) days.push({ date: cur, inMonth: cur.slice(0, 7) === first.slice(0, 7), tasks: tasks.filter((t) => hasDue(t) && (t.data.start && t.data.start <= t.data.due ? t.data.start <= cur && cur <= t.data.due : t.data.due === cur)) });
     weeks.push(days);
   } while (cur.slice(0, 7) === first.slice(0, 7) && weeks.length < 6);
   return weeks;
