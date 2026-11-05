@@ -2,6 +2,7 @@
 // Katalogi: yhteinen tavoite (kind goal) -> mittarimalli (kind metricdef). Roolin rivit (kind metric) viittaavat malliin kentällä def.
 // Malli kuuluu työvirtaan, ja saman työvirran vastuualueille tavoite tulee automaattisesti, vaikka riviä ei ole vielä tallennettu.
 import { compile, DEFAULT_FORMULA } from "./formula.js";
+import { hasStream } from "./streams.js";
 
 export const LOCKABLE = ["target", "min", "max", "weight", "start", "end"];
 
@@ -43,7 +44,7 @@ export function orderDefs(goals, defs) {
 }
 
 // Malli tulee roolille automaattisesti, jos sillä on sama työvirta tai malli on annettu suoraan roolille (def.data.roles on roolien tunnisteet).
-const byStream = (def, role) => !!role.data.stream && def.data.stream === role.data.stream;
+const byStream = (def, role) => hasStream(role, def.data.stream);
 const byRole = (def, role) => Array.isArray(def.data.roles) && def.data.roles.includes(role.id);
 export const assignedTo = (def, role) => byStream(def, role) || byRole(def, role);
 

@@ -1,6 +1,7 @@
 // Jäsenen näkyvyys ja muutosoikeus, ilman näkymää. Worker käyttää tätä jokaisessa jäsenen pyynnössä,
 // joten sääntö on yksi ja sama sekä lukemiselle että kirjoittamiselle.
 import { ownerOf } from "./today.js";
+import { roleStreams } from "./streams.js";
 import { rowsFor } from "./scorecard.js";
 import { visibleForms } from "./forms.js";
 
@@ -35,7 +36,7 @@ export function scopeFor(items, person) {
     const types = rows.filter((t) => t.kind === "formtype"), allForms = rows.filter((f) => f.kind === "form");
     let typesShown = false;
     roles.filter((r) => same(r.data.owner, person)).forEach((r) => {
-      out.push(r); if (r.data.stream) streams.add(r.data.stream);
+      out.push(r); roleStreams(r).forEach((x) => streams.add(x));
       // Lomaketyypit nimineen ja valintoineen sekä ne roolin lomakkeet, jotka jäsen saa nähdä. Lomakkeita jäsen ei voi muuttaa.
       if (!typesShown) { typesShown = true; types.forEach((t) => out.push(t)); }
       visibleForms(r, allForms, types, { admin: false, person }).forEach((f) => out.push(f));

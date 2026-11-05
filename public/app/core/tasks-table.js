@@ -1,6 +1,7 @@
 // Tehtävätaulukon logiikka ilman näkymää: rivien kokoaminen kaikista suunnitelmista, suodatus ja massamuutos.
 // Vastuu on tehtävän oma (owner) tai, jos sitä ei ole, sen vastuualueen omistaja, jonka työvirta on sama (kuten Tänään-näkymässä).
 import { suggestedOwner, isSaneDue } from "./today.js";
+import { hasStream } from "./streams.js";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 export const STATUS_LABEL = { todo: "Ei aloitettu", doing: "Käynnissä", done: "Valmis" };
@@ -15,13 +16,13 @@ export function taskRows(items, plans) {
     const roles = mine.filter((i) => i.kind === "role"), label = (kind, f) => new Map(mine.filter((i) => i.kind === kind).map((i) => [i.id, i.data[f] || ""]));
     const streams = label("stream", "label"), phases = label("phase", "title");
     mine.filter((i) => i.kind === "task").forEach((t) => {
-      const owner = String(t.data.owner || "").trim(), via = owner ? null : roles.find((r) => r.data.stream && r.data.stream === t.data.stream);
+      const owner = String(t.data.owner || "").trim(), via = roles.find((r) => hasStream(r, t.data.stream));
       rows.push({
         key: planId + "/" + t.id, plan_id: planId, id: t.id, parent_id: t.parent_id || null, title: String(t.data.title || ""), planTitle: title,
         stream: t.data.stream || "", streamLabel: streams.get(t.data.stream) || "", phase: t.data.phase || "", phaseLabel: phases.get(t.data.phase) || "",
         status: STATUSES.includes(t.data.status) ? t.data.status : "todo", due: ISO.test(t.data.due || "") ? t.data.due : "",
         owner, effective: owner, suggested: suggestedOwner(t.data.stream, roles),
-        via: via ? via.data.title || "" : (roles.find((r) => r.data.stream && r.data.stream === t.data.stream) || { data: {} }).data.title || ""
+        via: via ? via.data.title || "" : ""
       });
     });
   });
