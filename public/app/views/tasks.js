@@ -3,7 +3,7 @@ import { html, useEffect, useState } from "../../vendor/htm-preact.js";
 import { ui, uiChanged } from "../core/ui.js";
 import { state, loadOverview, patchManyIn } from "../core/store.js";
 import { taskRows, filterRows, bulkPatches, invertPatches, suggestPatches, ownersIn, groupRows, periodOptions, GROUPS, STATUS_LABEL } from "../core/tasks-table.js";
-import { todayISO, isSaneDue } from "../core/today.js";
+import { todayISO, isSaneDue, fmtDue } from "../core/today.js";
 import { peopleNames } from "../people.js";
 import { Multi } from "../multi.js";
 
@@ -25,7 +25,9 @@ function FieldMenu({ field, title, rows, scope, names, periods, apply, applyPatc
       ${field === "owner" ? html`<div class="bm-grid">${names.map((n) => html`<button type="button" key=${n} class="bm-btn" onClick=${go({ owner: n }, "vastuu " + n)}>${n}</button>`)}</div>
         ${canSuggest ? html`<button type="button" class="bm-btn wide" onClick=${run(() => applyPatches(suggestPatches(rows).patches, rows, "vastuualueen omistaja"))}>Vastuualueen omistaja (työvirran mukaan)</button>` : null}
         <button type="button" class="bm-btn wide quiet" onClick=${go({ owner: "" }, "vastuuhenkilö poistettu")}>Poista vastuuhenkilö</button>` : null}
-      ${field === "due" ? html`<p class="bm-h">Kuukauden loppu</p>
+      ${field === "due" ? html`<p class="bm-h">Viikko (päättyy sunnuntaina)</p>
+        <div class="bm-grid months">${periods.weeks.slice(0, 6).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
+        <p class="bm-h">Kuukauden loppu</p>
         <div class="bm-grid months">${periods.months.slice(1, 7).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Neljänneksen loppu</p>
         <div class="bm-grid months">${periods.quarters.slice(0, 3).map((p) => html`<button type="button" key=${"q" + p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
@@ -119,7 +121,6 @@ export function TasksView({ open }) {
   const scopeText = chosen.length ? chosen.length + " valittua tehtävää" : "kaikkia " + shown.length + " näkyvää tehtävää";
   // Rivin oma valikko koskee aina vain sitä riviä. Useiden rivien muutos tehdään valintapalkista.
   const cellMenu = (r, field, text) => menuFor([r], "vain tätä tehtävää")(field, text + " ▾");
-  const fmtD = (iso) => iso.slice(8, 10).replace(/^0/, "") + "." + iso.slice(5, 7).replace(/^0/, "") + "." + iso.slice(0, 4);
   const one = (r, data) => patchManyIn([{ planId: r.plan_id, id: r.id, data }]);
   const dirty = Object.keys(EMPTY).some((k) => (Array.isArray(f[k]) ? f[k].length : f[k]));
 
@@ -152,7 +153,7 @@ export function TasksView({ open }) {
         <td class="nmtd"><button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(r.plan_id, { id: r.id, kind: "task", parent_id: r.parent_id })}>${r.title || "Nimetön tehtävä"}</button>${state.plans.length > 1 ? html`<span class="tsub">${r.planTitle}</span>` : null}</td>
         ${col("stream") ? html`<td class="gs">${r.streamLabel || "–"}</td>` : null}${col("phase") ? html`<td class="gs">${r.phaseLabel || "–"}</td>` : null}
         ${col("owner") ? html`<td><${FieldMenu} ...${cellMenu(r, "owner", r.owner || "Ei vastuuhenkilöä")} cls=${"cell" + (r.owner ? "" : " none")} /></td>` : null}
-        ${col("due") ? html`<td><${FieldMenu} ...${cellMenu(r, "due", r.due ? fmtD(r.due) : "Ei päivää")} cls=${"cell" + (r.due ? "" : " none")} right=${true} /></td>` : null}
+        ${col("due") ? html`<td><${FieldMenu} ...${cellMenu(r, "due", r.due ? fmtDue(r.due) : "Ei päivää")} cls=${"cell" + (r.due ? "" : " none")} right=${true} /></td>` : null}
         ${col("status") ? html`<td><${FieldMenu} ...${cellMenu(r, "status", STATUS_LABEL[r.status])} cls=${"cell st-" + r.status} right=${true} /></td>` : null}
       </tr>`; })}</tbody>`)}</table></div>` : html`<p class="tclear">Ei tehtäviä näillä suodattimilla.</p>`}
     ${chosen.length ? html`<${BulkBar} count=${chosen.length} menu=${menuFor(chosen, chosen.length + " valittua tehtävää")} clear=${() => { setSel(new Set()); setMsg(""); }} />` : null}

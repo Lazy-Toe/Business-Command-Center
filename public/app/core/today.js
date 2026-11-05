@@ -53,6 +53,35 @@ export function monthBuckets(dated, today, count = 6) {
   };
 }
 
+// ISO-viikon numero (viikko 1 sisältää vuoden ensimmäisen torstain).
+export function weekNumber(iso) {
+  const [y, m, d] = iso.split("-").map(Number), dt = new Date(Date.UTC(y, m - 1, d)), dow = (dt.getUTCDay() + 6) % 7;
+  dt.setUTCDate(dt.getUTCDate() - dow + 3); // viikon torstai
+  const firstThu = new Date(Date.UTC(dt.getUTCFullYear(), 0, 4));
+  return 1 + Math.round(((dt - firstThu) / 86400000 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
+}
+// Viikon viimeinen päivä (sunnuntai). Viikolle sitoutuvan tehtävän määräpäivä on tämä, joten se on myöhässä vasta maanantaina.
+export function weekEnd(iso) {
+  const [y, m, d] = iso.split("-").map(Number), dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
+  return addDays(iso, 6 - dow);
+}
+// Sunnuntaille osuva määräpäivä luetaan viikkotason määräpäiväksi ("vko 45"), muu päivä näytetään päivänä.
+export const isWeekDue = (iso) => ISO.test(iso || "") && weekEnd(iso) === iso;
+export function fmtDue(iso) {
+  if (!ISO.test(iso || "")) return "";
+  return isWeekDue(iso) ? "vko " + weekNumber(iso) : fmtDate(iso);
+}
+// Viikon aikaväli tekstinä: "9.–15.11." tai "30.11.–6.12.".
+export function weekSpan(iso) {
+  const end = weekEnd(iso), start = addDays(end, -6), [, m1, d1] = start.split("-").map(Number), [, m2, d2] = end.split("-").map(Number);
+  return m1 === m2 ? d1 + "." + "–" + d2 + "." + m2 + "." : d1 + "." + m1 + "." + "–" + d2 + "." + m2 + ".";
+}
+// Valittavat viikot määräpäiväksi: tämä viikko ja count-1 seuraavaa. Arvo on viikon viimeinen päivä.
+export function weekOptions(today, count = 6) {
+  const first = weekEnd(today);
+  return Array.from({ length: count }, (_, i) => { const v = addDays(first, 7 * i); return { value: v, label: "Vko " + weekNumber(v) + " (" + weekSpan(v) + ")" }; });
+}
+
 // Viikko maanantaista sunnuntaihin. offset 0 = tämä viikko, 1 = ensi viikko.
 export function weekRange(today, offset = 0) {
   const [y, m, d] = today.split("-").map(Number), dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
