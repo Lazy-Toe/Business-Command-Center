@@ -1,6 +1,6 @@
 // Tehtävätaulukon logiikka ilman näkymää: rivien kokoaminen kaikista suunnitelmista, suodatus ja massamuutos.
 // Vastuu on tehtävän oma (owner) tai, jos sitä ei ole, sen vastuualueen omistaja, jonka työvirta on sama (kuten Tänään-näkymässä).
-import { suggestedOwner, isSaneDue, weekOptions } from "./today.js";
+import { suggestedOwner, isSaneDue, weekOptions, addDays } from "./today.js";
 import { hasStream } from "./streams.js";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -20,7 +20,7 @@ export function taskRows(items, plans) {
       rows.push({
         key: planId + "/" + t.id, plan_id: planId, id: t.id, parent_id: t.parent_id || null, title: String(t.data.title || ""), planTitle: title,
         stream: t.data.stream || "", streamLabel: streams.get(t.data.stream) || "", phase: t.data.phase || "", phaseLabel: phases.get(t.data.phase) || "",
-        status: STATUSES.includes(t.data.status) ? t.data.status : "todo", due: ISO.test(t.data.due || "") ? t.data.due : "",
+        status: STATUSES.includes(t.data.status) ? t.data.status : "todo", due: ISO.test(t.data.due || "") ? t.data.due : "", start: ISO.test(t.data.start || "") ? t.data.start : "",
         owner, effective: owner, suggested: suggestedOwner(t.data.stream, roles),
         via: via ? via.data.title || "" : ""
       });
@@ -49,10 +49,12 @@ export function bulkPatches(rows, change) {
   const c = change || {};
   if (c.owner !== undefined && (typeof c.owner !== "string" || c.owner.trim().length > 60)) return { error: "Virheellinen vastuuhenkilö." };
   if (c.due !== undefined && (typeof c.due !== "string" || (c.due !== "" && !isSaneDue(c.due)))) return { error: "Virheellinen määräpäivä." };
+  if (c.start !== undefined && (typeof c.start !== "string" || (c.start !== "" && !isSaneDue(c.start)))) return { error: "Virheellinen aloituspäivä." };
   if (c.status !== undefined && !STATUSES.includes(c.status)) return { error: "Virheellinen tila." };
   const want = {};
   if (c.owner !== undefined) want.owner = c.owner.replace(/\s+/g, " ").trim();
   if (c.due !== undefined) want.due = c.due;
+  if (c.start !== undefined) want.start = c.start;
   if (c.status !== undefined) want.status = c.status;
   if (!Object.keys(want).length) return { error: "Ei muutosta." };
   const patches = [];
@@ -133,5 +135,8 @@ export function periodOptions(today) {
     const t = y0 * 4 + q0 + i, y = Math.floor(t / 4), q = (t % 4) + 1, iso = endISO(y, q * 3);
     quarters.push({ value: iso, label: "Q" + q + " " + String(y).slice(2) + " (" + fi(iso) + ")" });
   }
-  return { weeks: weekOptions(today, 6), months, quarters };
+  // Aloituspäiviä varten: viikon maanantai ja kuukauden ensimmäinen päivä.
+  const weekStarts = weekOptions(today, 6).map((w) => ({ value: addDays(w.value, -6), label: w.label }));
+  const monthStarts = months.map((x) => ({ value: x.value.slice(0, 8) + "01", label: x.label.replace(/\(.*\)/, "(1." + Number(x.value.slice(5, 7)) + ".)") }));
+  return { weeks: weekOptions(today, 6), months, quarters, weekStarts, monthStarts };
 }

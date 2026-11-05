@@ -3,40 +3,15 @@ import { html, useEffect, useState } from "../../vendor/htm-preact.js";
 import { ui, uiChanged } from "../core/ui.js";
 import { state, loadOverview, patchManyIn } from "../core/store.js";
 import { taskRows, filterRows, bulkPatches, invertPatches, suggestPatches, ownersIn, groupRows, periodOptions, GROUPS, STATUS_LABEL } from "../core/tasks-table.js";
-import { todayISO, isSaneDue, fmtDue } from "../core/today.js";
+import { todayISO, fmtDue, fmtStart } from "../core/today.js";
 import { peopleNames } from "../people.js";
 import { Multi } from "../multi.js";
+import { FieldMenu } from "../fieldmenu.js";
 
 const EMPTY = { q: "", plan: "", stream: [], phase: [], owner: [], status: [], due: "" };
-const COLS = [["stream", "Työvirta"], ["phase", "Vaihe"], ["owner", "Vastuu"], ["due", "Määräpäivä"], ["status", "Tila"]];
+const COLS = [["stream", "Työvirta"], ["phase", "Vaihe"], ["owner", "Vastuu"], ["start", "Aloitus"], ["due", "Määräpäivä"], ["status", "Tila"]];
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* ei pakollinen */ } };
-
-const closeMenu = (e) => { const d = e.currentTarget.closest("details"); if (d) d.removeAttribute("open"); };
-
-// Yksi muutosvalikko kaikkiin paikkoihin (sarakeotsikko, ryhmän otsikko, valintapalkki). Valinta toimii yhdellä klikkauksella ja koskee aina
-// valikon kertomia rivejä (scope). up: aukeaa ylös (alapalkki), muuten alas.
-function FieldMenu({ field, title, rows, scope, names, periods, apply, applyPatches, up, cls, right }) {
-  const run = (fn) => (e) => { fn(); closeMenu(e); };
-  const go = (change, what) => run(() => apply(change, what, rows));
-  const canSuggest = suggestPatches(rows).patches.length > 0;
-  return html`<details class=${"fmenu " + (up ? "up " : "") + (right ? "right " : "") + (cls || "")}><summary>${title}</summary>
-    <div class="fm-box"><p class="fm-scope">Koskee: <b>${scope}</b></p>
-      ${field === "owner" ? html`<div class="bm-grid">${names.map((n) => html`<button type="button" key=${n} class="bm-btn" onClick=${go({ owner: n }, "vastuu " + n)}>${n}</button>`)}</div>
-        ${canSuggest ? html`<button type="button" class="bm-btn wide" onClick=${run(() => applyPatches(suggestPatches(rows).patches, rows, "vastuualueen omistaja"))}>Vastuualueen omistaja (työvirran mukaan)</button>` : null}
-        <button type="button" class="bm-btn wide quiet" onClick=${go({ owner: "" }, "vastuuhenkilö poistettu")}>Poista vastuuhenkilö</button>` : null}
-      ${field === "due" ? html`<p class="bm-h">Viikko (päättyy sunnuntaina)</p>
-        <div class="bm-grid months">${periods.weeks.slice(0, 6).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
-        <p class="bm-h">Kuukauden loppu</p>
-        <div class="bm-grid months">${periods.months.slice(1, 7).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
-        <p class="bm-h">Neljänneksen loppu</p>
-        <div class="bm-grid months">${periods.quarters.slice(0, 3).map((p) => html`<button type="button" key=${"q" + p.value} class="bm-btn" onClick=${go({ due: p.value }, "määräpäivä " + p.label)}>${p.label}</button>`)}</div>
-        <p class="bm-h">Muu päivä</p>
-        <${BulkDate} onApply=${(v) => apply({ due: v }, "määräpäivä", rows)} />
-        <button type="button" class="bm-btn wide quiet" onClick=${go({ due: "" }, "päivä tyhjennetty")}>Tyhjennä päivä</button>` : null}
-      ${field === "status" ? html`<div class="bm-grid">${Object.entries(STATUS_LABEL).map(([k, l]) => html`<button type="button" key=${k} class="bm-btn" onClick=${go({ status: k }, "tila " + l)}>${l}</button>`)}</div>` : null}
-    </div></details>`;
-}
 
 // Valittujen rivien toimintopalkki: näkyy vain kun rivejä on valittu.
 function BulkBar({ count, menu, clear }) {
@@ -47,15 +22,6 @@ function BulkBar({ count, menu, clear }) {
     <button type="button" class="bb-clear" onClick=${clear}>Poista valinta</button>
   </div>`;
 }
-// Massamuutoksen päivä otetaan käyttöön vasta painikkeesta, jotta kirjoitus kesken ei muuta valittuja tehtäviä.
-function BulkDate({ disabled, onApply }) {
-  const [v, setV] = useState("");
-  const ok = isSaneDue(v);
-  const go = () => { if (ok) { onApply(v); setV(""); } };
-  return html`<span class="bulkgrp"><input type="date" min="2000-01-01" max="2099-12-31" aria-label="Määräpäivä valituille" disabled=${disabled} value=${v} onInput=${(e) => setV(e.target.value)} onChange=${(e) => setV(e.target.value)} onKeyDown=${(e) => { if (e.key === "Enter") go(); }} />
-    <button type="button" class="barbtn" disabled=${disabled || !ok} onClick=${go}>Aseta päivä</button></span>`;
-}
-
 export function TasksView({ open }) {
   const [f, setF] = useState(() => { const x = ui.taskFilter || {}; ui.taskFilter = null; const m = Object.assign({}, EMPTY, x); ["stream", "phase", "owner", "status"].forEach((k) => { m[k] = Array.isArray(m[k]) ? m[k] : m[k] ? [m[k]] : []; }); return m; });
   const [sel, setSel] = useState(() => new Set());
@@ -147,12 +113,13 @@ export function TasksView({ open }) {
 
     ${shown.length ? html`<div class="gtable-wrap"><table class="gtable sctable taskstable">
       <thead><tr><th class="ckcol"><input type="checkbox" aria-label="Valitse kaikki näkyvät" checked=${allOn} onChange=${() => setSel(allOn ? new Set() : new Set(shown.map((r) => r.key)))} /></th>
-        <th>Tehtävä</th>${COLS.map(([k, l]) => (col(k) ? html`<th key=${k}>${l}${["owner", "due", "status"].includes(k) ? html` <${FieldMenu} ...${menuFor(scopeRows, scopeText)(k, "Kaikille ▾")} cls="hd" right=${k !== "owner"} />` : null}</th>` : null))}</tr></thead>
+        <th>Tehtävä</th>${COLS.map(([k, l]) => (col(k) ? html`<th key=${k}>${l}${["owner", "start", "due", "status"].includes(k) ? html` <${FieldMenu} ...${menuFor(scopeRows, scopeText)(k, "Kaikille ▾")} cls="hd" right=${k !== "owner"} />` : null}</th>` : null))}</tr></thead>
       ${groups.map((g) => html`<tbody key=${"g" + g.key}>${by ? html`<tr class="grouprow"><td class="ckcol"><input type="checkbox" aria-label=${"Valitse ryhmä: " + g.label} checked=${g.rows.every((r) => sel.has(r.key))} onChange=${() => pick(g)} /></td><th colspan=${1 + COLS.filter(([k]) => col(k)).length} scope="colgroup"><span class="grouphead">${g.label} <span class="gs">${g.rows.length} tehtävää${g.rows.filter((r) => r.status === "done").length ? ", " + g.rows.filter((r) => r.status === "done").length + " valmista" : ""}</span><span class="gmenus">Muuta ryhmälle: <${FieldMenu} ...${menuFor(g.rows, "ryhmän " + g.rows.length + " tehtävää")("owner", "Vastuu ▾")} cls="gr" /><${FieldMenu} ...${menuFor(g.rows, "ryhmän " + g.rows.length + " tehtävää")("due", "Määräpäivä ▾")} cls="gr" /><${FieldMenu} ...${menuFor(g.rows, "ryhmän " + g.rows.length + " tehtävää")("status", "Tila ▾")} cls="gr" /></span></span></th></tr>` : null}${g.rows.map((r) => { const i = shown.indexOf(r); return html`<tr key=${r.key} class=${sel.has(r.key) ? "picked" : ""}>
         <td class="ckcol"><input type="checkbox" aria-label=${"Valitse: " + (r.title || "tehtävä")} checked=${sel.has(r.key)} onClick=${(e) => toggle(r, i, e)} onChange=${() => {}} /></td>
         <td class="nmtd"><button type="button" class="ttitle" title="Avaa suunnitelmassa" onClick=${() => open(r.plan_id, { id: r.id, kind: "task", parent_id: r.parent_id })}>${r.title || "Nimetön tehtävä"}</button>${state.plans.length > 1 ? html`<span class="tsub">${r.planTitle}</span>` : null}</td>
         ${col("stream") ? html`<td class="gs">${r.streamLabel || "–"}</td>` : null}${col("phase") ? html`<td class="gs">${r.phaseLabel || "–"}</td>` : null}
         ${col("owner") ? html`<td><${FieldMenu} ...${cellMenu(r, "owner", r.owner || "Ei vastuuhenkilöä")} cls=${"cell" + (r.owner ? "" : " none")} /></td>` : null}
+        ${col("start") ? html`<td><${FieldMenu} ...${cellMenu(r, "start", r.start ? fmtStart(r.start) : "Ei aloitusta")} cls=${"cell" + (r.start ? "" : " none")} /></td>` : null}
         ${col("due") ? html`<td><${FieldMenu} ...${cellMenu(r, "due", r.due ? fmtDue(r.due) : "Ei päivää")} cls=${"cell" + (r.due ? "" : " none")} right=${true} /></td>` : null}
         ${col("status") ? html`<td><${FieldMenu} ...${cellMenu(r, "status", STATUS_LABEL[r.status])} cls=${"cell st-" + r.status} right=${true} /></td>` : null}
       </tr>`; })}</tbody>`)}</table></div>` : html`<p class="tclear">Ei tehtäviä näillä suodattimilla.</p>`}

@@ -45,3 +45,24 @@ test("rivit henkilöittäin tai työvirroittain, ilman henkilöä ensimmäisenä
   assert.equal(byStream.streams[1].data.color, "kate");
   assert.equal(weekBoard([], T).tasks.length, 0);
 });
+
+test("aikajana: viikot, palkit aloituksesta lopetukseen, ilman aloitusta lopetusviikolla, ilman päiviä erilleen", async () => {
+  const { timelineModel } = await import("../public/app/core/weekboard.js");
+  const tk = (id, start, due, owner) => ({ plan_id: "a", id, owner, stream: null, data: Object.assign({}, start ? { start } : {}, due ? { due } : {}) });
+  const m = timelineModel([tk("1", "2026-11-09", "2026-11-22", "Mika"), tk("2", "", "2026-11-05", "Mika"), tk("3", "", "", "Mika"), tk("4", "2026-10-01", "2026-12-24", "Iida"), tk("5", "2026-11-10", "", "Iida")], T);
+  assert.equal(m.weeks[0].start, "2026-10-05", "korkeintaan neljä viikkoa taaksepäin");
+  assert.equal(m.weeks.find((w) => w.now).start, "2026-11-02");
+  assert.ok(m.weeks.length >= 8 && m.weeks.at(-1).end >= "2026-12-27", "ulottuu viimeiseen lopetukseen asti");
+  const idx = (iso) => m.weeks.findIndex((w) => w.start <= iso && iso <= w.end);
+  const mika = m.lanes.find((l) => l.id === "Mika").rows, by = (id) => mika.find((r) => r.task.id === id);
+  assert.deepEqual([by("1").from, by("1").to], [idx("2026-11-09"), idx("2026-11-22")], "palkki aloitusviikosta lopetusviikkoon");
+  assert.deepEqual([by("2").from, by("2").to], [idx("2026-11-05"), idx("2026-11-05")], "ilman aloitusta yhden viikon palkki lopetukseen");
+  assert.equal(by("2").late, false);
+  assert.deepEqual(m.undated.map((t) => t.id), ["3"]);
+  const iida = m.lanes.find((l) => l.id === "Iida").rows;
+  assert.equal(iida.find((r) => r.task.id === "4").from, 0);
+  assert.equal(iida.find((r) => r.task.id === "4").clipL, true, "alkaa ennen näkyvää aluetta");
+  assert.deepEqual([iida.find((r) => r.task.id === "5").from, iida.find((r) => r.task.id === "5").to], [idx("2026-11-10"), idx("2026-11-10")], "ilman lopetusta aloitusviikolle");
+  assert.equal(m.months.reduce((n, x) => n + x.span, 0), m.weeks.length);
+  assert.deepEqual(timelineModel([], T).lanes, []);
+});
