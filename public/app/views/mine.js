@@ -5,6 +5,8 @@ import { state, loadOverview, patchIn, setRowIn, linkMe } from "../core/store.js
 import { fmt } from "../core/calc.js";
 import { periodText, totals } from "../core/scorecard.js";
 import { buildMine, guessPerson } from "../core/mine.js";
+import { buildBoards } from "../core/myboard.js";
+import { MyBoards } from "./myboard.js";
 import { todayISO, fmtLong } from "../core/today.js";
 import { Group } from "./today.js";
 import { PersonSelect, peopleNames } from "../people.js";
@@ -84,14 +86,13 @@ function WhoAmI({ error }) {
 export function MineView({ open: openIn }) {
   const open = state.role === "member" ? null : openIn;
   useEffect(() => { state.overviewActive = true; loadOverview(); return () => { state.overviewActive = false; }; }, []);
-  const [showAll, setShowAll] = useState(false);
   // Oletus on kirjautumiseen liitetty henkilö. Ylläpitäjä voi katsoa toisen työpöytää, ja valinta ei muuta liitosta eikä säily latauksen yli.
   const [viewAs, setViewAs] = useState("");
   const me = viewAs || state.people.me, ov = state.overview;
   if (!state.people.loaded && !state.people.error) return html`<div class="wrap today"><p class="gs">Ladataan…</p></div>`;
   if (!me) return html`<${WhoAmI} error=${state.people.error} />`;
   if (!ov) return html`<div class="wrap today"><p class="gs">${state.overviewError || "Ladataan…"}</p></div>`;
-  const today = todayISO(), R = buildMine(ov.items, me, today);
+  const today = todayISO(), R = buildMine(ov.items, me, today), boards = buildBoards(ov.items, me, state.plans.map((p) => p.id));
   const bad = R.below;
   return html`<div class="wrap today">
     <header class="thead">
@@ -112,10 +113,7 @@ export function MineView({ open: openIn }) {
       <${Group} title="Myöhässä" list=${R.late} open=${open} late=${true} />
       <${Group} title="Tänään" list=${R.today} open=${open} />
       <${Group} title="Seuraavat 7 päivää" list=${R.week} open=${open} />
-      <${Group} title="Käynnissä ilman päivää" list=${R.doing} open=${open} />
-      <${Group} title="Myöhemmin" list=${R.later} open=${open} />
-      ${R.noDate.length ? html`<section class="tgroup"><h2><button type="button" class="ctog" aria-expanded=${showAll ? "true" : "false"} onClick=${() => setShowAll(!showAll)}>Ei määräpäivää <span class="num">${R.noDate.length}</span><span class="chev" aria-hidden="true" style=${showAll ? null : { transform: "rotate(-45deg)" }}></span></button></h2></section>` : null}
-      ${showAll ? html`<${Group} title="" list=${R.noDate} open=${open} />` : null}
+      <${MyBoards} boards=${boards} open=${open} />
     </div>
   </div>`;
 }

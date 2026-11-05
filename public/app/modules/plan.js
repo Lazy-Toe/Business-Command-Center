@@ -30,11 +30,11 @@ export const phaseClass = (i, n) => (i === n - 1 && n > 1 ? "p3" : i === 0 ? "p1
 const COLORS = ["kate", "tekno", "kanava", "bc", "ihmiset", "myynti"];
 export const wsColor = (s) => "var(--ws-" + (s && s.data.color || "ihmiset") + ")";
 
-const LABEL = { todo: "Ei aloitettu", doing: "Käynnissä", done: "Valmis" };
-const NEXT = { todo: "doing", doing: "done", done: "todo" };
+export const LABEL = { todo: "Ei aloitettu", doing: "Käynnissä", done: "Valmis" };
+export const NEXT = { todo: "doing", doing: "done", done: "todo" };
 const NOTE_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 
-const CAL_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`;
+export const CAL_ICON = html`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`;
 
 // Määräpäivä ja vastuuhenkilö. Tehtävä kuuluu henkilölle vain valitun vastuuhenkilön kautta.
 function TaskMeta({ task }) {
