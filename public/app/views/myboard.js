@@ -28,14 +28,31 @@ function Card({ t, planId, color, tag, member }) {
 function Board({ b, title, open, member }) {
   const small = mq("(max-width: 900px)");
   const [focus, setFocus] = useState(b.focus);
-  const toggle = (id) => setFocus((f) => (f === id ? "" : id));
+  // wide: vaihe, joka on avattu koko taulun leveydelle (tietokoneella). Pienellä näytöllä vaiheen otsikko vain korostaa vaihetta.
+  const [wide, setWide] = useState("");
+  const toggle = (id) => (small ? setFocus((f) => (f === id ? "" : id)) : setWide((w) => (w === id ? "" : id)));
   const n = b.phases.length;
   const head = (ph, i) => {
-    const dim = focus && focus !== ph.id;
-    return html`<div key=${ph.id} class=${"mh clickable " + phaseClass(i, n) + (dim ? " dim" : "")} ...${pressable(() => toggle(ph.id))} title="Korosta tai poista korostus">
+    const dim = !wide && focus && focus !== ph.id, open = wide === ph.id;
+    return html`<div key=${ph.id} class=${"mh clickable " + phaseClass(i, n) + (dim ? " dim" : "") + (open ? " open" : "")} ...${pressable(() => toggle(ph.id))} title=${small ? "Korosta tai poista korostus" : open ? "Palaa kaikkiin vaiheisiin" : "Avaa koko leveydelle"}>
       <span class="d">${ph.label}</span><span class="t">${ph.title}</span></div>`;
   };
-  const body = small
+  const wideIdx = b.phases.findIndex((p) => p.id === wide), wideLanes = wideIdx >= 0 ? b.lanes.filter((l) => l.cells[wide].length) : [];
+  const wideBody = wideIdx < 0 ? null : html`<div>
+    <div class="phasetabs" role="group" aria-label="Vaihe">
+      ${b.phases.map((p, i) => html`<button key=${p.id} type="button" class="chip" aria-pressed=${p.id === wide ? "true" : "false"} onClick=${() => setWide(p.id)}>${p.title} <span class="num">${b.phaseCounts[p.id] || 0}</span></button>`)}
+      <button type="button" class="clear" onClick=${() => setWide("")}>Näytä kaikki vaiheet</button>
+    </div>
+    <div class="matrix wide" style=${{ gridTemplateColumns: "210px minmax(0, 1fr)" }}>
+      <div class="corner"></div>
+      ${head(b.phases[wideIdx], wideIdx)}
+      ${wideLanes.map((l) => [
+        html`<div key=${l.id} class="rl" style=${{ "--c": wsColor({ data: l }) }}><span class="dot"></span><span class="rlt"><span class="rln">${l.label || "Tehtävät"}</span><span class="gs">${l.cells[wide].length} avointa</span></span></div>`,
+        html`<div key=${l.id + "w"} class="cell wide">${l.cells[wide].map((t) => html`<${Card} key=${t.id} t=${t} planId=${b.plan_id} color=${wsColor({ data: l })} member=${member} />`)}</div>`
+      ])}
+      ${wideLanes.length ? null : html`<div class="gs" style=${{ gridColumn: "1 / -1", padding: "16px" }}>Ei avoimia tehtäviä tässä vaiheessa.</div>`}
+    </div></div>`;
+  const body = !small && wideBody ? wideBody : small
     ? html`<div>${b.phases.map((ph, i) => {
       const list = b.lanes.flatMap((l) => l.cells[ph.id].map((t) => ({ t, l })));
       return html`<div key=${ph.id} class=${"mphase" + (focus && focus !== ph.id ? " dim" : "")}>${head(ph, i)}
