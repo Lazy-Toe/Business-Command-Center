@@ -6,7 +6,8 @@ import { rowsFor, orderDefs, freeRows, totals, periodText } from "../core/scorec
 import { fmt } from "../core/calc.js";
 import { PersonSelect, StreamChecks } from "../people.js";
 import { roleStreams, streamsPatch } from "../core/streams.js";
-import { planParts, Task, phaseClass } from "./plan.js";
+import { planParts, Task, phaseClass, taskAdder } from "./plan.js";
+import { QuickAdd } from "../quickadd.js";
 import { goalValues } from "./goals.js";
 
 const CADS = ["viikko", "kuukausi", "kvartaali"];
@@ -103,13 +104,14 @@ function GoalTable({ r }) {
 export function RolePanel({ id }) {
   const small = mq("(max-width: 900px)");
   const r = roles().find((x) => x.id === id); if (!r) return null;
-  const parts = planParts(), metrics = freeRows(children(r.id, "metric")), R = goalValues();
+  const parts = planParts(), adder = taskAdder(parts), metrics = freeRows(children(r.id, "metric")), R = goalValues();
   let tot = 0, sc = 0;
   const cols = parts ? parts.phases.map((ph, i) => {
-    const lst = parts.tasks.filter((t) => t.data.phase === ph.id && t.data.stream === r.data.stream);
+    const lst = parts.tasks.filter((t) => t.data.phase === ph.id && roleStreams(r).includes(t.data.stream));
     lst.forEach((t) => { tot++; sc += t.data.status === "done" ? 1 : t.data.status === "doing" ? 0.5 : 0; });
     return html`<div key=${ph.id} class="rp-col"><div class=${"rp-ph " + phaseClass(i, parts.phases.length)}><span class="d">${ph.data.label}</span><span class="t">${ph.data.title}</span></div>
-      ${lst.length ? lst.map((t) => html`<${Task} key=${t.id} task=${t} list=${lst} parts=${parts} />`) : html`<p class="empty">Ei tehtäviä tässä vaiheessa.</p>`}</div>`;
+      ${lst.length ? lst.map((t) => html`<${Task} key=${t.id} task=${t} list=${lst} parts=${parts} />`) : html`<p class="empty">Ei tehtäviä tässä vaiheessa.</p>`}
+      ${adder && roleStreams(r).length ? html`<${QuickAdd} label="Tehtävä" cls="small" onAdd=${(t) => adder(t, ph.id, roleStreams(r)[0])} />` : null}</div>`;
   }) : [];
   return html`<section class="rolepanel">
     <div class="head" id="rp-head">
