@@ -2,7 +2,7 @@
 // Tyypit ja niiden oikeudet tulevat Asetuksista, ja palvelin kirjaa tekijän, päivän ja tilan.
 import { html, useState } from "../vendor/htm-preact.js";
 import { Input } from "./core/ui.js";
-import { createForm, decideForm, patch, add, remove } from "./core/store.js";
+import { createForm, remove } from "./core/store.js";
 import { typesFor, visibleForms, formLabel, dateFi, draftRows, freezeRows, scoreForm } from "./core/forms.js";
 import { periodText } from "./core/scorecard.js";
 import { fmt } from "./core/calc.js";
