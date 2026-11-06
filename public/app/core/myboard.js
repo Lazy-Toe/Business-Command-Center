@@ -28,7 +28,7 @@ export function mineParts(items, me, planOrder = []) {
       const stream = streams.some((w) => w.id === t.data.stream) ? t.data.stream : streams[0].id;
       return phase === t.data.phase && stream === t.data.stream ? t : Object.assign({}, t, { data: Object.assign({}, t.data, { phase, stream }) });
     });
-    out.push({ plan_id: planId, section: null, phases, streams, tasks, roles: [], readonly: true, hideEmptyLanes: true, firstTask: mine[0] });
+    out.push({ plan_id: planId, section: rows.find((i) => i.kind === "section" && i.data.type === "plan") || null, phases, streams, tasks, roles: [], readonly: true, hideEmptyLanes: true, firstTask: mine[0] });
   });
   return out;
 }

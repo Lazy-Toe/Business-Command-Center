@@ -113,7 +113,7 @@ export function MineView({ open: openIn }) {
       <${Group} title="Myöhässä" list=${R.late} open=${open} late=${true} />
       <${Group} title="Tänään" list=${R.today} open=${open} />
       <${Group} title="Seuraavat 7 päivää" list=${R.week} open=${open} />
-      <${MyBoards} boards=${boards} open=${open} />
+      <${MyBoards} boards=${boards} open=${open} me=${me} />
     </div>
   </div>`;
 }
