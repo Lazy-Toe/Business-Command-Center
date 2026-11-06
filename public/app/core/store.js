@@ -1,4 +1,5 @@
 // Tietovarasto: pitää suunnitelman rivit muistissa, päivittää näkymän heti ja tallentaa jonossa taustalla.
+import { cycleOps } from "./cycle.js";
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()).replace(/-/g, "").slice(0, 16);
 
 async function call(path, init) {
@@ -381,6 +382,12 @@ export async function duplicatePlan(title) {
   await call("/plans", { method: "POST", body: JSON.stringify({ id, title, from: state.planId }) });
   await reloadPlans();
   await openPlan(id);
+}
+
+// Uusi jakso: nykyinen suunnitelma kopioidaan uudeksi, ja valitut osat nollataan (ks. core/cycle.js). Vanha suunnitelma jää ennalleen.
+export async function newCycle(title, opts) {
+  await duplicatePlan(title);
+  cycleOps(all(), opts).forEach((o) => (o.op === "remove" ? remove(o.id) : patch(o.id, o.data)));
 }
 
 export async function renamePlan(title) {

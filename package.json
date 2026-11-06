@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "node dev/server.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "stamp": "node scripts/stamp.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.15"
