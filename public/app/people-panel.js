@@ -13,9 +13,22 @@ const REASON = {
 
 export function PeoplePanel({ onClose }) {
   const [msg, setMsg] = useState("");
+  const [edit, setEdit] = useState(null); // { name, to, email }
+  const [del, setDel] = useState("");
+  const [busy, setBusy] = useState(false);
   useEscape(onClose);
-  const run = (fn) => async () => {
-    try { setMsg(""); await fn(); } catch (e) { setMsg((e.body && REASON[e.body.error]) || "Toiminto epäonnistui (" + e.message + ")."); }
+  const run = async (fn) => {
+    setBusy(true); setMsg("");
+    try { await fn(); return true; } catch (e) { setMsg((e.body && REASON[e.body.error]) || "Toiminto epäonnistui (" + e.message + ")."); return false; } finally { setBusy(false); }
+  };
+  const save = async (p) => {
+    const to = edit.to.trim(), mail = edit.email.trim();
+    if (!to) { setMsg("Nimi ei voi olla tyhjä."); return; }
+    const ok = await run(async () => {
+      if (to !== p.name) await renamePerson(p.name, to);
+      if (mail !== (p.email || "")) await setPersonEmail(to, mail);
+    });
+    if (ok) setEdit(null);
   };
   const rows = state.people.rows || [];
   return html`<div class="histback" onClick=${onClose}>
@@ -25,14 +38,22 @@ export function PeoplePanel({ onClose }) {
       ${msg ? html`<p class="gs bad">${msg}</p>` : null}
       ${state.people.error ? html`<p class="gs bad">${state.people.error}</p>` : null}
       ${rows.length ? null : html`<p class="gs">Ei henkilöitä.</p>`}
-      <ul class="hlist">${rows.map((p) => html`<li class="hentry" key=${p.name}>
-        <div class="hmain"><b>${p.name}</b><span class="hkind">${p.email || "ei kirjautumista"}</span></div>
-        <div class="hact">
-          <button type="button" class="barbtn" onClick=${run(async () => { const n = prompt("Henkilön uusi nimi", p.name); if (n && n.trim() && n.trim() !== p.name) await renamePerson(p.name, n.trim()); })}>Nimeä uudelleen</button>
-          <button type="button" class="barbtn" onClick=${run(async () => { const m = prompt("Kirjautumisen sähköposti (tyhjä poistaa liitoksen)", p.email || ""); if (m !== null && m.trim() !== (p.email || "")) await setPersonEmail(p.name, m.trim()); })}>Sähköposti</button>
-          <button type="button" class="barbtn" onClick=${run(async () => { if (confirm("Poistetaanko henkilö \"" + p.name + "\"?")) await deletePerson(p.name); })}>Poista</button>
-        </div>
-      </li>`)}</ul>
+      <ul class="hlist">${rows.map((p) => {
+        if (edit && edit.name === p.name) {
+          const key = (e) => { if (e.key === "Enter") save(p); };
+          return html`<li class="hentry hedit" key=${p.name}>
+            <label>Nimi<input type="text" value=${edit.to} maxlength="60" autofocus onInput=${(e) => setEdit({ ...edit, to: e.target.value })} onKeyDown=${key} /></label>
+            <label>Kirjautumisen sähköposti<input type="email" value=${edit.email} placeholder="tyhjä poistaa liitoksen" onInput=${(e) => setEdit({ ...edit, email: e.target.value })} onKeyDown=${key} /></label>
+            <div class="hact"><button type="button" class="barbtn primary" disabled=${busy} onClick=${() => save(p)}>Tallenna</button><button type="button" class="barbtn" onClick=${() => { setEdit(null); setMsg(""); }}>Peruuta</button></div>
+          </li>`;
+        }
+        return html`<li class="hentry" key=${p.name}>
+          <div class="hmain"><b>${p.name}</b><span class="hkind">${p.email || "ei kirjautumista"}</span></div>
+          ${del === p.name
+            ? html`<div class="hact"><span class="gs">Poistetaanko?</span><button type="button" class="barbtn" disabled=${busy} onClick=${async () => { if (await run(() => deletePerson(p.name))) setDel(""); }}>Poista</button><button type="button" class="barbtn" onClick=${() => setDel("")}>Peruuta</button></div>`
+            : html`<div class="hact"><button type="button" class="barbtn" onClick=${() => { setDel(""); setMsg(""); setEdit({ name: p.name, to: p.name, email: p.email || "" }); }}>Muokkaa</button><button type="button" class="barbtn" onClick=${() => { setEdit(null); setDel(p.name); }}>Poista</button></div>`}
+        </li>`;
+      })}</ul>
     </div>
   </div>`;
 }
