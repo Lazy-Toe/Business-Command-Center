@@ -2,7 +2,6 @@
 import { html, useState } from "../vendor/htm-preact.js";
 import { state, renamePerson, deletePerson, setPersonEmail } from "./core/store.js";
 import { useEscape } from "./core/ui.js";
-import { PayPersonEditor } from "./views/settings-pay.js";
 
 const REASON = {
   name_taken: "Nimi on jo toisella henkilöllä.",
@@ -14,7 +13,6 @@ const REASON = {
 
 export function PeoplePanel({ onClose }) {
   const [msg, setMsg] = useState("");
-  const [pay, setPay] = useState("");
   useEscape(onClose);
   const run = (fn) => async () => {
     try { setMsg(""); await fn(); } catch (e) { setMsg((e.body && REASON[e.body.error]) || "Toiminto epäonnistui (" + e.message + ")."); }
@@ -31,12 +29,10 @@ export function PeoplePanel({ onClose }) {
         <div class="hmain"><b>${p.name}</b><span class="hkind">${p.email || "ei kirjautumista"}</span></div>
         <div class="hact">
           <button type="button" class="barbtn" onClick=${run(async () => { const n = prompt("Henkilön uusi nimi", p.name); if (n && n.trim() && n.trim() !== p.name) await renamePerson(p.name, n.trim()); })}>Nimeä uudelleen</button>
-          <button type="button" class="barbtn" onClick=${() => setPay(p.name)}>Euro-tiedot</button>
           <button type="button" class="barbtn" onClick=${run(async () => { const m = prompt("Kirjautumisen sähköposti (tyhjä poistaa liitoksen)", p.email || ""); if (m !== null && m.trim() !== (p.email || "")) await setPersonEmail(p.name, m.trim()); })}>Sähköposti</button>
           <button type="button" class="barbtn" onClick=${run(async () => { if (confirm("Poistetaanko henkilö \"" + p.name + "\"?")) await deletePerson(p.name); })}>Poista</button>
         </div>
       </li>`)}</ul>
     </div>
-    ${pay ? html`<${PayPersonEditor} name=${pay} onClose=${() => setPay("")} />` : null}
   </div>`;
 }
