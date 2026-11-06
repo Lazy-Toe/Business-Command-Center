@@ -15,7 +15,7 @@ import { sectionEntries } from "./core/nav.js";
 import { buildToday, todayISO } from "./core/today.js";
 import { buildMine } from "./core/mine.js";
 import { PeoplePanel } from "./people-panel.js";
-import { NewCycleDialog } from "./newcycle.js";
+import { NewCycleDialog, DeletePlanDialog } from "./newcycle.js";
 
 const { state, sections } = store;
 
@@ -114,6 +114,7 @@ function AppBar() {
   const [hist, setHist] = useState(false);
   const [ppl, setPpl] = useState(false);
   const [cyc, setCyc] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
   const [subOpen, setSubOpen] = useState(false);
   useEscape(() => setSubOpen(false));
   const [pinned, setPinned] = useState(() => { try { return localStorage.getItem("bcc-subnav") !== "0"; } catch (e) { return true; } });
@@ -158,7 +159,6 @@ function AppBar() {
   const newPlan = act(async () => { const t = prompt("Uuden suunnitelman nimi"); if (t && t.trim()) { await store.createPlan(t.trim(), newPlanItems()); showTab("kokonaisuus"); setView("plan"); setEdit(true); } });
   const dup = act(async () => { const t = prompt("Kopion nimi", (plan ? plan.title : "") + " (kopio)"); if (t && t.trim()) { await store.duplicatePlan(t.trim()); setView("plan"); } });
   const rename = act(async () => { const t = prompt("Suunnitelman nimi", plan.title); if (t && t.trim()) await store.renamePlan(t.trim()); });
-  const del = act(async () => { if (state.plans.length > 1 && confirm("Poistetaanko suunnitelma \"" + plan.title + "\"? Tiedot säilyvät arkistoituna tietokannassa.")) { await store.deletePlan(); showTab("kokonaisuus"); if (ui.view === "today" || ui.view === "mine" || ui.view === "tasks") store.loadOverview(); } });
   const exp = act(async () => download(fileName(plan.title) + ".json", new Blob([JSON.stringify(store.exportPlan(), null, 1)], { type: "application/json" })));
   const imp = act(async () => {
     const f = await new Promise((res) => { const i = document.createElement("input"); i.type = "file"; i.accept = "application/json"; i.onchange = () => res(i.files[0]); i.click(); });
@@ -201,7 +201,7 @@ function AppBar() {
           <button type="button" role="menuitem" onClick=${rename}>Nimeä uudelleen</button>
           <button type="button" role="menuitem" onClick=${exp}>Vie tiedostoon (JSON)</button>` : null}
           <button type="button" role="menuitem" onClick=${imp}>Tuo tiedostosta</button>
-          ${plan && state.plans.length > 1 ? html`<button type="button" role="menuitem" class="danger" onClick=${del}>Poista suunnitelma</button>` : null}
+          ${plan && state.plans.length > 1 ? html`<button type="button" role="menuitem" class="danger" onClick=${() => { setOpen(false); setDelOpen(true); }}>Poista suunnitelma…</button>` : null}
         </div>` : null}
       </div>
       <${SaveState} /><span class="buildid" title="Julkaisun aika: jos tämä ei ole uusin, päivitä sivu kovalla päivityksellä (Ctrl+Shift+R)">${BUILD}</span>
@@ -211,6 +211,7 @@ function AppBar() {
     </div>
     ${hist ? html`<${HistoryPanel} onClose=${() => setHist(false)} />` : null}
     ${ppl ? html`<${PeoplePanel} onClose=${() => setPpl(false)} />` : null}
+    ${delOpen ? html`<${DeletePlanDialog} onClose=${() => setDelOpen(false)} onDone=${() => { setDelOpen(false); showTab("kokonaisuus"); setView("plan"); }} />` : null}
     ${cyc ? html`<${NewCycleDialog} onClose=${() => setCyc(false)} onDone=${() => { setCyc(false); showTab("kokonaisuus"); setView("plan"); }} />` : null}
   </div>`;
 }

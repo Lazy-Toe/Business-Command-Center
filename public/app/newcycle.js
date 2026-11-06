@@ -1,6 +1,6 @@
 // Uusi jakso: nykyisestä suunnitelmasta tehdään uusi versio, ja valitaan mitä siirretään mukaan. Rakenne siirtyy aina, vanha suunnitelma jää ennalleen.
 import { html, useState } from "../vendor/htm-preact.js";
-import { state, newCycle } from "./core/store.js";
+import { state, newCycle, deletePlan, all } from "./core/store.js";
 import { useEscape } from "./core/ui.js";
 import { CYCLE_DEFAULTS } from "./core/cycle.js";
 
@@ -32,6 +32,32 @@ export function NewCycleDialog({ onClose, onDone }) {
       </fieldset>`)}
       ${msg ? html`<p class="gs bad">${msg}</p>` : null}
       <div class="cycbtns"><button type="button" class="barbtn primary" disabled=${busy || !title.trim()} onClick=${go}>${busy ? "Luodaan…" : "Luo jakso"}</button><button type="button" class="barbtn" onClick=${onClose}>Peruuta</button></div>
+    </div>
+  </div>`;
+}
+
+// Suunnitelman poisto vaatii kaksi vahvistusta: rasti ja suunnitelman nimen kirjoittaminen. Poisto arkistoi, eli tiedot säilyvät tietokannassa.
+export function DeletePlanDialog({ onClose, onDone }) {
+  const plan = state.plans.find((p) => p.id === state.planId), name = plan ? plan.title : "";
+  const [sure, setSure] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  useEscape(onClose);
+  const ok = sure && typed.trim().toLowerCase() === name.trim().toLowerCase() && !busy;
+  const go = async () => {
+    if (!ok) return;
+    setBusy(true); setMsg("");
+    try { await deletePlan(); onDone(); } catch (e) { setBusy(false); setMsg("Poisto epäonnistui (" + e.message + ")."); }
+  };
+  return html`<div class="histback" onClick=${onClose}>
+    <div class="hist" role="dialog" aria-modal="true" aria-label="Poista suunnitelma" onClick=${(e) => e.stopPropagation()}>
+      <div class="hhead"><h2>Poista suunnitelma</h2><button type="button" class="barbtn" onClick=${onClose}>Sulje</button></div>
+      <p class="gs">Poistat suunnitelman <b>${name}</b>: ${all("task").length} tehtävää, ${all("role").length} vastuualuetta ja niiden mittarit ja pisteytykset katoavat näkyvistä. Muihin suunnitelmiin tämä ei vaikuta. Tiedot säilyvät arkistoituna tietokannassa, ja ne voidaan palauttaa vain ylläpidon kautta.</p>
+      <label class="cycopt"><input type="checkbox" checked=${sure} onChange=${(e) => setSure(e.target.checked)} /><span><b>Ymmärrän, että suunnitelma poistuu käytöstä.</b></span></label>
+      <label class="cycname">Kirjoita vahvistukseksi suunnitelman nimi: <i>${name}</i><input type="text" value=${typed} autocomplete="off" onInput=${(e) => setTyped(e.target.value)} /></label>
+      ${msg ? html`<p class="gs bad">${msg}</p>` : null}
+      <div class="cycbtns"><button type="button" class="barbtn dangerbtn" disabled=${!ok} onClick=${go}>${busy ? "Poistetaan…" : "Poista suunnitelma"}</button><button type="button" class="barbtn" onClick=${onClose}>Peruuta</button></div>
     </div>
   </div>`;
 }
