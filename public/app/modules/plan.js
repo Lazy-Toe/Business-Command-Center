@@ -99,18 +99,27 @@ export function Task({ task, list, parts, withTag }) {
 
 // Uuden tehtävän vastuuhenkilöksi esitäytetään saman työvirran vastuualueen omistaja. Se on tavallinen valinta, jonka voi vaihtaa tai tyhjentää.
 function newTask(parts, phase, stream) { add("task", parts.section.id, { title: "", detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, parts.roles) }); }
-// Raahaus sarakkeiden välillä ilman muokkaustilaa (parts.onMove(avain, sarake, rivi)): käytössä Tänään-viikkokalenterissa, jossa sarake on viikko.
+// Raahaus sarakkeiden ja rivien välillä ilman muokkaustilaa: kortin pudotus toiseen soluun vaihtaa tehtävän vaiheen ja työvirran.
+// Sama molemmilla tauluilla (Kokonaisuus ja Oma työpöytä). Jäsen ei raahaa (parts.ownerLocked), koska hän ei saa vaihtaa vaihetta.
+// Tallennus kulkee saveTaskin kautta, joten Oma työpöytä tallentaa omalla tavallaan. parts.onMove ohittaa oletuksen.
 let moving = null;
 const taskKey = (t) => (t.plan_id || "") + "/" + t.id;
-const moveDrag = (parts, task) => (parts.onMove && !ui.edit ? {
+const canMove = (parts) => !ui.edit && !parts.ownerLocked;
+const moveTo = (parts, key, phase, stream) => {
+  if (parts.onMove) return parts.onMove(key, phase, stream);
+  const t = parts.tasks.find((x) => taskKey(x) === key);
+  if (!t || (t.data.phase === phase && t.data.stream === stream)) return;
+  saveTask(parts, t, { phase, stream });
+};
+const moveDrag = (parts, task) => (canMove(parts) ? {
   draggable: true,
   onDragStart: (e) => { moving = taskKey(task); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", moving); },
   onDragEnd: () => { moving = null; }
 } : {});
-const moveDrop = (parts, col, lane) => (parts.onMove && !ui.edit ? {
+const moveDrop = (parts, col, lane) => (canMove(parts) ? {
   onDragOver: (e) => { if (moving) { e.preventDefault(); e.currentTarget.classList.add("dropover"); } },
   onDragLeave: (e) => e.currentTarget.classList.remove("dropover"),
-  onDrop: (e) => { e.currentTarget.classList.remove("dropover"); if (!moving) return; e.preventDefault(); const k = moving; moving = null; parts.onMove(k, col, lane); }
+  onDrop: (e) => { e.currentTarget.classList.remove("dropover"); if (!moving) return; e.preventDefault(); const k = moving; moving = null; moveTo(parts, k, col, lane); }
 } : {});
 const cellDrop = (parts, phase, stream) => dropProps("task", (id) => moveBefore(id, null, parts.tasks.filter((t) => t.data.phase === phase && t.data.stream === stream), { phase, stream }));
 
@@ -169,7 +178,7 @@ function Wide({ parts, idx }) {
         const list = tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id), dim = f.ws && f.ws !== w.id;
         return [
           html`<${StreamHead} key=${w.id} w=${w} parts=${parts} />`,
-          html`<div key=${w.id + "w"} class=${"cell wide" + (dim ? " dim" : "")} ...${ed ? cellDrop(parts, ph.id, w.id) : {}}>
+          html`<div key=${w.id + "w"} class=${"cell wide" + (dim ? " dim" : "")} ...${ed ? cellDrop(parts, ph.id, w.id) : moveDrop(parts, ph.id, w.id)}>
             ${list.map((t) => html`<${Task} key=${(t.plan_id || "") + t.id} task=${t} list=${list} parts=${parts} />`)}
             ${ed ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />` : null}
           </div>`
