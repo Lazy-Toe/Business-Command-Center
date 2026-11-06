@@ -380,7 +380,7 @@ async function setupForms() {
   if ((await q("select 1 from bcc_items where plan_id = 'jplan' and id = 'ft-kommentti'")).length) return;
   const ops = [
     put("ft-kommentti", "formtype", { name: "Kommentti", memberCreate: true, memberView: true, table: false }),
-    put("ft-ehdotus", "formtype", { name: "Ehdotus", memberCreate: true, memberView: true, table: true, proposal: true }),
+    put("ft-ehdotus", "formtype", { name: "Ehdotus", memberCreate: true, memberView: true, table: true }),
     put("ft-arviointi", "formtype", { name: "Suoritusarviointi", memberCreate: false, memberView: true, table: true, score: true }),
     put("ft-sisainen", "formtype", { name: "Sisäinen", memberCreate: false, memberView: false, table: true }),
     put("fg", "goal", { name: "Lomaketavoite" }), put("fdA", "metricdef", { name: "Lomakemalli", stream: "s1", target: "100", min: "80", weight: "50", formula: "ACTUAL / TARGET", lock: { target: true } }, "fg")
@@ -391,14 +391,14 @@ const formPost = (body, opts = {}) => req("/plans/jplan/forms", { method: "POST"
 const asMember = (path, opts = {}) => asJasen(path, opts);
 const formRow = async (id) => (await q("select parent_id, data from bcc_items where plan_id = 'jplan' and id = $1 and kind = 'form'", [id]))[0];
 
-test("lomakkeet: palvelin kirjaa tekijän, päivän, tyypin nimen ja tilan, eikä käyttäjä voi asettaa niitä", async () => {
+test("lomakkeet: palvelin kirjaa tekijän, päivän, tyypin nimen, eikä käyttäjä voi asettaa niitä", async () => {
   await setupForms();
   const r = await asMember("/plans/jplan/forms", { method: "POST", body: { role: "rJ", type: "ft-kommentti", comment: "Hyvä jakso", by: "Johtaja", byPerson: "Johtaja", at: "1999-01-01T00:00:00Z", status: "applied", typeName: "Väärennetty", id: "x1" } });
   assert.equal(r.status, 200);
   const { id } = await r.json();
   const f = await formRow(id);
   assert.equal(f.parent_id, "rJ");
-  assert.equal(f.data.by, "Jasen"); assert.equal(f.data.byPerson, "Jasen"); assert.equal(f.data.typeName, "Kommentti"); assert.equal(f.data.status, "");
+  assert.equal(f.data.by, "Jasen"); assert.equal(f.data.byPerson, "Jasen"); assert.equal(f.data.typeName, "Kommentti"); assert.ok(!("status" in f.data), "tilaa ei kirjata");
   assert.ok(Date.now() - Date.parse(f.data.at) < 60000, "päivä on palvelimen");
   assert.notEqual(id, "x1");
   assert.ok(!JSON.stringify(f).includes("@"), "sähköposti ei tallennu lomakkeelle");
@@ -425,7 +425,6 @@ test("lomakkeet: jäsen luo vain sallittuja tyyppejä omalle roolilleen, ja taul
   const ok = await asMember("/plans/jplan/forms", { method: "POST", body: { role: "rJ", type: "ft-ehdotus", comment: "Uusi tavoite", rows: [{ def: "fdA", target: "9999", min: "90", weight: "70", actual: "50", name: "Väärä nimi", formula: "1000000" }] } });
   assert.equal(ok.status, 200);
   const f = await formRow((await ok.json()).id);
-  assert.equal(f.data.status, "open", "ehdotus alkaa avoimena");
   assert.deepEqual(f.data.rows, [{ def: "fdA", name: "Lomakemalli", formula: "ACTUAL / TARGET", start: "", end: "", target: "100", min: "90", max: "", weight: "70", actual: "50" }], "nimi ja kaava mallista, lukittu tavoite mallista");
 });
 
@@ -452,95 +451,13 @@ test("lomakkeet: jäsen näkee omat ja sallitut tyypit, ei sisäisiä, eikä muo
   assert.equal((await q("select 1 from bcc_items where plan_id = 'jplan' and id = $1", [own])).length, 1);
 });
 
-test("lomakkeet: ehdotuksen päätös on vain ylläpitäjän ja noudattaa sallittuja siirtymiä", async () => {
+test("poistetut reitit: euromoduuli ja ehdotuksen päätös eivät ole enää olemassa", async () => {
   await setupForms();
-  const id = (await (await asMember("/plans/jplan/forms", { method: "POST", body: { role: "rJ", type: "ft-ehdotus", rows: [{ def: "fdA", actual: "1" }] } })).json()).id;
-  const decide = (fid, status, opts = {}) => req("/plans/jplan/forms/" + fid + "/decide", { method: "POST", body: { status }, ...opts });
-  assert.equal((await asMember("/plans/jplan/forms/" + id + "/decide", { method: "POST", body: { status: "accepted" } })).status, 403, "jäsen ei päätä");
-  assert.equal((await decide(id, "open")).status, 409);
-  assert.equal((await decide(id, "tuntematon")).status, 409);
-  assert.equal((await decide("ei-ole", "accepted")).status, 404);
-  assert.equal((await decide(id, "accepted")).status, 200);
-  const f = (await formRow(id)).data;
-  assert.deepEqual([f.status, f.decidedBy], ["accepted", "Ylläpitäjä"]);
-  assert.ok(Date.now() - Date.parse(f.decidedAt) < 60000);
-  assert.equal((await decide(id, "applied")).status, 200);
-  assert.equal((await decide(id, "rejected")).status, 409, "käyttöön otettua ei hylätä");
-  assert.equal((await formRow(id)).data.status, "applied");
-  const comment = (await (await formPost({ role: "rJ", type: "ft-kommentti" })).json()).id;
-  assert.equal((await decide(comment, "accepted")).status, 409, "vain ehdotustyypillä on päätös");
-  const rej = (await (await asMember("/plans/jplan/forms", { method: "POST", body: { role: "rJ", type: "ft-ehdotus", rows: [] } })).json()).id;
-  assert.equal((await decide(rej, "rejected")).status, 200);
-  assert.equal((await decide(rej, "applied")).status, 409, "hylättyä ei oteta käyttöön");
-});
-
-test("euromoduuli: jäsenelle kaikki euro-reitit kiellettyjä, ylläpitäjä määrittelee kentät, säännöt ja henkilön tiedot, ja muutokset kirjautuvat lokiin", async () => {
-  await setupForms();
-  for (const [method, path] of [["GET", "/pay"], ["GET", "/pay/log"], ["PUT", "/pay/fields"], ["PUT", "/pay/rules"], ["PUT", "/pay/person"], ["GET", "/pay/tuntematon"]]) {
-    const r = await asMember(path, { method, body: method === "GET" ? undefined : { fields: [], rules: [], name: "Jasen", pay: {} } });
-    assert.equal(r.status, 403, method + " " + path);
+  for (const [method, path] of [["GET", "/pay"], ["GET", "/pay/log"], ["PUT", "/pay/fields"], ["PUT", "/pay/rules"], ["PUT", "/pay/person"], ["POST", "/plans/jplan/forms/x/decide"]]) {
+    assert.equal((await asMember(path, { method, body: method === "GET" ? undefined : {} })).status, 403, "jäsen " + method + " " + path);
+    assert.ok((await req(path, { method, body: method === "GET" ? undefined : {} })).status >= 400, "ylläpitäjä " + method + " " + path);
   }
   assert.equal((await req("/pay", { token: null })).status, 403);
-  const put = (path, body) => req(path, { method: "PUT", body });
-  assert.equal((await put("/pay/fields", { fields: [{ key: "SCORE", label: "x" }] })).status, 400, "SCORE on varattu");
-  assert.equal((await put("/pay/fields", { fields: [{ key: "bad key", label: "x" }] })).status, 400);
-  const fields = [{ key: "MONTHLY_SALARY", label: "Kuukausipalkka", unit: "EUR" }, { key: "TARGET_EARNING", label: "Tavoiteansio", unit: "EUR" }];
-  assert.equal((await put("/pay/fields", { fields })).status, 200);
-  const rule = { id: "r-bonus", name: "Bonus Field Sales", formula: "{MONTHLY_SALARY}*0,2*{SCORE}", active: true };
-  const badRule = await put("/pay/rules", { rules: [{ ...rule, formula: "FOO * 2" }] });
-  assert.equal(badRule.status, 400);
-  assert.ok((await badRule.json()).detail.includes("Tuntematon nimi"));
-  assert.equal((await put("/pay/rules", { rules: [rule] })).status, 200);
-  await req("/people", { method: "POST", body: { name: "Palkkamies" } });
-  assert.equal((await put("/pay/person", { name: "Palkkamies", pay: { rule: "ei-ole" } })).status, 400);
-  assert.equal((await put("/pay/person", { name: "Palkkamies", pay: { values: { MONTHLY_SALARY: "paljon" } } })).status, 400);
-  assert.equal((await put("/pay/person", { name: "Palkkamies", pay: { values: { OUTO: "1" } } })).status, 400);
-  assert.equal((await put("/pay/person", { name: "Olematon", pay: {} })).status, 404);
-  assert.equal((await put("/pay/person", { name: "Palkkamies", pay: { rule: "r-bonus", values: { MONTHLY_SALARY: "3000" } } })).status, 200);
-
-  const pay = await (await req("/pay")).json();
-  assert.deepEqual(pay.fields.map((f) => f.key), ["MONTHLY_SALARY", "TARGET_EARNING"]);
-  assert.deepEqual(pay.people.find((p) => p.name === "Palkkamies").pay, { rule: "r-bonus", values: { MONTHLY_SALARY: "3000" } });
-  assert.equal((await put("/pay/rules", { rules: [] })).status, 409, "käytössä olevaa sääntöä ei voi poistaa");
-  assert.equal((await put("/pay/fields", { fields: [{ key: "TARGET_EARNING", label: "x" }] })).status, 409, "säännön käyttämää kenttää ei voi poistaa");
-
-  const log = (await (await req("/pay/log")).json()).log;
-  assert.ok(log.length >= 3);
-  const entry = log.find((l) => l.action === "person" && l.target === "Palkkamies");
-  assert.equal(entry.by_email, ME.toLowerCase(), "tekijä kirjautuu");
-  assert.deepEqual(entry.after, { rule: "r-bonus", values: { MONTHLY_SALARY: "3000" } });
-  assert.ok(entry.before && typeof entry.at === "string", "vanha arvo ja aika");
-  assert.ok(log[0].id > log[log.length - 1].id, "uusin ensin");
-  assert.equal((await req("/pay/log?limit=1")).status, 200);
-  assert.equal((await (await req("/pay/log?limit=1")).json()).log.length, 1);
-});
-
-test("euromoduuli: palkkatieto ei vuoda sisältöriveihin, koostenäkymään, henkilölistaan eikä jäsenen vastauksiin, ja nimen muutos säilyttää sen", async () => {
-  await setupForms();
-  const secretText = "3000";
-  const everything = [
-    await (await req("/overview")).text(), await (await req("/people")).text(), await (await req("/plans/jplan/items")).text(),
-    await (await asMember("/mine")).text(), await (await asMember("/people")).text(), await (await req("/plans/jplan/history")).text()
-  ].join("\n");
-  for (const hit of ["MONTHLY_SALARY", "r-bonus", "Bonus Field Sales", "TARGET_EARNING"]) assert.ok(!everything.includes(hit), "vuotaa: " + hit);
-  assert.ok(!(await q("select 1 from bcc_items where data::text like '%MONTHLY_SALARY%'")).length, "ei sisältöriveissä");
-  assert.ok(!(await q("select 1 from bcc_item_history where data::text like '%MONTHLY_SALARY%'")).length, "ei historiassa");
-  void secretText;
-
-  assert.equal((await req("/people/rename", { method: "POST", body: { from: "Palkkamies", to: "Palkkamies Uusi" } })).status, 200);
-  const pay = await (await req("/pay")).json();
-  assert.deepEqual(pay.people.find((p) => p.name === "Palkkamies Uusi").pay, { rule: "r-bonus", values: { MONTHLY_SALARY: "3000" } }, "nimen muutos säilyttää tiedot");
-
-  const priv = (await q(`select has_table_privilege('anon', 'bcc_pay_log', 'select') a, has_table_privilege('authenticated', 'bcc_settings', 'select') b,
-    has_function_privilege('anon', 'bcc_pay_get()', 'execute') c, has_function_privilege('authenticated', 'bcc_pay_set_person(text, jsonb, text)', 'execute') d,
-    has_function_privilege('service_role', 'bcc_pay_get()', 'execute') e`))[0];
-  assert.deepEqual(priv, { a: false, b: false, c: false, d: false, e: true });
-  await pg.exec("set role service_role");
-  try {
-    assert.ok((await q("select bcc_pay_get() r"))[0].r.fields.length >= 1, "toimii service_role-oikeuksilla");
-    await pg.exec("select bcc_pay_set_def('pay_rules', (select data from bcc_settings where key = 'pay_rules'), 'testi@example.test')");
-    await assert.rejects(() => pg.exec("select bcc_pay_set_def('muu_avain', '[]'::jsonb, 'x')"), /bad_key/);
-  } finally { await pg.exec("reset role"); }
 });
 
 test("ajastus koskettaa tietokantaa", async () => {

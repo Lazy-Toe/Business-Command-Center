@@ -167,14 +167,6 @@ export function buildToday(items, today, filter = {}) {
       return Object.assign({}, i, { owner, role, title: def ? def.data.name : i.data.name });
     });
 
-  // Avoimet ehdotukset odottavat ylläpitäjän päätöstä.
-  const typeOf = (f) => items.find((t) => t.kind === "formtype" && t.plan_id === f.plan_id && t.id === f.data.type);
-  items.filter((i) => i.kind === "form" && i.data.status === "open" && typeOf(i) && typeOf(i).data.proposal).forEach((i) => {
-    const role = roleOf(i), owner = role ? role.data.owner || "" : "";
-    if (owner) owners.add(owner);
-    attention.push(Object.assign({}, i, { owner, role, title: (i.data.typeName || "Ehdotus") + (role ? " · " + role.data.title : "") }));
-  });
-
   if (filter.plan) {
     tasks = tasks.filter((t) => t.plan_id === filter.plan);
     attention = attention.filter((t) => t.plan_id === filter.plan);
