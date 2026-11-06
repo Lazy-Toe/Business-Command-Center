@@ -3,7 +3,7 @@
 import { html, useState } from "../vendor/htm-preact.js";
 import { Input } from "./core/ui.js";
 import { createForm, decideForm, patch, add, remove } from "./core/store.js";
-import { typesFor, visibleForms, formLabel, dateFi, draftRows, freezeRows, scoreForm, applyOps, nextStatus, STATUS_TEXT } from "./core/forms.js";
+import { typesFor, visibleForms, formLabel, dateFi, draftRows, freezeRows, scoreForm } from "./core/forms.js";
 import { periodText } from "./core/scorecard.js";
 import { fmt } from "./core/calc.js";
 
@@ -61,16 +61,10 @@ export function FormPanel({ planId, role, effective, forms, types, viewer, canAp
         <button type="button" class="barbtn" onClick=${() => { setDraft(null); setSel(list.length ? list[0].id : ""); setMsg(""); }}>Peruuta</button>
       </div></div>`;
   } else if (cur) {
-    const t = types.find((x) => x.id === cur.data.type), s = scoreForm(cur.data.rows), st = cur.data.status || "";
-    const decide = (to) => run(async () => { await decideForm(planId, cur.id, to); });
-    const applyNow = () => run(async () => {
-      applyOps(cur, role, effective).forEach((o) => (o.op === "patch" ? patch(o.id, o.data) : add("metric", role.id, o.data, { id: o.id })));
-      await decideForm(planId, cur.id, "applied");
-    });
+    const t = types.find((x) => x.id === cur.data.type), s = scoreForm(cur.data.rows);
     body = html`<div class="fview">
       <div class="fmeta">
         <div><span>Pvm</span><b>${dateFi(cur.data.at)}</b></div><div><span>Nimi</span><b>${cur.data.by || ""}</b></div><div><span>Toiminto</span><b>${cur.data.typeName || ""}</b></div>
-        ${t && t.data.proposal ? html`<div><span>Tila</span><b>${STATUS_TEXT[st] || STATUS_TEXT.open}</b>${cur.data.decidedBy ? html`<span class="gs"> ${cur.data.decidedBy}, ${dateFi(cur.data.decidedAt)}</span>` : null}</div>` : null}
       </div>
       ${cur.data.comment ? html`<p class="fcomment">${cur.data.comment}</p>` : null}
       ${s.rows.length ? html`<div class="gtable-wrap"><table class="gtable sctable">
@@ -78,11 +72,6 @@ export function FormPanel({ planId, role, effective, forms, types, viewer, canAp
         <tbody>${s.rows.map((r) => html`<tr key=${r.def}><td class="nmtd"><b>${r.name}</b></td><td class="gs">${periodText(r.start, r.end) || "–"}</td><td class="num">${r.target || "–"}</td><td class="num">${r.min || "–"}</td><td class="num">${r.max || "–"}</td><td class="num">${r.actual || "–"}</td><${Result} s=${r.score} /><td class="num">${r.weight || "–"}</td><td class="num">${fmt(r.score.weighted, 3)}</td></tr>`)}</tbody>
         ${s.total.count ? html`<tfoot><tr><td colspan="8"><b>Lopputulos</b></td><td class="num"><b>${fmt(s.total.weighted, 3)}</b></td></tr></tfoot>` : null}
       </table></div>` : null}
-      ${viewer.admin && t && t.data.proposal ? html`<div class="hact mfact">
-        <button type="button" class="barbtn" disabled=${busy || !nextStatus(st || "open", "accepted") || st === "accepted"} onClick=${() => decide("accepted")}>Hyväksy</button>
-        <button type="button" class="barbtn" disabled=${busy || !nextStatus(st || "open", "rejected") || st === "rejected"} onClick=${() => decide("rejected")}>Hylkää</button>
-        ${canApply ? html`<button type="button" class="barbtn primary" disabled=${busy || !nextStatus(st || "open", "applied")} title="Kopioi tavoitteet, rajat ja painot scorecardille" onClick=${applyNow}>Ota käyttöön</button>` : null}
-      </div>` : null}
     </div>`;
   } else body = html`<p class="gs">${list.length ? "Valitse lomake valikosta." : "Ei tallennettuja lomakkeita."}</p>`;
 

@@ -157,7 +157,6 @@ function AppBar() {
   ];
   const act = (fn) => async () => { setOpen(false); try { await fn(); } catch (e) { state.save = "error"; state.error = "Toiminto epäonnistui (" + e.message + ")."; uiChanged(); } };
   const newPlan = act(async () => { const t = prompt("Uuden suunnitelman nimi"); if (t && t.trim()) { await store.createPlan(t.trim(), newPlanItems()); showTab("kokonaisuus"); setView("plan"); setEdit(true); } });
-  const dup = act(async () => { const t = prompt("Kopion nimi", (plan ? plan.title : "") + " (kopio)"); if (t && t.trim()) { await store.duplicatePlan(t.trim()); setView("plan"); } });
   const rename = act(async () => { const t = prompt("Suunnitelman nimi", plan.title); if (t && t.trim()) await store.renamePlan(t.trim()); });
   const exp = act(async () => download(fileName(plan.title) + ".json", new Blob([JSON.stringify(store.exportPlan(), null, 1)], { type: "application/json" })));
   const imp = act(async () => {
@@ -197,7 +196,6 @@ function AppBar() {
         ${open ? html`<div class="menu" role="menu">
           <button type="button" role="menuitem" onClick=${newPlan}>Uusi suunnitelma</button>
           ${plan ? html`<button type="button" role="menuitem" onClick=${() => { setOpen(false); setCyc(true); }}>Uusi jakso (kopioi tämä)…</button>
-          <button type="button" role="menuitem" onClick=${dup}>Monista tämä</button>
           <button type="button" role="menuitem" onClick=${rename}>Nimeä uudelleen</button>
           <button type="button" role="menuitem" onClick=${exp}>Vie tiedostoon (JSON)</button>` : null}
           <button type="button" role="menuitem" onClick=${imp}>Tuo tiedostosta</button>

@@ -36,7 +36,7 @@ export function Group({ title, list, open, late, hint }) {
     <ul class="tlist">${list.map((t) => html`<${Row} key=${t.plan_id + t.id} t=${t} open=${open} late=${late} />`)}</ul></section>`;
 }
 
-const ATT_LABEL = { row: "Mittari", metric: "Scorecard", risk: "Riski", form: "Ehdotus" };
+const ATT_LABEL = { row: "Mittari", metric: "Scorecard", risk: "Riski" };
 function Attention({ list, open }) {
   return html`<aside class="tattn" aria-label="Vaatii huomiota">
     <h2>Vaatii huomiota <span class="num">${list.length}</span></h2>
