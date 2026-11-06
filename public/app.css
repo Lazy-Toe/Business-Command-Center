@@ -886,3 +886,5 @@ body.has-rail { padding-left: 62px; }
 .cycopt.on { background: var(--accent-soft); }
 .cycopt input { margin-top: 4px; }
 .cycbtns { display: flex; gap: 10px; margin-top: 14px; }
+.barbtn.dangerbtn { background: var(--neg); border-color: var(--neg); color: #fff; font-weight: 600; }
+.barbtn.dangerbtn:disabled { background: var(--surface); border-color: var(--line); color: var(--muted); }
