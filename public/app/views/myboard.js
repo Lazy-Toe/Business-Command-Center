@@ -5,7 +5,7 @@ import { BoardBody } from "../modules/plan.js";
 
 // Jokaisella suunnitelman taululla on oma tila (valittu vaihe, työvirta, laajennus, valmiit piilossa), joka säilyy uudelleenpiirrossa.
 const focusByPlan = new Map();
-const focusOf = (planId) => { if (!focusByPlan.has(planId)) focusByPlan.set(planId, { p: "", ws: "", wide: "", hideDone: true }); return focusByPlan.get(planId); };
+const focusOf = (planId) => { if (!focusByPlan.has(planId)) focusByPlan.set(planId, { p: "", ws: "", wide: "", hideDone: false }); return focusByPlan.get(planId); };
 
 export function MyBoards({ boards, open }) {
   const member = state.role === "member";
