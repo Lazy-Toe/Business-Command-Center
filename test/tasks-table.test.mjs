@@ -130,3 +130,9 @@ test("työvirran ja vaiheen asetus nimen mukaan: jokaisen rivin omasta suunnitel
   assert.deepEqual(catalogPatches(rows, "stream", "Tekno", cat).patches, [{ planId: "a", id: "t2", data: { stream: "w2" } }], "suunnitelmassa b ei ole Teknoa");
   assert.equal(catalogOf([it("a", "p1", "phase", { title: "Selvitä" })], "phase").get("a")[0].label, "Selvitä");
 });
+
+test("työvirran voi poistaa tehtävältä (tyhjä nimi), ja vain niiltä joilla se on", async () => {
+  const { catalogPatches } = await import("../public/app/core/tasks-table.js");
+  const rows = [{ plan_id: "a", id: "t1", stream: "w1" }, { plan_id: "a", id: "t2", stream: "" }];
+  assert.deepEqual(catalogPatches(rows, "stream", "", new Map()).patches, [{ planId: "a", id: "t1", data: { stream: "" } }]);
+});

@@ -107,11 +107,11 @@ export function RolePanel({ id }) {
   const parts = planParts(), adder = taskAdder(parts), metrics = freeRows(children(r.id, "metric")), R = goalValues();
   let tot = 0, sc = 0;
   const cols = parts ? parts.phases.map((ph, i) => {
-    const lst = parts.tasks.filter((t) => t.data.phase === ph.id && roleStreams(r).includes(t.data.stream));
+    const lst = parts.tasks.filter((t) => t.data.phase === ph.id && (roleStreams(r).includes(t.data.stream) || t.data.role === r.id));
     lst.forEach((t) => { tot++; sc += t.data.status === "done" ? 1 : t.data.status === "doing" ? 0.5 : 0; });
     return html`<div key=${ph.id} class="rp-col"><div class=${"rp-ph " + phaseClass(i, parts.phases.length)}><span class="d">${ph.data.label}</span><span class="t">${ph.data.title}</span></div>
       ${lst.length ? lst.map((t) => html`<${Task} key=${t.id} task=${t} list=${lst} parts=${parts} />`) : html`<p class="empty">Ei tehtäviä tässä vaiheessa.</p>`}
-      ${adder && roleStreams(r).length ? html`<${QuickAdd} label="Tehtävä" cls="small" onAdd=${(t) => adder(t, ph.id, roleStreams(r)[0])} />` : null}</div>`;
+      ${adder ? html`<${QuickAdd} label="Tehtävä" cls="small" onAdd=${(t) => adder(t, ph.id, roleStreams(r)[0] || "", { role: r.id, owner: r.data.owner || "" })} />` : null}</div>`;
   }) : [];
   return html`<section class="rolepanel">
     <div class="head" id="rp-head">
@@ -132,7 +132,6 @@ export function RolePanel({ id }) {
     <button type="button" class="sc-add" onClick=${() => add("metric", r.id, { name: "Uusi mittari", cad: "kuukausi" })}>+ Lisää oma mittari</button>
     <p class="gs">Tavoitteet määritellään Asetuksissa. Omiin mittareihin kirjoitetaan luvut yksikköineen, esimerkiksi 92 % tai 3,0x.</p>
     <div class="rp-tasks-head"><h3>Tehtävät</h3><button type="button" class="linkbtn" onClick=${() => hooks.openTasks && hooks.openTasks(roleStreams(r).length ? { plan: state.planId, stream: roleStreams(r) } : { plan: state.planId, owner: r.data.owner || "" })}>Muokkaa massana taulukossa</button><span class="rp-prog num">${tot ? Math.round(100 * sc / tot) + " % valmis" : ""}</span></div>
-    ${parts && !roleStreams(r).length ? html`<p class="gs warn">Vastuualueella ei ole työvirtaa, joten sen tehtäviä ei voi näyttää eikä lisätä tässä. Valitse työvirta: <${StreamChecks} label="Työvirrat" streams=${parts.streams} value=${[]} onChange=${(list) => patch(r.id, streamsPatch(list))} /></p>` : null}
     <div class="rp-tasks" style=${{ gridTemplateColumns: parts && !small ? "repeat(" + Math.max(parts.phases.length, 1) + ", minmax(0, 1fr))" : undefined }}>${cols}</div>
   </section>`;
 }

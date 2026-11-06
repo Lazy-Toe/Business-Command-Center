@@ -5,7 +5,7 @@ import { useState } from "../../vendor/htm-preact.js";
 import { fmtSpan, isLate, todayISO, suggestedOwner } from "../core/today.js";
 import { PersonSelect } from "../people.js";
 import { QuickAdd } from "../quickadd.js";
-import { visibleTasks, visibleStreams } from "../core/myboard.js";
+import { visibleTasks, visibleStreams, NONE_STREAM, laneOf } from "../core/myboard.js";
 
 // Taulun tila: p = valittu vaihe (muut himmennetään), ws = valittu työvirta, wide = koko leveydelle avattu vaihe, hideDone = valmiit piilossa.
 // Suunnitelman taululla on yksi yhteinen tila (focus), ja Oma työpöytä antaa jokaiselle taululle oman (parts.focus).
@@ -29,11 +29,11 @@ export function planParts() {
   // Jos vaihe tai työvirta on poistettu, tehtävät näkyvät ensimmäisessä jäljellä olevassa eivätkä katoa.
   const tasks = children(s.id, "task").map((t) => {
     const phase = phases.some((p) => p.id === t.data.phase) ? t.data.phase : phases[0] && phases[0].id;
-    const stream = streams.some((w) => w.id === t.data.stream) ? t.data.stream : streams[0] && streams[0].id;
+    const stream = laneOf(t.data.stream, streams);
     return phase === t.data.phase && stream === t.data.stream ? t : Object.assign({}, t, { data: Object.assign({}, t.data, { phase, stream }) });
   });
   const sc = findSection("scorecards");
-  return { section: s, phases, streams, tasks, roles: sc ? children(sc.id, "role") : [] };
+  return { section: s, phases, streams: tasks.some((t) => !t.data.stream) ? streams.concat([NONE_STREAM]) : streams, tasks, roles: sc ? children(sc.id, "role") : [] };
 }
 export function taskCounts(parts, phaseId) {
   const list = parts.tasks.filter((t) => t.data.phase === phaseId);
@@ -99,9 +99,9 @@ export function Task({ task, list, parts, withTag }) {
 }
 
 // Uuden tehtävän vastuuhenkilöksi esitäytetään saman työvirran vastuualueen omistaja. Se on tavallinen valinta, jonka voi vaihtaa tai tyhjentää.
-export function newTask(parts, phase, stream, title = "") { add("task", parts.section.id, { title, detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, parts.roles) }); }
+export function newTask(parts, phase, stream, title = "", extra = {}) { add("task", parts.section.id, Object.assign({ title, detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, parts.roles) }, extra)); }
 // Lisäystapa taululle: suunnitelman taululla suoraan suunnitelmaan, Oma työpöytä antaa oman (parts.addTask). Jäsen ei lisää.
-export const taskAdder = (parts) => (!parts || parts.ownerLocked ? null : parts.addTask ? parts.addTask : parts.readonly || !parts.section ? null : (title, phase, stream) => newTask(parts, phase, stream, title));
+export const taskAdder = (parts) => (!parts || parts.ownerLocked ? null : parts.addTask ? parts.addTask : parts.readonly || !parts.section ? null : (title, phase, stream, extra) => newTask(parts, phase, stream, title, extra));
 // Raahaus sarakkeiden ja rivien välillä ilman muokkaustilaa: kortin pudotus toiseen soluun vaihtaa tehtävän vaiheen ja työvirran.
 // Sama molemmilla tauluilla (Kokonaisuus ja Oma työpöytä). Jäsen ei raahaa (parts.ownerLocked), koska hän ei saa vaihtaa vaihetta.
 // Tallennus kulkee saveTaskin kautta, joten Oma työpöytä tallentaa omalla tavallaan. parts.onMove ohittaa oletuksen.
@@ -150,17 +150,17 @@ function PhaseHead({ ph, i, n, parts }) {
 function StreamHead({ w, parts }) {
   const f = F(parts), ed = editing(parts), mode = parts.readonly ? "view" : "edit";
   const dim = f.ws && f.ws !== w.id;
-  const Tag = ed ? "div" : "button";
-  return html`<${Tag} class=${"rl" + (dim ? " dim" : "")} type=${ed ? undefined : "button"} style=${{ "--c": wsColor(w) }} onClick=${() => { if (!ed) toggleWs(w.id, f); }}>
+  const Tag = ed || w.virtual ? "div" : "button";
+  return html`<${Tag} class=${"rl" + (dim ? " dim" : "")} type=${ed || w.virtual ? undefined : "button"} style=${{ "--c": wsColor(w) }} onClick=${() => { if (!ed && !w.virtual) toggleWs(w.id, f); }}>
     <span class="dot"></span>
-    <span class="rlt"><${Text} item=${w} field="label" cls="rln" ph="Työvirta" mode=${mode} />
+    <span class="rlt"><${Text} item=${w} field="label" cls="rln" ph="Työvirta" mode=${w.virtual ? "view" : mode} />
     <span class="rprog">${parts.phases.map((ph) => {
       const lst = parts.tasks.filter((t) => t.data.phase === ph.id && t.data.stream === w.id);
       if (!lst.length) return null;
       const dn = lst.reduce((a, t) => a + (t.data.status === "done" ? 1 : t.data.status === "doing" ? 0.5 : 0), 0), pc = Math.round(100 * dn / lst.length);
       return html`<span key=${ph.id} class=${"rpl" + (pc === 100 ? " full" : "")}><span class="rpd">${ph.data.short || (ph.data.label || "").replace(/^[^\d]*/, "")}</span><span class="rpb"><i style=${{ width: pc + "%" }}></i></span><span class="rpp">${pc} %</span></span>`;
     })}</span></span>
-    ${ed ? html`<${Tools} item=${w} list=${parts.streams} label=${w.data.label} />` : null}
+    ${ed && !w.virtual ? html`<${Tools} item=${w} list=${parts.streams} label=${w.data.label} />` : null}
   </${Tag}>`;
 }
 
@@ -241,7 +241,7 @@ export function BoardBody({ parts, section }) {
   return html`
     <div class="filters" role="group" aria-label="Työvirta">
       ${active ? html`<button type="button" class="chip pchip" aria-label="Poista vaihevalinta" onClick=${() => toggleFocusPhase(active.id, f)}>Vaihe: ${active.data.title} <span aria-hidden="true">×</span></button>` : null}
-      ${parts.streams.map((w) => html`<button key=${w.id} type="button" class="chip" style=${{ "--c": wsColor(w) }} aria-pressed=${f.ws === w.id ? "true" : "false"} onClick=${() => toggleWs(w.id, f)}><span class="dot"></span>${w.data.label}</button>`)}
+      ${parts.streams.filter((w) => !w.virtual).map((w) => html`<button key=${w.id} type="button" class="chip" style=${{ "--c": wsColor(w) }} aria-pressed=${f.ws === w.id ? "true" : "false"} onClick=${() => toggleWs(w.id, f)}><span class="dot"></span>${w.data.label}</button>`)}
       ${f.p || f.ws || f.wide ? html`<button type="button" class="clear" onClick=${() => { f.p = ""; f.ws = ""; f.wide = ""; uiChanged(); }}>Näytä kaikki</button>` : null}
       ${done ? html`<button type="button" class="chip" aria-pressed=${f.hideDone ? "true" : "false"} onClick=${() => { f.hideDone = !f.hideDone; uiChanged(); }}>${f.hideDone ? "Näytä valmiit (" + done + ")" : "Piilota valmiit"}</button>` : null}
       ${ed && section ? html`<${AddButton} label="Työvirta" cls="small" onAdd=${() => add("stream", section.id, { label: "Uusi työvirta", color: COLORS[parts.streams.length % COLORS.length] })} />

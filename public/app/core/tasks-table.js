@@ -163,6 +163,7 @@ export function labelOptions(rows, map) {
 export function catalogPatches(rows, field, label, map) {
   const patches = [];
   rows.forEach((r) => {
+    if (label === "") { if (r[field]) patches.push({ planId: r.plan_id, id: r.id, data: { [field]: "" } }); return; }
     const hit = (map.get(r.plan_id) || []).find((x) => x.label === label);
     if (hit && r[field] !== hit.id) patches.push({ planId: r.plan_id, id: r.id, data: { [field]: hit.id } });
   });
