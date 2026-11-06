@@ -1,9 +1,10 @@
 // Tehtävät: kaikki tehtävät kaikista suunnitelmista yhdessä taulukossa. Suodatus, rivin muokkaus ja massamuutos (vastuu, määräpäivä, tila).
 import { html, useEffect, useState } from "../../vendor/htm-preact.js";
 import { ui } from "../core/ui.js";
-import { state, loadOverview } from "../core/store.js";
+import { state, loadOverview, addIn } from "../core/store.js";
+import { QuickAdd } from "../quickadd.js";
 import { taskRows, filterRows, ownersIn, groupRows, GROUPS, STATUS_LABEL } from "../core/tasks-table.js";
-import { todayISO } from "../core/today.js";
+import { todayISO, suggestedOwner } from "../core/today.js";
 import { Multi } from "../multi.js";
 import { TaskTable, COLS } from "../tasktable.js";
 
@@ -29,6 +30,15 @@ export function TasksView({ open }) {
   const inPlan = f.plan ? all.filter((r) => r.plan_id === f.plan) : all;
   const streams = [...new Map(inPlan.filter((r) => r.stream).map((r) => [r.stream, r.streamLabel || r.stream])).entries()];
   const phases = [...new Map(inPlan.filter((r) => r.phase).map((r) => [r.phase, r.phaseLabel || r.phase])).entries()];
+  // Uusi tehtävä: suodatetun suunnitelman (tai avoimen) osioon, valittuun vaiheeseen ja työvirtaan tai ensimmäiseen. Tarkennus tehdään taulukon valikoilla.
+  const addTask = (title) => {
+    const planId = f.plan || state.planId || (state.plans[0] && state.plans[0].id), rows = ov.items.filter((i) => i.plan_id === planId);
+    const section = rows.find((i) => i.kind === "section" && i.data.type === "plan"); if (!section) return;
+    const byPos = (a, b) => (a.position || 0) - (b.position || 0), phs = rows.filter((i) => i.kind === "phase").sort(byPos), sts = rows.filter((i) => i.kind === "stream").sort(byPos);
+    const phase = f.phase.length === 1 && phs.some((p) => p.id === f.phase[0]) ? f.phase[0] : (phs[0] ? phs[0].id : "");
+    const stream = f.stream.length === 1 && sts.some((w) => w.id === f.stream[0]) ? f.stream[0] : (sts[0] ? sts[0].id : "");
+    addIn(planId, section.id, { title, detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, rows.filter((i) => i.kind === "role")) });
+  };
   const set = (k, v) => setF((o) => Object.assign({}, o, { [k]: v }));
   const dirty = Object.keys(EMPTY).some((k) => (Array.isArray(f[k]) ? f[k].length : f[k]));
 
@@ -48,6 +58,8 @@ export function TasksView({ open }) {
       <details class="multi colmenu"><summary aria-label="Raportin sarakkeet">⋯ Sarakkeet</summary><div class="multibox">${COLS.map(([k, l]) => html`<label key=${k}><input type="checkbox" checked=${col(k)} onChange=${() => toggleCol(k)} /> ${l}</label>`)}</div></details>
       ${dirty ? html`<button type="button" class="linkbtn" onClick=${() => setF(Object.assign({}, EMPTY))}>Tyhjennä suodattimet</button>` : null}
     </div>
+
+    ${state.role === "member" ? null : html`<div class="tadd"><${QuickAdd} label="Uusi tehtävä" onAdd=${addTask} placeholder="Tehtävän nimi, Enter lisää" /><span class="gs">Tehtävä tulee ${f.plan ? "valittuun" : "avoimeen"} suunnitelmaan valittuun vaiheeseen ja työvirtaan (ellei valittu, ensimmäiseen). Tarkenna rivin valikoilla.</span></div>`}
 
     <${TaskTable} groups=${groups} by=${by} allRows=${all} items=${ov.items} cols=${COLS.filter(([k]) => col(k))} open=${open} today=${today}
       hint='Klikkaa arvoa muuttaaksesi yhden tehtävän. Sarakkeen "Kaikille" muuttaa kaikki näkyvät tehtävät (rajaa ensin suodattimilla) tai valitut rivit.' emptyText="Ei tehtäviä näillä suodattimilla." />

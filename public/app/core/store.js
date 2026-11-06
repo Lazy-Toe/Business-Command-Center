@@ -254,6 +254,16 @@ export function patchIn(planId, id, data) {
   emit();
 }
 
+// Uusi tehtävä mihin tahansa suunnitelmaan koostenäkymästä (parentId on suunnitelman osio).
+export function addIn(planId, parentId, data) {
+  const it = { id: uid(), kind: "task", parent_id: parentId, position: Date.now(), data };
+  if (state.overview) state.overview.items = state.overview.items.concat([Object.assign({ plan_id: planId }, it)]);
+  if (planId === state.planId) items.set(it.id, it);
+  enqueue([Object.assign({ op: "put" }, it)], planId);
+  emit();
+  return it;
+}
+
 // Useita tehtäviä kerralla ([{ planId, id, data }]): koostenäkymä ja avoin suunnitelma päivitetään kerran, ja muutokset jonotetaan suunnitelmittain.
 export function patchManyIn(list) {
   if (!list.length) return;

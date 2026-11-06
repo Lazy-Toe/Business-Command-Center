@@ -4,6 +4,7 @@ import { children, findSection, patch, add, moveBefore, nextPosition, shift } fr
 import { useState } from "../../vendor/htm-preact.js";
 import { fmtSpan, isLate, todayISO, suggestedOwner } from "../core/today.js";
 import { PersonSelect } from "../people.js";
+import { QuickAdd } from "../quickadd.js";
 import { visibleTasks, visibleStreams } from "../core/myboard.js";
 
 // Taulun tila: p = valittu vaihe (muut himmennetään), ws = valittu työvirta, wide = koko leveydelle avattu vaihe, hideDone = valmiit piilossa.
@@ -98,7 +99,9 @@ export function Task({ task, list, parts, withTag }) {
 }
 
 // Uuden tehtävän vastuuhenkilöksi esitäytetään saman työvirran vastuualueen omistaja. Se on tavallinen valinta, jonka voi vaihtaa tai tyhjentää.
-function newTask(parts, phase, stream) { add("task", parts.section.id, { title: "", detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, parts.roles) }); }
+export function newTask(parts, phase, stream, title = "") { add("task", parts.section.id, { title, detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, parts.roles) }); }
+// Lisäystapa taululle: suunnitelman taululla suoraan suunnitelmaan, Oma työpöytä antaa oman (parts.addTask). Jäsen ei lisää.
+export const taskAdder = (parts) => (!parts || parts.ownerLocked ? null : parts.addTask ? parts.addTask : parts.readonly || !parts.section ? null : (title, phase, stream) => newTask(parts, phase, stream, title));
 // Raahaus sarakkeiden ja rivien välillä ilman muokkaustilaa: kortin pudotus toiseen soluun vaihtaa tehtävän vaiheen ja työvirran.
 // Sama molemmilla tauluilla (Kokonaisuus ja Oma työpöytä). Jäsen ei raahaa (parts.ownerLocked), koska hän ei saa vaihtaa vaihetta.
 // Tallennus kulkee saveTaskin kautta, joten Oma työpöytä tallentaa omalla tavallaan. parts.onMove ohittaa oletuksen.
@@ -163,7 +166,7 @@ function StreamHead({ w, parts }) {
 
 // Koko leveydelle avattu vaihe (f.wide): kortit rinnakkain, vaihevälilehdet ja paluu kaikkiin vaiheisiin.
 function Wide({ parts, idx }) {
-  const { phases, streams } = parts, ph = phases[idx], f = F(parts), ed = editing(parts);
+  const { phases, streams } = parts, ph = phases[idx], f = F(parts), ed = editing(parts), adder = taskAdder(parts);
   const tasks = visibleTasks(parts.tasks, f.hideDone), lanes = visibleStreams(streams, tasks, parts.hideEmptyLanes);
   const left = (id) => parts.tasks.filter((t) => t.data.phase === id && t.data.status !== "done").length;
   return html`<div>
@@ -180,7 +183,7 @@ function Wide({ parts, idx }) {
           html`<${StreamHead} key=${w.id} w=${w} parts=${parts} />`,
           html`<div key=${w.id + "w"} class=${"cell wide" + (dim ? " dim" : "")} ...${ed ? cellDrop(parts, ph.id, w.id) : moveDrop(parts, ph.id, w.id)}>
             ${list.map((t) => html`<${Task} key=${(t.plan_id || "") + t.id} task=${t} list=${list} parts=${parts} />`)}
-            ${ed ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />` : null}
+            ${adder ? html`<${QuickAdd} label="Tehtävä" cls="small" onAdd=${(t) => adder(t, ph.id, w.id)} />` : null}
           </div>`
         ];
       })}
@@ -190,7 +193,7 @@ function Wide({ parts, idx }) {
 }
 
 function Desktop({ parts }) {
-  const { phases, streams } = parts, f = F(parts), ed = editing(parts);
+  const { phases, streams } = parts, f = F(parts), ed = editing(parts), adder = taskAdder(parts);
   const wideIdx = f.wide ? phases.findIndex((p) => p.id === f.wide) : -1;
   if (wideIdx >= 0) return html`<${Wide} parts=${parts} idx=${wideIdx} />`;
   const tasks = visibleTasks(parts.tasks, f.hideDone), lanes = visibleStreams(streams, tasks, parts.hideEmptyLanes);
@@ -204,7 +207,7 @@ function Desktop({ parts }) {
         const dim = (f.p && f.p !== ph.id) || (f.ws && f.ws !== w.id);
         return html`<div key=${w.id + ph.id} class=${"cell" + (dim ? " dim" : "") + (ed ? "" : " pick")} onClick=${pickPhase(parts, ph)} ...${ed ? cellDrop(parts, ph.id, w.id) : moveDrop(parts, ph.id, w.id)}>
           ${list.map((t) => html`<${Task} key=${t.plan_id + t.id} task=${t} list=${list} parts=${parts} />`)}
-          ${ed ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, w.id)} cls="small" />` : null}
+          ${adder ? html`<${QuickAdd} label="Tehtävä" cls="small" onAdd=${(t) => adder(t, ph.id, w.id)} />` : null}
         </div>`;
       })
     ])}
@@ -214,13 +217,13 @@ function Desktop({ parts }) {
 }
 
 function Mobile({ parts }) {
-  const f = F(parts), ed = editing(parts), tasks = visibleTasks(parts.tasks, f.hideDone);
+  const f = F(parts), ed = editing(parts), tasks = visibleTasks(parts.tasks, f.hideDone), adder = taskAdder(parts);
   return html`<div>${parts.phases.map((ph, i) => {
     const list = tasks.filter((t) => t.data.phase === ph.id);
     return html`<div key=${ph.id} class=${"mphase" + (f.p && f.p !== ph.id ? " dim" : "")}>
       <${PhaseHead} ph=${ph} i=${i} n=${parts.phases.length} parts=${parts} />
       <div class="mlist">${list.map((t) => html`<${Task} key=${(t.plan_id || "") + t.id} task=${t} list=${list} parts=${parts} withTag=${true} />`)}
-        ${ed && parts.streams[0] ? html`<${AddButton} label="Tehtävä" onAdd=${() => newTask(parts, ph.id, parts.streams[0].id)} cls="small" />` : null}</div>
+        ${adder && parts.streams[0] ? html`<${QuickAdd} label="Tehtävä" cls="small" onAdd=${(t) => adder(t, ph.id, parts.streams[0].id)} />` : null}</div>
       <${GateCell} ph=${ph} parts=${parts} />
     </div>`;
   })}</div>`;

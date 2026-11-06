@@ -891,3 +891,8 @@ body.has-rail { padding-left: 62px; }
 .cycbtns { display: flex; gap: 10px; margin-top: 14px; }
 .barbtn.dangerbtn { background: var(--neg); border-color: var(--neg); color: #fff; font-weight: 600; }
 .barbtn.dangerbtn:disabled { background: var(--surface); border-color: var(--line); color: var(--muted); }
+
+.quickadd.open input { font: inherit; font-size: 0.86rem; width: 100%; min-width: 180px; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 3px; background: var(--surface); color: var(--ink); }
+.quickadd.open { display: block; margin-top: 6px; }
+.tadd { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0; }
+.tadd .quickadd.open { margin-top: 0; min-width: 320px; }
