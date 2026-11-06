@@ -132,6 +132,7 @@ export function RolePanel({ id }) {
     <button type="button" class="sc-add" onClick=${() => add("metric", r.id, { name: "Uusi mittari", cad: "kuukausi" })}>+ Lisää oma mittari</button>
     <p class="gs">Tavoitteet määritellään Asetuksissa. Omiin mittareihin kirjoitetaan luvut yksikköineen, esimerkiksi 92 % tai 3,0x.</p>
     <div class="rp-tasks-head"><h3>Tehtävät</h3><button type="button" class="linkbtn" onClick=${() => hooks.openTasks && hooks.openTasks(roleStreams(r).length ? { plan: state.planId, stream: roleStreams(r) } : { plan: state.planId, owner: r.data.owner || "" })}>Muokkaa massana taulukossa</button><span class="rp-prog num">${tot ? Math.round(100 * sc / tot) + " % valmis" : ""}</span></div>
+    ${parts && !roleStreams(r).length ? html`<p class="gs warn">Vastuualueella ei ole työvirtaa, joten sen tehtäviä ei voi näyttää eikä lisätä tässä. Valitse työvirta: <${StreamChecks} label="Työvirrat" streams=${parts.streams} value=${[]} onChange=${(list) => patch(r.id, streamsPatch(list))} /></p>` : null}
     <div class="rp-tasks" style=${{ gridTemplateColumns: parts && !small ? "repeat(" + Math.max(parts.phases.length, 1) + ", minmax(0, 1fr))" : undefined }}>${cols}</div>
   </section>`;
 }
