@@ -153,3 +153,10 @@ test("kesto: aloitus ja lopetus tekstinä, ja kuukausikalenterissa tehtävä nä
   assert.deepEqual(g.filter((d) => d.tasks.includes(t)).map((d) => d.date), ["2026-11-10", "2026-11-11", "2026-11-12"]);
   assert.equal(g.find((d) => d.date === "2026-11-11").tasks.length, 2);
 });
+
+test("viikon valinta asettaa maanantain alkuun ja sunnuntain loppuun", async () => {
+  const { weekChange } = await import("../public/app/core/today.js");
+  assert.deepEqual(weekChange("2026-11-08"), { start: "2026-11-02", due: "2026-11-08" });
+  assert.deepEqual(weekChange("2026-11-05"), { start: "2026-11-02", due: "2026-11-08" }, "mikä tahansa viikon päivä");
+  assert.deepEqual(weekChange("2026-11-02"), { start: "2026-11-02", due: "2026-11-08" });
+});

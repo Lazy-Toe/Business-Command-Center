@@ -3,7 +3,7 @@ import { html, useState } from "../vendor/htm-preact.js";
 import { ui, uiChanged } from "./core/ui.js";
 import { patchManyIn } from "./core/store.js";
 import { bulkPatches, invertPatches, suggestPatches, labelOptions, catalogPatches, STATUS_LABEL } from "./core/tasks-table.js";
-import { isSaneDue } from "./core/today.js";
+import { isSaneDue, weekChange } from "./core/today.js";
 
 // Muutos riveille yhtenä peruttavana eränä. Palauttaa muutettujen määrän tai virheen tekstin.
 export function applyChange(change, what, rows) {
@@ -31,15 +31,15 @@ export function FieldMenu({ field, title, rows, scope, names, periods, apply, ap
         ${canSuggest ? html`<button type="button" class="bm-btn wide" onClick=${run(() => applyPatches(suggestPatches(rows).patches, rows, "vastuualueen omistaja"))}>Vastuualueen omistaja (työvirran mukaan)</button>` : null}
         <button type="button" class="bm-btn wide quiet" onClick=${go({ owner: "" }, "vastuuhenkilö poistettu")}>Poista vastuuhenkilö</button>` : null}
       ${field === "stream" || field === "phase" ? html`<div class="bm-grid">${labelOptions(rows, catalog[field] || new Map()).map((l) => html`<button type="button" key=${l} class="bm-btn" onClick=${run(() => applyPatches(catalogPatches(rows, field, l, catalog[field]).patches, rows, (field === "stream" ? "työvirta " : "vaihe ") + l))}>${l}</button>`)}</div>` : null}
-      ${field === "start" ? html`<p class="bm-h">Viikko (alkaa maanantaina)</p>
-        <div class="bm-grid months">${periods.weekStarts.map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ start: p.value }, "aloitus " + p.label)}>${p.label}</button>`)}</div>
+      ${field === "start" ? html`<p class="bm-h">Viikko (maanantai alkuun, sunnuntai loppuun)</p>
+        <div class="bm-grid months">${periods.weeks.slice(0, 6).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go(weekChange(p.value), p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Kuukauden alku</p>
         <div class="bm-grid months">${periods.monthStarts.slice(0, 6).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ start: p.value }, "aloitus " + p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Muu päivä</p>
         <${BulkDate} onApply=${(v) => apply({ start: v }, "aloituspäivä", rows)} />
         <button type="button" class="bm-btn wide quiet" onClick=${go({ start: "" }, "aloitus tyhjennetty")}>Tyhjennä aloitus</button>` : null}
-      ${field === "due" ? html`<p class="bm-h">Viikko (päättyy sunnuntaina)</p>
-        <div class="bm-grid months">${periods.weeks.slice(0, 6).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "lopetus " + p.label)}>${p.label}</button>`)}</div>
+      ${field === "due" ? html`<p class="bm-h">Viikko (maanantai alkuun, sunnuntai loppuun)</p>
+        <div class="bm-grid months">${periods.weeks.slice(0, 6).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go(weekChange(p.value), p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Kuukauden loppu</p>
         <div class="bm-grid months">${periods.months.slice(1, 7).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go({ due: p.value }, "lopetus " + p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Neljänneksen loppu</p>

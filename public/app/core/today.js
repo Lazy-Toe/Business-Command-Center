@@ -65,6 +65,8 @@ export function weekEnd(iso) {
   const [y, m, d] = iso.split("-").map(Number), dow = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
   return addDays(iso, 6 - dow);
 }
+// Viikon valinta asettaa molemmat päivät: maanantai alkuun ja sunnuntai loppuun. Päiviä voi sen jälkeen muuttaa erikseen.
+export const weekChange = (iso) => ({ start: addDays(weekEnd(iso), -6), due: weekEnd(iso) });
 // Sunnuntaille osuva määräpäivä luetaan viikkotason määräpäiväksi ("vko 45"), muu päivä näytetään päivänä.
 export const isWeekDue = (iso) => ISO.test(iso || "") && weekEnd(iso) === iso;
 export function fmtDue(iso) {
