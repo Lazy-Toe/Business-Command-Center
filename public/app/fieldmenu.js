@@ -30,7 +30,8 @@ export function FieldMenu({ field, title, rows, scope, names, periods, apply, ap
       ${field === "owner" ? html`<div class="bm-grid">${names.map((n) => html`<button type="button" key=${n} class="bm-btn" onClick=${go({ owner: n }, "vastuu " + n)}>${n}</button>`)}</div>
         ${canSuggest ? html`<button type="button" class="bm-btn wide" onClick=${run(() => applyPatches(suggestPatches(rows).patches, rows, "vastuualueen omistaja"))}>Vastuualueen omistaja (työvirran mukaan)</button>` : null}
         <button type="button" class="bm-btn wide quiet" onClick=${go({ owner: "" }, "vastuuhenkilö poistettu")}>Poista vastuuhenkilö</button>` : null}
-      ${field === "stream" || field === "phase" ? html`<div class="bm-grid">${labelOptions(rows, catalog[field] || new Map()).map((l) => html`<button type="button" key=${l} class="bm-btn" onClick=${run(() => applyPatches(catalogPatches(rows, field, l, catalog[field]).patches, rows, (field === "stream" ? "työvirta " : "vaihe ") + l))}>${l}</button>`)}</div>` : null}
+      ${field === "stream" || field === "phase" ? html`<div class="bm-grid">${labelOptions(rows, catalog[field] || new Map()).map((l) => html`<button type="button" key=${l} class="bm-btn" onClick=${run(() => applyPatches(catalogPatches(rows, field, l, catalog[field]).patches, rows, (field === "stream" ? "työvirta " : "vaihe ") + l))}>${l}</button>`)}</div>
+        ${field === "stream" ? html`<button type="button" class="bm-btn wide quiet" onClick=${run(() => applyPatches(catalogPatches(rows, "stream", "", catalog.stream).patches, rows, "työvirta poistettu"))}>Ei työvirtaa</button>` : null}` : null}
       ${field === "start" ? html`<p class="bm-h">Viikko (maanantai alkuun, sunnuntai loppuun)</p>
         <div class="bm-grid months">${periods.weeks.slice(0, 6).map((p) => html`<button type="button" key=${p.value} class="bm-btn" onClick=${go(weekChange(p.value), p.label)}>${p.label}</button>`)}</div>
         <p class="bm-h">Kuukauden alku</p>

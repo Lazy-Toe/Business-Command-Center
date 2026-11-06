@@ -36,8 +36,8 @@ export function TasksView({ open }) {
     const section = rows.find((i) => i.kind === "section" && i.data.type === "plan"); if (!section) return;
     const byPos = (a, b) => (a.position || 0) - (b.position || 0), phs = rows.filter((i) => i.kind === "phase").sort(byPos), sts = rows.filter((i) => i.kind === "stream").sort(byPos);
     const phase = f.phase.length === 1 && phs.some((p) => p.id === f.phase[0]) ? f.phase[0] : (phs[0] ? phs[0].id : "");
-    const stream = f.stream.length === 1 && sts.some((w) => w.id === f.stream[0]) ? f.stream[0] : (sts[0] ? sts[0].id : "");
-    addIn(planId, section.id, { title, detail: "", phase, stream, status: "todo", note: "", owner: suggestedOwner(stream, rows.filter((i) => i.kind === "role")) });
+    const stream = f.stream.length === 1 && sts.some((w) => w.id === f.stream[0]) ? f.stream[0] : "";
+    addIn(planId, section.id, { title, detail: "", phase, stream, status: "todo", note: "", owner: f.owner.length === 1 && f.owner[0] !== "__none" ? f.owner[0] : suggestedOwner(stream, rows.filter((i) => i.kind === "role")) });
   };
   const set = (k, v) => setF((o) => Object.assign({}, o, { [k]: v }));
   const dirty = Object.keys(EMPTY).some((k) => (Array.isArray(f[k]) ? f[k].length : f[k]));
@@ -59,7 +59,7 @@ export function TasksView({ open }) {
       ${dirty ? html`<button type="button" class="linkbtn" onClick=${() => setF(Object.assign({}, EMPTY))}>Tyhjennä suodattimet</button>` : null}
     </div>
 
-    ${state.role === "member" ? null : html`<div class="tadd"><${QuickAdd} label="Uusi tehtävä" onAdd=${addTask} placeholder="Tehtävän nimi, Enter lisää" /><span class="gs">Tehtävä tulee ${f.plan ? "valittuun" : "avoimeen"} suunnitelmaan valittuun vaiheeseen ja työvirtaan (ellei valittu, ensimmäiseen). Tarkenna rivin valikoilla.</span></div>`}
+    ${state.role === "member" ? null : html`<div class="tadd"><${QuickAdd} label="Uusi tehtävä" onAdd=${addTask} placeholder="Tehtävän nimi, Enter lisää" /><span class="gs">Tehtävä tulee ${f.plan ? "valittuun" : "avoimeen"} suunnitelmaan valittuun vaiheeseen (ellei valittu, ensimmäiseen) ja työvirtaan vain, jos olet valinnut sen. Vastuu on valittu vastuuhenkilö tai vastuualueen omistaja. Tarkenna rivin valikoilla.</span></div>`}
 
     <${TaskTable} groups=${groups} by=${by} allRows=${all} items=${ov.items} cols=${COLS.filter(([k]) => col(k))} open=${open} today=${today}
       hint='Klikkaa arvoa muuttaaksesi yhden tehtävän. Sarakkeen "Kaikille" muuttaa kaikki näkyvät tehtävät (rajaa ensin suodattimilla) tai valitut rivit.' emptyText="Ei tehtäviä näillä suodattimilla." />

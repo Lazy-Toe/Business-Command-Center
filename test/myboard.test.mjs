@@ -21,7 +21,7 @@ test("omat tehtävät taulun tiedoiksi: vain omat (vastuuta ei peritä), valmiit
   assert.deepEqual(a.tasks.map((t) => t.id), ["t1", "t2", "t3", "t6"], "ei Iidan eikä vastuuttoman tehtävää, valmis mukana");
   assert.deepEqual([a.readonly, a.hideEmptyLanes], [true, true]);
   assert.deepEqual(a.phases.map((p) => p.id), ["p1", "p2"]);
-  assert.deepEqual(a.streams.map((w) => w.id), ["w1", "w2"]);
+  assert.deepEqual(a.streams.map((w) => w.id), ["w1", "w2", ""], "viimeisenä virtuaalinen rivi Ei työvirtaa, johon voi lisätä tehtävän");
 });
 
 test("poistunut vaihe ja työvirta korvautuvat ensimmäisellä kuten suunnitelman taulussa", () => {
@@ -34,8 +34,8 @@ test("rajaus: valmiit piiloon ja vain työvirrat, joissa on näytettävää", ()
   const [a] = mineParts(items, "Mika", ["a"]);
   assert.deepEqual(visibleTasks(a.tasks, true).map((t) => t.id), ["t1", "t2", "t6"]);
   assert.equal(visibleTasks(a.tasks, false).length, 4);
-  assert.deepEqual(visibleStreams(a.streams, visibleTasks(a.tasks, true), true).map((w) => w.id), ["w1"], "Tekno ei näy: Mikalla ei ole siinä tehtäviä");
-  assert.equal(visibleStreams(a.streams, [], false).length, 2, "ilman rajausta kaikki");
+  assert.deepEqual(visibleStreams(a.streams, visibleTasks(a.tasks, true), true).map((w) => w.id), ["w1", ""], "Tekno ei näy: Mikalla ei ole siinä tehtäviä, mutta Ei työvirtaa -rivi näkyy aina");
+  assert.equal(visibleStreams(a.streams, [], false).length, 3, "ilman rajausta kaikki");
 });
 
 test("suunnitelmat järjestyksessä, ilman vaiheita ja työvirtoja tehtävät silti näkyvät, ilman henkilöä ei tauluja", () => {
@@ -45,4 +45,15 @@ test("suunnitelmat järjestyksessä, ilman vaiheita ja työvirtoja tehtävät si
   assert.deepEqual([b.phases.length, b.streams.length, b.tasks.length], [1, 1, 1]);
   assert.deepEqual(mineParts(items, "", ["a"]), []);
   assert.deepEqual(mineParts(items, "Pontus", ["a"]), []);
+});
+
+test("tehtävä ilman työvirtaa pysyy ilman työvirtaa, poistettu työvirta korvautuu ensimmäisellä", async () => {
+  const { laneOf, NONE_STREAM } = await import("../public/app/core/myboard.js");
+  const streams = [{ id: "w1" }, { id: "w2" }];
+  assert.equal(laneOf("", streams), "");
+  assert.equal(laneOf(undefined, streams), "");
+  assert.equal(laneOf("w2", streams), "w2");
+  assert.equal(laneOf("poistettu", streams), "w1");
+  assert.equal(laneOf("poistettu", []), "");
+  assert.ok(NONE_STREAM.virtual && NONE_STREAM.id === "");
 });
