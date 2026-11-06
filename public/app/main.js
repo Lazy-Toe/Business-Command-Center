@@ -15,6 +15,7 @@ import { sectionEntries } from "./core/nav.js";
 import { buildToday, todayISO } from "./core/today.js";
 import { buildMine } from "./core/mine.js";
 import { PeoplePanel } from "./people-panel.js";
+import { NewCycleDialog } from "./newcycle.js";
 
 const { state, sections } = store;
 
@@ -112,6 +113,7 @@ function AppBar() {
   const [pdf, setPdf] = useState("PDF");
   const [hist, setHist] = useState(false);
   const [ppl, setPpl] = useState(false);
+  const [cyc, setCyc] = useState(false);
   const [subOpen, setSubOpen] = useState(false);
   useEscape(() => setSubOpen(false));
   const [pinned, setPinned] = useState(() => { try { return localStorage.getItem("bcc-subnav") !== "0"; } catch (e) { return true; } });
@@ -194,7 +196,8 @@ function AppBar() {
         <button type="button" class="barbtn" aria-haspopup="menu" aria-expanded=${open ? "true" : "false"} onClick=${() => setOpen(!open)}>Suunnitelma</button>
         ${open ? html`<div class="menu" role="menu">
           <button type="button" role="menuitem" onClick=${newPlan}>Uusi suunnitelma</button>
-          ${plan ? html`<button type="button" role="menuitem" onClick=${dup}>Monista tämä</button>
+          ${plan ? html`<button type="button" role="menuitem" onClick=${() => { setOpen(false); setCyc(true); }}>Uusi jakso (kopioi tämä)…</button>
+          <button type="button" role="menuitem" onClick=${dup}>Monista tämä</button>
           <button type="button" role="menuitem" onClick=${rename}>Nimeä uudelleen</button>
           <button type="button" role="menuitem" onClick=${exp}>Vie tiedostoon (JSON)</button>` : null}
           <button type="button" role="menuitem" onClick=${imp}>Tuo tiedostosta</button>
@@ -208,6 +211,7 @@ function AppBar() {
     </div>
     ${hist ? html`<${HistoryPanel} onClose=${() => setHist(false)} />` : null}
     ${ppl ? html`<${PeoplePanel} onClose=${() => setPpl(false)} />` : null}
+    ${cyc ? html`<${NewCycleDialog} onClose=${() => setCyc(false)} onDone=${() => { setCyc(false); showTab("kokonaisuus"); setView("plan"); }} />` : null}
   </div>`;
 }
 
