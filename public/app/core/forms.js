@@ -5,10 +5,7 @@ import { valuesOf, scoreRow, totals } from "./scorecard.js";
 import { DEFAULT_FORMULA } from "./formula.js";
 
 export const ROW_FIELDS = ["target", "min", "max", "weight", "actual"];
-export const APPLY_FIELDS = ["target", "min", "max", "weight"];
 const MAX_ROWS = 60, MAX_COMMENT = 4000, MAX_VAL = 30;
-export const STATUSES = ["open", "accepted", "rejected", "applied"];
-export const STATUS_TEXT = { open: "Avoin", accepted: "Hyväksytty", rejected: "Hylätty", applied: "Otettu käyttöön" };
 
 const byPos = (a, b) => (a.position || 0) - (b.position || 0);
 export const sortTypes = (types) => types.slice().sort(byPos);
@@ -90,28 +87,5 @@ export function checkForm(p, { types, isAdmin, effective }) {
     rows = f.rows;
   } else if (Array.isArray(p.rows) && p.rows.length) return { error: "Tyypillä ei ole taulukkoa." };
   return { ok: true, type, comment, rows };
-}
-
-// Ehdotuksen käyttöönotto: lomakkeen tavoite, rajat ja paino roolin riveille. Toteumaa ei oteta käyttöön, ja lukitut kentät jäävät mallille.
-// Tallentamaton rivi luodaan put-muutoksella, tallennettu päivitetään patch-muutoksella.
-export function applyOps(form, role, effective) {
-  const byDef = new Map(effective.map((x) => [x.def.id, x]));
-  const ops = [];
-  (form.data.rows || []).forEach((r) => {
-    const x = byDef.get(r.def);
-    if (!x) return;
-    const lock = x.def.data.lock || {}, data = {};
-    APPLY_FIELDS.forEach((k) => { if (!lock[k]) data[k] = r[k] || ""; });
-    if (!Object.keys(data).length) return;
-    ops.push(x.virtual ? { op: "put", id: x.row.id, kind: "metric", parent_id: role.id, data: Object.assign({ def: r.def }, data) } : { op: "patch", id: x.row.id, data });
-  });
-  return ops;
-}
-
-// Päätöksen sallitut siirtymät. Käyttöönotto onnistuu avoimesta tai hyväksytystä.
-export function nextStatus(from, to) {
-  if (!STATUSES.includes(to) || to === "open") return false;
-  if (to === "applied") return from === "open" || from === "accepted";
-  return from === "open" || from === "accepted" || from === "rejected";
 }
 

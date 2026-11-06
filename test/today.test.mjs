@@ -33,20 +33,6 @@ test("tehtävä kertoo myös vastuualueen oman omistajan, vaikka vastuu olisi as
   assert.deepEqual([by("late").owner, by("late").suggested], ["Mika", "Mika"], "ehdotus on vastuualueen omistaja");
 });
 
-test("avoin ehdotus nousee huomioon, päätetty ei, ja vain ehdotustyypin lomake", () => {
-  const more = [
-    { plan_id: "a", id: "t-eh", kind: "formtype", data: { name: "Ehdotus", proposal: true } }, { plan_id: "a", id: "t-ko", kind: "formtype", data: { name: "Kommentti" } },
-    { plan_id: "a", id: "f1", kind: "form", parent_id: "r1", data: { type: "t-eh", typeName: "Ehdotus", status: "open" } },
-    { plan_id: "a", id: "f2", kind: "form", parent_id: "r1", data: { type: "t-eh", typeName: "Ehdotus", status: "accepted" } },
-    { plan_id: "a", id: "f3", kind: "form", parent_id: "r1", data: { type: "t-ko", typeName: "Kommentti", status: "open" } }
-  ];
-  const r = buildToday(items.concat(more), T);
-  const f = r.attention.find((a) => a.id === "f1");
-  assert.ok(f && f.owner === "Mika" && f.title === "Ehdotus · Sales");
-  assert.deepEqual(ids(r.attention).filter((x) => x.startsWith("f")), ["f1"]);
-  assert.deepEqual(ids(buildToday(items.concat(more), T, { owner: "Iida" }).attention).filter((x) => x.startsWith("f")), []);
-});
-
 test("tehtävät luokitellaan päivän mukaan, valmis ei näy", () => {
   const r = buildToday(items, T);
   assert.deepEqual(ids(r.late), ["late"]);

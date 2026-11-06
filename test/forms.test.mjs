@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canCreate, typesFor, dateFi, formLabel, visibleForms, draftRows, freezeRows, scoreSnapshot, scoreForm, checkForm, applyOps, nextStatus, STATUS_TEXT } from "../public/app/core/forms.js";
+import { canCreate, typesFor, dateFi, formLabel, visibleForms, draftRows, freezeRows, scoreSnapshot, scoreForm, checkForm } from "../public/app/core/forms.js";
 import { rowsFor } from "../public/app/core/scorecard.js";
 
 const type = (id, data, position = 1) => ({ id, kind: "formtype", position, data: Object.assign({ name: id }, data) });
@@ -90,31 +90,4 @@ test("luontipyynnön tarkistus: tyyppi, oikeus, taulukko ja kommentti", () => {
   assert.equal(checkForm({ type: "kommentti", comment: "x".repeat(5000) }, ctx(true)).comment.length, 4000);
   for (const bad of [null, "x", 5, []]) assert.ok(checkForm(bad, ctx(true)).error);
   assert.equal(checkForm({ type: "ehdotus", rows: [{ def: "toinen-rooli" }] }, ctx(true)).error, "Rivi ei kuulu roolin tavoitteisiin.");
-});
-
-test("käyttöönotto kopioi tavoitteen, rajat ja painon, ei toteumaa eikä lukittua kenttää", () => {
-  const stored = [{ id: "m2", kind: "metric", parent_id: "r1", data: { def: "d2", actual: "5" } }];
-  const f = form("f", { rows: [
-    { def: "d1", target: "9", min: "1", max: "2", weight: "50", actual: "999" },
-    { def: "d2", target: "60", min: "50", max: "70", weight: "5", actual: "999" },
-    { def: "poistettu", target: "1" }
-  ] });
-  const ops = applyOps(f, role, effective(stored));
-  assert.deepEqual(ops[0], { op: "put", id: "v-r1-d1", kind: "metric", parent_id: "r1", data: { def: "d1", min: "1", max: "2", weight: "50" } }, "tallentamaton luodaan, tavoite on lukittu");
-  assert.deepEqual(ops[1], { op: "patch", id: "m2", data: { target: "60", min: "50", max: "70", weight: "5" } });
-  assert.equal(ops.length, 2);
-  assert.ok(ops.every((o) => !("actual" in o.data)));
-});
-
-test("päätöksen siirtymät", () => {
-  assert.equal(nextStatus("open", "accepted"), true);
-  assert.equal(nextStatus("open", "rejected"), true);
-  assert.equal(nextStatus("accepted", "applied"), true);
-  assert.equal(nextStatus("open", "applied"), true);
-  assert.equal(nextStatus("rejected", "applied"), false, "hylättyä ei oteta käyttöön");
-  assert.equal(nextStatus("applied", "rejected"), false, "käyttöön otettua ei hylätä");
-  assert.equal(nextStatus("applied", "applied"), false);
-  assert.equal(nextStatus("open", "open"), false);
-  assert.equal(nextStatus("open", "x"), false);
-  assert.ok(STATUS_TEXT.applied);
 });
